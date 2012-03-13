@@ -343,7 +343,7 @@ class Genome():
             for j in xrange(self.chromosomes[chromNum]/resolution + 1):
                 BinnedGC[chromNum].append(self.getGC(chromNum+1,j*resolution,(j+1)*resolution))
                 print "Chrom:",chromNum,"bin:",j
-        return  
+        return  BinnedGC
                 
 
 

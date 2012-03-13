@@ -67,7 +67,7 @@ class binnedData(object):
         
     def loadGC(self):        
         "loads GC content at given resolution"
-        data = self.genome.getBinnedGCContent()
+        data = self.genome.getBinnedGCContent(self.resolution)
         eigenvector = numpy.zeros(self.trackLength,float)        
         for chrom in range(1,self.chromosomeCount + 1):
             eigenvector[self.chromosomeStarts[chrom-1]:self.chromosomeStarts[chrom-1] + len(data[chrom-1])] = data[chrom-1]
@@ -98,6 +98,7 @@ class binnedData(object):
             weave.inline(code, ['m','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
             self.dataDict[i] = data
             #mat_img(data) 
+            
         
         
     
@@ -154,10 +155,11 @@ class binnedData(object):
         mask = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]
         self.mask2D[mask] = False 
         for i in self.dataDict.keys():                
-            self.dataDict[i][mask] = 0             
+            self.dataDict[i][mask] = 0   
+        self.removedCis = True           
         
             
-    def fancyFakeCisOnce(self):
+    def fakeCisOnce(self):
         for i in self.dataDict.keys():
             data = self.dataDict[i] * 1. 
             data = numpy.array(data,order = "C")
@@ -214,15 +216,17 @@ class binnedData(object):
             """
             weave.inline(code, ['mask','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
             self.dataDict[i] = data
+            self.removedCis = True 
+            self.fakedCis = True 
             #mat_img(data)
 
-    def fancyFakeCis(self):
+    def fakeCis(self):
         "fakes cis contacts in a fancy way"
         self.removeCis()
         self.ultracorrect(M=5)
-        self.fancyFakeCisOnce()
+        self.fakeCisOnce()
         self.ultracorrect( M = 5)
-        self.fancyFakeCisOnce()
+        self.fakeCisOnce()
         self.ultracorrect(M = 10) 
 
     def emulateCis(self):
@@ -254,9 +258,11 @@ class binnedData(object):
             """
             weave.inline(code, ['transmap','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
             self.dataDict[i] = data
+        self.removedCis = False 
+        self.fakedCis = False 
 
 
-    def fancyFakeMissing(self, stay = False):
+    def fakeMissing(self, stay = False):
         "fakes missing megabases in the fancy way"
         for i in self.dataDict.keys():
             data = self.dataDict[i] * 1.
@@ -372,12 +378,16 @@ class binnedData(object):
         return s 
 
 
-
+        
     
             
     def doPCA(self):
         """performs PCA on the data
         creates dictionary self.PCA with results"""
+        if (self.removedCis == False) or (self.fakedCis == False): 
+            print "Cis contacts have not been removed and/or faked."
+            print 'Are you sure you want to continue???'
+            raw_input("press any button to continue... <-----")            
         self.PCA = {}
         for i in self.dataDict.keys():
             self.PCA[i] = PCA(self.dataDict[i])
@@ -385,11 +395,16 @@ class binnedData(object):
     def doEig(self):
         """performs eigenvector expansion on the data
         creates dictionary self.EIG with results"""
+        if (self.removedCis == False) or (self.fakedCis == False): 
+            print "Cis contacts have not been removed and/or faked."
+            print 'Are you sure you want to continue???'
+            raw_input("press any button to continue... <-----")
+
         self.EIG = {}
         for i in self.dataDict.keys():
             self.EIG[i] = EIG(self.dataDict[i])
         return self.EIG
-                        
+    
     
     def cisToTrans(self,mode = "All", filename = "GM-all"):
         """

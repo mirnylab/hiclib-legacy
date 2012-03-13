@@ -25,10 +25,10 @@ def info(infoType, value, tb):
     
     traceback.print_exception(infoType, value, tb)
     print
-    import code    
-    code.InteractiveConsole(globals() ).interact()
+    #import code    
+    #code.InteractiveConsole(globals() ).interact()
     #alternative - PDB degubber 
-    #pdb.post_mortem(tb) 
+    pdb.post_mortem(tb) 
 
 #print hasattr(sys,'ps1')
 sys.excepthook = info
