@@ -392,6 +392,7 @@ class binnedData(object):
         for i in self.dataDict.keys():
             self.PCA[i] = PCA(self.dataDict[i])
         return self.PCA
+            
     def doEig(self):
         """performs eigenvector expansion on the data
         creates dictionary self.EIG with results"""

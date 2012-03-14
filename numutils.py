@@ -62,27 +62,9 @@ def maskPCA(A,mask):
 
 
 def PCA(A):
-
+    "performs PCA analysis, and returns 6 best principal components"
     A = numpy.array(A,float)
-    """ performs principal components analysis 
-        (PCA) on the n-by-p data matrix A
-        Rows of A correspond to observations, columns to variables. 
-    
-    Returns :  
-     coeff :
-       is a p-by-p matrix, each column containing coefficients 
-       for one principal component.
-     score : 
-       the principal component scores; that is, the representation 
-       of A in the principal component space. Rows of SCORE 
-       correspond to observations, columns to components.
-    
-     latent : 
-       a vector containing the eigenvalues 
-       of the covariance matrix of A.
-    """
-# computing eigenvalues and eigenvectors of covariance matrix
-    M = (A-numpy.mean(A.T,axis=1)).T # subtract the mean (along columns)
+    M = (A-numpy.mean(A.T,axis=1)).T 
     covM = numpy.dot(M,M.T)
     [latent,coeff] =  scipy.sparse.linalg.eigsh(covM,6)
     print latent
@@ -90,16 +72,15 @@ def PCA(A):
 
 
 def EIG(A):
-
-    A = numpy.array(A,float)
-# computing eigenvalues and eigenvectors of covariance matrix
+    "Performs mean-centered engenvector expansion"
+    A = numpy.array(A,float)    
     M = (A - numpy.mean(A)) # subtract the mean (along columns)
     if (M -M.T).var() < numpy.var(M[::10,::10]) * 0.000001:
         [latent,coeff] = scipy.sparse.linalg.eigsh(M,3)
-        print "herm"
+        print "herm"   #matrix is hermitian
     else: 
         [latent,coeff] = scipy.sparse.linalg.eigs(M,3)
-        print "norm"
+        print "norm"   #Matrix is normal
     alatent = numpy.argsort(numpy.abs(latent)) 
     print latent[:4]
     coeff = coeff[:,alatent]
@@ -107,11 +88,9 @@ def EIG(A):
 
 
 
-
-
-#performICA(data,4)
-
 def projectOnEigenvalues(data,N=1):
+    "projects symmetric data on the first N eigenvalues"
+    #TODO: rewrite properly for both symmetric and non-symmetric case 
     meanOfData = numpy.mean(data)
     mdata = data - meanOfData
     symData = 0.5*(mdata + mdata.T)
@@ -122,13 +101,9 @@ def projectOnEigenvalues(data,N=1):
         ndata += values[i] * vectors[:,i][:,None] * vectors[:,i][None,:]
     return ndata + meanOfData 
     
-    
-    
-
-    
-
 
 def correct(y):
+    "Correct non-symmetric data once"
     x = numpy.array(y,float)        
     s = numpy.sum(x,axis = 1)
     s /= numpy.mean(s[s!=0])    
@@ -152,6 +127,7 @@ def correctInPlace(x):
 
 
 def ultracorrectSymmetricWithVector(x,v = None,M=50,chromosomes = None,diag = -1):
+    "Main method for correcting cis+trans data"    
     totalBias = numpy.ones(len(x),float)
     code = """
     #line 50 "binary_search.py"
@@ -167,33 +143,22 @@ def ultracorrectSymmetricWithVector(x,v = None,M=50,chromosomes = None,diag = -1
     support = """
     #include <math.h>  
     """
-    
+        
     x = numpy.array(x,float,order = 'C')
     if v == None: v = numpy.zeros(len(x),float)
-
     N = len(x)
     N #Eclipse warning remover 
     v = numpy.array(v,float,order = "C")
     if chromosomes != None: 
-        chromosomes = r_[chromosomes,len(v)]
-         
-    for _ in xrange(M):
-         
-        s0 = numpy.sum(x,axis = 1)
-         
+        chromosomes = r_[chromosomes,len(v)]         
+    for _ in xrange(M):         
+        s0 = numpy.sum(x,axis = 1)         
         mask = [s0 == 0]            
-        v [s0 == 0] = 0
-        
+        v [s0 == 0] = 0        
         nv = v / (totalBias * (totalBias[mask==False]).mean())
-        
-         
-        
-        
-         
         s = s0 + nv
-          
-    
-        for dd in xrange(diag + 1):
+
+        for dd in xrange(diag + 1):   #excluding the diagonal 
             if dd == 0:
                 s -= numpy.diagonal(x)
             else:
@@ -201,42 +166,16 @@ def ultracorrectSymmetricWithVector(x,v = None,M=50,chromosomes = None,diag = -1
                 #print dia
                 s[dd:] -= dia
                 s[:-dd] -= dia 
-
-        
-        
         s /= numpy.mean(s[s0!=0])
         s[s0==0] = 1
         totalBias *= s
-        #print s 
         scipy.weave.inline(code, ['x','s','N'], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
-        
-        
-
-    #x = x / (s1/s_in)
-    #v = v / (s1/s_in)     
-
     corr = totalBias[s0!=0].mean()
     x *= corr * corr
     totalBias /= corr
     return x,v/totalBias 
 
 
-#a = numpy.array([[3,2,1],[2,4,5],[1,5,6]])
-#b = numpy.array([7,8,9])
-#biases = numpy.random.random(3) + 0.5
-#biases /= biases.mean()
-#ab = a * biases[:,None] * biases[None,:]
-#bb = b * biases
-#
-#
-#ac,bc = ultracorrectSymmetricWithVector(ab, bb,100)
-#nbiases =  bb/bc
-#print nbiases
-#
-#print ab   - ac * ((nbiases[:,None] * nbiases[None,:]))
-#print bb   - bc * nbiases * nbiases.mean()  
-
- 
 
 
 
@@ -309,8 +248,7 @@ def ultracorrect(x,M=20):
     x = numpy.array(x,float)
     print numpy.mean(x),
     newx = numpy.array(x)
-    for _ in xrange(M):
-         
+    for _ in xrange(M):         
         correctInPlace(newx)
     print numpy.mean(newx),
     newx /= (1. * numpy.mean(newx)/numpy.mean(x))
