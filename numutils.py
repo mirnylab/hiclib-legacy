@@ -1,44 +1,186 @@
 import base   
-from math import sin,cos,exp,log,sqrt 
+from math import sin,cos,log,sqrt 
 import numpy
-na = numpy.array
-from numpy import r_
-import scipy.sparse, scipy.weave  
- 
+na = numpy.array 
+import  scipy.weave,scipy.sparse.linalg  
+from scipy import weave 
 import hashlib 
 import random
- 
-#import mdp 
 
-
-  
-    
 #-------------------------
-"Mathematical utilities 
+"Mathematical utilities first" 
 #-------------------------
-
-
 
 def rank(x):
     "Returns rank of an array"
-    x = numpy.array(x)
-    tmp = x.argsort()
+    tmp = numpy.argsort(x)
     return na(numpy.arange(len(x)),float)[tmp.argsort()]
 
-
 def trunk(x,low=0.005,high = 0.005):
-    x  = numpy.array(x)
-    sortedArray = numpy.sort(x.ravel())
-    NS = len(sortedArray)
-    lowValue = sortedArray[int(NS* (low))]
-    highValue = sortedArray[int(NS* (1 - high))]
-    x[x>highValue] = highValue
-    x[x<lowValue] = lowValue 
-    return x
+    "Trunkates top 'low' fraction and top 'high' fractin of an array "    
+    lowValue, highValue = numpy.percentile(x,[low*100.,(1-high)*100.])     
+    return numpy.clip(x,a_min = lowValue, a_max = highValue)    
+    
+def arraySearch(array,tosearch):
+    "returns location of tosearch in array" 
+    inds = numpy.argsort(array)
+    arSorted = array[inds]
+    newinds = numpy.searchsorted(arSorted[:-1],tosearch)    
+    return inds[newinds]
 
-def maskPCA(A,mask):    
+def arrayInArray(array,filterarray):    
+    """gives you boolean array of indices of elements in array that are contained in filterarray
+    a faster version of  return [i in filterarray for i in array]"""           #sorted array
+    array = numpy.asarray(array)  
+    mask = numpy.zeros(len(array),'bool')   
+    args = numpy.argsort(array)  
+    arsort = array[args]
+    diffs = numpy.r_[0,numpy.nonzero(numpy.diff(arsort) > 0.5)[0]+1,len(arsort)]  #places where sorted values of an array are changing
+    values = arsort[diffs[:-1]]  #values at that places
+    allinds = numpy.searchsorted(values[:-1],filterarray)   
+    exist = values[allinds] == filterarray                 #check that value in filterarray exists in array
+    N = len(allinds)    
+    N,args,exist  #Eclipse warning remover 
+    code = r"""
+    #line 54 "numutils"
+    using namespace std;
+    for (int i = 0; i < N; i++)
+    {    
+        if (exist[i] == 0) continue;
+        for (int j=diffs[allinds[i]];j<diffs[allinds[i]+1];j++)
+        {
+            mask[args[j]] = true;
+        }
+    } 
+    """
+    weave.inline(code, ['allinds', 'diffs' , 'mask' ,'args','N','exist'], 
+                 extra_compile_args=['-march=native -malign-double -O3'],
+                 support_code = r"#include <math.h>" )
+    return mask
+            
+def arraySumByArray(array,filterarray,meanarray):
+    "return [ sum(meanrrray [array == i]) for i in filterarray]"
+    array = numpy.asarray(array,dtype = float)
+    meanarray = numpy.asarray(meanarray,dtype = float)    
+    if len(array) != len(meanarray): raise ValueError    
+    args = numpy.argsort(array)
+    arsort = array[args]
+    diffs = numpy.r_[0,numpy.nonzero(numpy.diff(arsort) > 0.5)[0]+1,len(arsort)]
+    values = arsort[diffs[:-1]]
+    allinds = numpy.searchsorted(values[:-1],filterarray)
+    exist = values[allinds] == filterarray
+    N = len(allinds)
+    args,exist,N #Eclipse warning removal 
+    ret = numpy.zeros(len(allinds),meanarray.dtype)    
+    code = """
+    #line 50 "binary_search.py"
+    using namespace std;
+    for (int i = 0; i < N; i++)
+    {
+        if (exist[i] == 0) continue; 
+        for (int j=diffs[allinds[i]];j<diffs[allinds[i]+1];j++)
+        {
+            ret[i] += meanarray[args[j]];
+        }
+    } 
+    """
+    support = """
+    #include <math.h>  
+    """
+    weave.inline(code, ['allinds', 'diffs' , 'args' , 'ret','N','meanarray','exist'], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
+    return ret
+
+
+def sumByArray(array,filterarray, dtype = None):
+    "return [ sum(array == i) for i in filterarray]"            
+    arsort = numpy.sort(array)    
+    diffs = numpy.r_[0,numpy.nonzero(numpy.diff(arsort) > 0.5)[0]+1,len(arsort)]
+    if dtype != None: diffs = numpy.array(diffs, dtype = dtype)
+    values = arsort[diffs[:-1]]
+    del arsort        
+    allinds = numpy.searchsorted(values[:-1],filterarray)
+    notexist = values[allinds] != filterarray    
+    del values
+    c = diffs[allinds + 1] - diffs[allinds]
+    c[notexist] = 0 
+    return c
+
+
+def trimZeros(x):
+    "trims leading and trailing zeros of a 1D/2D array"
+    if len(x.shape) == 1:
+        nz = numpy.nonzero(x)[0]
+        return x[nz.min():nz.max()+1]         
+    ax1 = numpy.nonzero(numpy.sum(x,axis = 0))[0]    
+    ax2 = numpy.nonzero(numpy.sum(x,axis = 1))[0]
+    return x[ax1.min():ax1.max()+1, ax2.min() : ax2.max()+1 ]
+    
+def zoomOut(x,shape):
+    "rescales an array preserving the structure"
+    M1 = shape[0]
+    M2 = shape[1]
+    N1 = x.shape[0]
+    N2 = x.shape[1]
+    if (N1 < M1) or (N2 < M2):
+        d1 = M1/N1 + 1
+        d2 = M2/N2 + 1
+        d = max(d1,d2)
+        newx = numpy.zeros((d*N1,d*N2))        
+        for i in xrange(d):
+            for j in xrange(d):
+                newx[i::d,j::d] = x/(1. * d**2)
+        x = newx
+        M1,M2,N1,N2 = M1*d,M2*d,N1*d,N2*d   #array is bigger now
+    
+    shift1 = N1/float(M1) + 0.000000001
+    shift2 = N2/float(M2) + 0.000000001
+    x = numpy.array(x,numpy.double,order = "C")
+    tempres = numpy.zeros((M1,N2),float)    
+    for i in xrange(N1):
+        beg = (i/shift1)
+        end = ((i+1)/shift1)
+        if int(beg) == int(end): 
+            tempres[beg,:] += x[i,:]
+        else:
+            tempres[beg,:] += x[i,:] * (int(end) - beg) / (end - beg)
+            tempres[beg+1,:] += x[i,:] * (end - int(end)) / (end - beg)
+    res = numpy.zeros((M1,M2),float)
+    for i in xrange(N2):
+        beg = (i/shift2)
+        end = ((i+1)/shift2)
+        if int(beg) == int(end): 
+            res[:,beg] += tempres[:,i]
+        else:
+            res[:,beg] += tempres[:,i] * (int(end) - beg) / (end - beg)
+            res[:,beg+1] += tempres[:,i] * (end - int(end)) / (end - beg)
+    return res
+
+smartZoomOut = zoomOut
+
+def coarsegrain(array,size):
+    "coarsegrains array by summing values in sizeXsize squares"
+    if len(array.shape) == 2:
+        N = len(array) - len(array) % size 
+        array = array[:N,:N]
+        a = numpy.zeros((N/size,N/size),float)
+        for i in xrange(size):
+            for j in xrange(size):
+                a += array[i::size,j::size]
+        return a
+    if len(array.shape) == 1:
+        array = array[:(len(array) / size) * size]
+        narray = numpy.zeros(len(array)/size,float)
+        for i in xrange(size):
+            narray += array[i::size]
+        return narray
+
+#-----------------------------------
+"Iterative correction, PCA and other Hi-C related things"
+#-----------------------------------
+
+def maskPCA(A,mask):
+    "attempts to perform PCA-like analysis of an array with a masked part"    
     from numpy import linalg
-
     mask = numpy.array(mask, int)
     bmask = mask == 0
     A[bmask] = 0  
@@ -51,21 +193,13 @@ def maskPCA(A,mask):
         myvector = M[i]
         mymask = mask[i]
         allmask = mask * mymask[None,:]
-        #mat_img(allmask)
         tocov = myvector[None,:] * M 
-        #mat_img(tocov)
         covsums = tocov.sum(axis = 1)
         masksums = allmask.sum(axis = 1)
-        #print covsums
-        #print masksums
         covs[i] = covsums/masksums
     [latent,coeff] = linalg.eig(covs)
     print latent[:4]
     return coeff
-    
-
-
-
 
 
 def PCA(A):
@@ -93,6 +227,11 @@ def EIG(A):
     coeff = coeff[:,alatent]
     return coeff[:,::-1]
 
+def project(data,vector):
+    "project data on a single vector"
+    dot = numpy.sum((data*vector[:,None]),axis = 0)     
+    den = (vector * vector).sum()
+    return vector[:,None] * (dot / den)[None,:]
 
 
 def projectOnEigenvalues(data,N=1):
@@ -110,7 +249,7 @@ def projectOnEigenvalues(data,N=1):
     
 
 def correct(y):
-    "Correct non-symmetric data once"
+    "Correct non-symmetric or symmetirc data once"
     x = numpy.array(y,float)        
     s = numpy.sum(x,axis = 1)
     s /= numpy.mean(s[s!=0])    
@@ -120,7 +259,8 @@ def correct(y):
     s2[s2==0] = 1
     return x / (s2[None,:] * s[:,None])
 
-def correctInPlace(x):            
+def correctInPlace(x):
+    "works for non-symmetric and symmetric data"            
     s = numpy.sum(x,axis = 1)
     s /= numpy.mean(s[s!=0])    
     s[s==0] = 1     
@@ -128,16 +268,14 @@ def correctInPlace(x):
     s2 /= numpy.mean(s2[s2!=0])
     s2[s2==0] = 1    
     x /= (s2[None,:] * s[:,None])
-    
 
 
-
-
-def ultracorrectSymmetricWithVector(x,v = None,M=50,chromosomes = None,diag = -1):
-    "Main method for correcting cis+trans data"    
+def ultracorrectSymmetricWithVector(x,v = None,M=50,diag = -1):
+    """Main method for correcting DS and SS read data. Possibly excludes diagonal.
+    By default does iterative correction, but can perform an M-time correction"""    
     totalBias = numpy.ones(len(x),float)
     code = """
-    #line 133 numutils 
+    #line 288 "numutils" 
     using namespace std;
     for (int i = 0; i < N; i++)    
     {    
@@ -147,24 +285,17 @@ def ultracorrectSymmetricWithVector(x,v = None,M=50,chromosomes = None,diag = -1
         }
     } 
     """
-    support = """
-    #include <math.h>  
-    """
-        
+    if v == None: v = numpy.zeros(len(x),float)  #single-sided reads
     x = numpy.array(x,float,order = 'C')
-    if v == None: v = numpy.zeros(len(x),float)
-    N = len(x)
-    N #Eclipse warning remover 
     v = numpy.array(v,float,order = "C")
-    if chromosomes != None: 
-        chromosomes = r_[chromosomes,len(v)]         
+    N = len(x)
+    N #Eclipse warning remover     
     for _ in xrange(M):         
         s0 = numpy.sum(x,axis = 1)         
         mask = [s0 == 0]            
-        v [s0 == 0] = 0        
+        v[mask] = 0   #no SS reads if there are no DS reads here        
         nv = v / (totalBias * (totalBias[mask==False]).mean())
         s = s0 + nv
-
         for dd in xrange(diag + 1):   #excluding the diagonal 
             if dd == 0:
                 s -= numpy.diagonal(x)
@@ -176,21 +307,21 @@ def ultracorrectSymmetricWithVector(x,v = None,M=50,chromosomes = None,diag = -1
         s /= numpy.mean(s[s0!=0])
         s[s0==0] = 1
         totalBias *= s
-        scipy.weave.inline(code, ['x','s','N'], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
-    corr = totalBias[s0!=0].mean()
-    x *= corr * corr
+        scipy.weave.inline(code, ['x','s','N'], extra_compile_args=['-march=native -malign-double -O3'])  #performing a correction
+    corr = totalBias[s0!=0].mean()  #mean correction factor
+    x *= corr * corr #renormalizing everything
     totalBias /= corr
     return x,v/totalBias 
 
 
 
-
-
 def ultracorrectSymmetricByMask(x,mask,M = 50):
+    """performs iterative correction excluding some regions of a heatmap from consideration.
+    These regions are still corrected, but don't contribute to the sums 
+    """
     code = """
-    #line 50 "binary_search.py"
-    using namespace std;
-    
+    #line 333 "numutils.py"
+    using namespace std;    
     for (int i=0;i<N;i++)
     {
         for (int j = 0;j<N;j++)
@@ -198,8 +329,7 @@ def ultracorrectSymmetricByMask(x,mask,M = 50):
         if (mask[N * i + j] == 1)
             {
             sums[i] += x[N * i + j];
-            counts[i] += 1;
-             
+            counts[i] += 1;             
             }
         }
     }
@@ -211,15 +341,13 @@ def ultracorrectSymmetricByMask(x,mask,M = 50):
         {
             sums[i] = sums[i] / counts[i];
             ss+= sums[i];             
-            count+= 1;
-           
+            count+= 1;           
         }
         else
         {
             sums[i] = 1; 
         }
     }
-
     for (int i = 0;i<N;i++)
     {
         sums[i] /= (ss/count);
@@ -234,9 +362,8 @@ def ultracorrectSymmetricByMask(x,mask,M = 50):
     """
     support = """
     #include <math.h>  
-    """
-    
-    x = numpy.array(x,float,order = 'C')
+    """    
+    x = numpy.asarray(x,float,order = 'C')
     N = len(x)
     allsums = numpy.zeros(N,float)
     for i in xrange(M):
@@ -246,9 +373,6 @@ def ultracorrectSymmetricByMask(x,mask,M = 50):
         scipy.weave.inline(code, ['x','N','sums','counts','mask'], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
         allsums *= sums
     return x,allsums
-
-
-
 
 
 def ultracorrect(x,M=20):
@@ -263,7 +387,7 @@ def ultracorrect(x,M=20):
     return newx
 
 def correctBias(y):
-    x = numpy.array(y,float)        
+    x = numpy.asarray(y,dtype=float)        
     s = numpy.sum(x,axis = 1)
     s /= numpy.mean(s[s!=0])    
     s[s==0] = 1     
@@ -282,233 +406,16 @@ def ultracorrectBiasReturn(x,M=20):
     print numpy.mean(newx)
     return newx,ball
 
-
-
-  
-
-def project(data,vector):
-    dot = numpy.sum((data*vector[:,None]),axis = 0)
-     
-    den = (vector * vector).sum()
-    return vector[:,None] * (dot / den)[None,:]
-
-
-
-
-
-
-
-
-
-def coolAverage(*data):
-    if len(data) ==1: data = data[0]    
-    data = [numpy.array(i) for i in data]
-    
-        
-    shapes = [i.shape for i in data]
-    for i in shapes:
-        if len(i) != len(shapes[0]):
-            print "shape mismatch"
-            return -1                  
-    nshapes = numpy.array([numpy.array(i) for i in shapes])
-    mshape = numpy.max(nshapes,axis = 0)
-    newshape = tuple([len(data)] + list(mshape))    
-    newarray = numpy.zeros(newshape,float)
-    mask = numpy.zeros(newshape,"bool")
-    for i in xrange(len(data)):
-        myslice = [slice(0,end,None) for end in shapes[i]]
-        newarray[i][myslice] = data[i]
-        mask[i][myslice] = True
-    sums  = numpy.sum(newarray,axis = 0)
-    dividers = numpy.sum(mask,axis = 0)
-    return sums / dividers
-
-
-def arraySearch(array,tosearch):
-    "returns location of tosearch in array" 
-    inds = numpy.argsort(array)
-    arSorted = array[inds]
-    newinds = numpy.searchsorted(arSorted[:-1],tosearch)    
-    return inds[newinds]
-
-
-
-
-
-
-
-def arrayInArray(array,filterarray):
-    "gives you indices in array that are contained in filterarray"
-    
-        
-    from scipy import weave
-    arsort = numpy.sort(array)
-    mask = numpy.zeros(len(array),'bool')
-    args = numpy.argsort(array)
-    diffs = numpy.r_[0,numpy.nonzero(numpy.diff(arsort) > 0.5)[0]+1,len(arsort)]
-    #print arsort[diffs[0]:diffs[1]]
-    values = arsort[diffs[:-1]]
-    allinds = numpy.searchsorted(values[:-1],filterarray)
-    exist = values[allinds] == filterarray
-    N = len(allinds)    
-    N,args,exist  #used below, warning remover 
-    code = """
-    #line 50 "binary_search.py"
-    using namespace std;
-    for (int i = 0; i < N; i++)
-    {    
-        if (exist[i] == 0) continue;
-        for (int j=diffs[allinds[i]];j<diffs[allinds[i]+1];j++)
-        {
-            mask[args[j]] = true;
-        }
-    } 
-    """
-    support = """
-    #include <math.h>  
-    """
-    weave.inline(code, ['allinds', 'diffs' , 'mask' ,'args','N','exist'], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
-    return mask
-        
-
-
-        
-def trimZeros(x):
-    if len(x.shape) == 1:
-        nz = numpy.nonzero(x)[0]
-        a = nz.min()
-        b = nz.max() 
-        return x[a:b+1] 
-    print x.shape
-    s1 = numpy.sum(x,axis = 0) > 0
-    a = numpy.nonzero(s1 == True)[0]
-    print numpy.min(a),numpy.max(a),
-    s1[numpy.min(a) : numpy.max(a)] = True    
-    s2 = numpy.sum(x,axis = 1) > 0
-    a = numpy.nonzero(s2 == True)[0]
-    print numpy.min(a),numpy.max(a)
-    s2[numpy.min(a) : numpy.max(a)] = True
-        
-     
-    
-    y = x[s2][:,s1]
-    return y 
-    
-def zoomOut(x,shape):
-    M1 = shape[0]
-    M2 = shape[1]
-    N1 = x.shape[0]
-    N2 = x.shape[1]
-    if (N1 < M1) or (N2 < M2): raise
-    shift1 = N1/float(M1) + 0.000000001
-    shift2 = N2/float(M2) + 0.000000001
-    x = numpy.array(x,numpy.double,order = "C")
-    tempres = numpy.zeros((M1,N2),float)    
-    for i in xrange(N1):
-        beg = (i/shift1)
-        end = ((i+1)/shift1)
-        if int(beg) == int(end): 
-            tempres[beg,:] += x[i,:]
-        else:
-            tempres[beg,:] += x[i,:] * (int(end) - beg) / (end - beg)
-            tempres[beg+1,:] += x[i,:] * (end - int(end)) / (end - beg)
-    res = numpy.zeros((M1,M2),float)
-    for i in xrange(N2):
-        beg = (i/shift2)
-        end = ((i+1)/shift2)
-        if int(beg) == int(end): 
-            res[:,beg] += tempres[:,i]
-        else:
-            res[:,beg] += tempres[:,i] * (int(end) - beg) / (end - beg)
-            res[:,beg+1] += tempres[:,i] * (end - int(end)) / (end - beg)
-    return res
-
-def smartZoomOut(x,shape):
-    M1 = shape[0]
-    M2 = shape[1]
-    N1 = x.shape[0]
-    N2 = x.shape[1]
-    if (N1 < M1) or (N2 < M2):
-        d1 = M1/N1 + 1
-        d2 = M2/N2 + 1
-        d = max(d1,d2)
-        newx = numpy.zeros((d*N1,d*N2))
-        
-        for i in xrange(d):
-            for j in xrange(d):
-                newx[i::d,j::d] = x/(1. * d**2)
-        return zoomOut(newx,shape)
-    else: return zoomOut(x,shape)
-    
-    
-
-    
-
-def arraySumByArray(array,filterarray,meanarray):
-    "return [ sum(meanrrray [array == i]) for i in filterarray]"
-    array = numpy.array(array,dtype = float)
-    meanarray = numpy.array(meanarray,dtype = float)
-    if len(array) != len(meanarray): raise 
-    from scipy import weave
-    arsort = numpy.sort(array)
-    args = numpy.argsort(array)
-    diffs = numpy.r_[0,numpy.nonzero(numpy.diff(arsort) > 0.5)[0]+1,len(arsort)]
-    # print arsort[diffs[0]:diffs[1]]
-    values = arsort[diffs[:-1]]
-    means = []
-    allinds = numpy.searchsorted(values[:-1],filterarray)
-    exist = values[allinds] == filterarray
-
-    #print values[allinds],filterarray
-    N = len(allinds)
-    args,means,exist,N #used below, warning remover 
-    ret = numpy.zeros(len(allinds),meanarray.dtype)
-    
-    code = """
-    #line 50 "binary_search.py"
-    using namespace std;
-    for (int i = 0; i < N; i++)
-    {
-        if (exist[i] == 0) continue; 
-        for (int j=diffs[allinds[i]];j<diffs[allinds[i]+1];j++)
-        {
-            ret[i] += meanarray[args[j]];
-        }
-    } 
-    """
-    support = """
-    #include <math.h>  
-    """
-    weave.inline(code, ['allinds', 'diffs' , 'args' , 'ret','N','meanarray','exist'], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
-    return ret
-
-def sumByArray(array,filterarray, dtype = None):
-    "return [ sum(array == i) for i in filterarray]"            
-    arsort = numpy.sort(array)    
-    diffs = numpy.r_[0,numpy.nonzero(numpy.diff(arsort) > 0.5)[0]+1,len(arsort)]
-    if dtype != None: diffs = numpy.array(diffs, dtype = dtype)
-    values = arsort[diffs[:-1]]
-    del arsort        
-    allinds = numpy.searchsorted(values[:-1],filterarray)
-    notexist = values[allinds] != filterarray    
-    del values
-    c = diffs[allinds + 1] - diffs[allinds]
-    c[notexist] = 0 
-    return c
-
-
-
-    
-
+#-----------------
+"Misc utilities from previous projects"
+#-------------------------
 
 def create_regions(a):
-    "creates array of nonzero regions"
-    
+    "creates array of nonzero regions"    
     a = numpy.array(a,int)
     a = numpy.concatenate([numpy.array([0],int),a,numpy.array([0],int)])
     a1 = numpy.nonzero(a[1:] * (1-a[:-1]))[0]
-    a2 = numpy.nonzero(a[:-1] * (1-a[1:]))[0]
-    
+    a2 = numpy.nonzero(a[:-1] * (1-a[1:]))[0]    
     return numpy.transpose(numpy.array([a1,a2]))
     
     
@@ -534,18 +441,6 @@ def fill_sphere(r):
             points.append((x,y,z))
     return numpy.array(points)
     
-            
-        
-
-
- 
-def exprandom(a,b):
-    A = exp(a)
-    B = exp(b)
-    ra = numpy.random.random()
-    ra2 = ra*(B-A) + A 
-    return log(ra2)
-
    
 class harray(numpy.ndarray):
     "hashable numpy array, do not change it on the way"
@@ -553,12 +448,9 @@ class harray(numpy.ndarray):
         subarr = numpy.array(data)
         subarr = subarr.view(subtype)
         return subarr
-
-        
     def __hash__(self):
         try:
             self.hashed
-            
         except:
             self.hashed = int(hashlib.md5(self.tostring()).hexdigest(),16)
         return self.hashed
@@ -576,30 +468,11 @@ def realContacts(a):
         
 def contactPower(a,N): 
     a = a>0
-    for _ in xrange(N):
-       
+    for _ in xrange(N):       
         b = numpy.dot(a,a)
         b = b>0       
         a = b
     return a 
-
-
-def coarsegrain(array,size):
-    if len(array.shape) == 2:
-        N = len(array) - len(array) % size 
-        array = array[:N,:N]
-        a = numpy.zeros((N/size,N/size),float)
-        for i in xrange(size):
-            for j in xrange(size):
-                a += array[i::size,j::size]
-        return a
-    if len(array.shape) == 1:
-        array = array[:(len(array) / size) * size]
-        narray = numpy.zeros(len(array)/size,float)
-        for i in xrange(size):
-            narray += array[i::size]
-        return narray
-
 
 
 #from inout import img_show
@@ -609,10 +482,6 @@ def corr2d(x):
     x = numpy.array(x)
     t = numpy.fft.fft2(x)
     return numpy.real(numpy.fft.ifft2(t*numpy.conjugate(t)))
-
-
-
-
 
 def logbins(a, b, pace, N_in=0):
     "create log-spaced bins"
@@ -632,43 +501,23 @@ def logbins(a, b, pace, N_in=0):
     return [int(i) for i in ret]
 
 
-
-def alogbins(a,b,pace,N_in=0):
-    "create floating point log bins"
-    beg = log(a)
-    end = log(b - 1)
-    pace = log(pace)
-    N = int((end - beg) / pace)
-    if N_in != 0: N = N_in  
-    pace = (end - beg) / N
-    mas = numpy.arange(beg, end + 0.000000001, pace)
-    ret = numpy.exp(mas)
-    return ret
-
 def rescale(data):
     "rescales array to zero mean unit variance"
-    if type(data) !=numpy.ndarray: data = numpy.array(data,'float')
-    L = len(data)
-    av = numpy.sum(data)/float(L)
-    fun = lambda x:(x-av)**2
-    dis = sqrt(numpy.sum(fun(data))/float(L))+0.000001
-    f = lambda x:(x-av)/dis
-    return numpy.array(f(data),'float')
+    data = numpy.asarray(data,dtype = float)
+    return (data - data.mean())/ sqrt(data.var())
     
 def autocorr(x):
+    "autocorrelation function"
     x = rescale(x)
     result = numpy.correlate(x, x, mode='full')
     return result[result.size/2:]
 
 def rotationMatrix(theta):
-    tx,ty,tz = theta
-    
+    tx,ty,tz = theta    
     Rx = numpy.array([[1,0,0], [0, cos(tx), -sin(tx)], [0, sin(tx), cos(tx)]])
     Ry = numpy.array([[cos(ty), 0, -sin(ty)], [0, 1, 0], [sin(ty), 0, cos(ty)]])
-    Rz = numpy.array([[cos(tz), -sin(tz), 0], [sin(tz), cos(tz), 0], [0,0,1]])
-    
+    Rz = numpy.array([[cos(tz), -sin(tz), 0], [sin(tz), cos(tz), 0], [0,0,1]])    
     return numpy.dot(Rx, numpy.dot(Ry, Rz))
-
 
 def random_on_sphere(r=1):
     while True:        
@@ -688,7 +537,6 @@ def random_in_sphere(r=1):
         if numpy.sum(a**2) < 1:
             return r*a
 randomInSphere = random_in_sphere
-
 
 
 class node():
@@ -729,12 +577,7 @@ class node():
         self.createChildren(x)
         for i in self.children:
             i.createLambdaChildren(L,maxgen)
-def percentileMask(array,low=0.01,high=0.01):
-    sortarray = numpy.sort(array)
-    N = len(array)
-    low = sortarray[low * N]
-    high = sortarray[(1-high)*N]
-    return (array > low) * (array < high)
+
 class coolnode(node):
     def add_child(self):
         try:self.children.append(coolnode(self))
@@ -781,8 +624,7 @@ class nodes:
     def __init__(self,parent):
         self.parent = parent
         assert isinstance(parent,(node,coolnode))
-        self.nodes = parent.giveAllChildren()
-        
+        self.nodes = parent.giveAllChildren()        
         
     def give_generations(self):
         return [i.generation for i in self.nodes]
@@ -792,11 +634,8 @@ class nodes:
         self.parent.rewire(-1)
         
     def max_rewire(self):
-        
-            
         node = random.choice(self.nodes)
         node.generation = -1 
-         
         self.rewire(node)
         generations1 = na(self.give_generations())
         node = self.nodes[numpy.argmax(generations1)]
@@ -806,9 +645,6 @@ class nodes:
         self.rewire(node)        
         na(self.give_generations())   
 
-            
-
-        
 
 def createLambdaTree(N,l):
     "creates tree with branching probability l"
@@ -843,62 +679,12 @@ def createLambdaTree(N,l):
                 return allNodes.parent.giveAllChildren()  
             for i in t: i.ID = myid
     
-    
-
-#bins = logbins(10,15000,4)
-
 def onetree(treeBin):
     def mytree(x):
         numpy.random.seed(x)
         random.seed(x) 
         return numpy.mean([i.generation for i in createLambdaTree(treeBin,1)])    
     return numpy.mean(na(base.fmap(mytree,range(4))))
-#from inout import pointplot    
-#pointplot(3,[bins,map(onetree,bins)])            
-        
-        
-        
-            
-
-
-
-
-
-
- 
-
-
-
-def expsmeer(profile,smeer_length):
-    data = numpy.array(profile)
-    if smeer_length <=1: return data
-
-    trailing = numpy.zeros(smeer_length * 4,float)+numpy.mean(data[:smeer_length])
-    finishing = numpy.zeros(smeer_length * 4,float)+numpy.mean(data[-smeer_length:])
-    ndata = numpy.concatenate([trailing,data,finishing])
-    
-
-    data = ndata
-    
-    L = len(data)
-    a = numpy.array(range(4*smeer_length+1),float) - 2*smeer_length
-    add_profile = numpy.exp(-a*a/smeer_length**2)
-    smeered = numpy.zeros(len(data),float)
-    integral = numpy.sum(add_profile)
-    for i in xrange(2*smeer_length+1,L-2*smeer_length):
-        smeered[i-2*smeer_length:i+2*smeer_length+1] += data[i]*add_profile
-        
-    ndata =  smeered[4*smeer_length:-4*smeer_length]
-    return ndata/integral
-  
-
-
-
-
-
-
-        
-
 
 
 def test_lambda(l,ngen):
@@ -921,6 +707,8 @@ def test_lambda(l,ngen):
     possible = [i[1] - i[0] for i in bins]
             
     return [[(i[0]+i[1])/2. for i in bins],na(counts)/na(possible)]
+
+
 
 def cross(a, b):
     return numpy.array((a[1] * b[2] - a[2] * b[1], a[2] * b[0] - b[2] * a[0], a[0] * b[1] - b[0] * a[1]))
@@ -955,19 +743,14 @@ def intersect(t1, t2, t3, r1, r2):
     if not PointInTriangle(a, numpy.array((0, 0, 0)), t2, t3): return 0
     elif c1 > 0: return 1
     else: return - 1
-#print cross(numpy.array((0,1,0)),numpy.array((0,0,1)))
-#print intersect((1,1,1),(2,2,2),(1000,0,0),(10,2,1),(20,3,0))
+
 def newintersect(t1, t2, t3, r1, r2):
-    
-    
     A = numpy.transpose(numpy.array([r1 - r2, t2 - t1, t3 - t1]))        
     D = numpy.array(r1 - t1)
     B = numpy.linalg.inv(A)
     C = numpy.dot(B, D)
     if (0 < C[0] < 1 and 0 < C[1] < 1 and 0 < C[2] < 1 and 0 < C[2] + C[1] < 1): return True
     else: return False
-#print newintersect(numpy.array((1,1,1)),numpy.array((2,2,2)),numpy.array((1000,0,0)),numpy.array((10,2,1)),numpy.array((10,1,2)))
-#raw_input()
 
 def superintersect(t1, t2, t3, r1, r2):
     B = (t2[0] - t1[0], t2[1] - t1[1], t2[2] - t1[2])                         
@@ -993,8 +776,7 @@ def superintersect(t1, t2, t3, r1, r2):
         v = A[0]*(B[1]*D[2]-D[1]*B[2])-A[1]*(B[0]*D[2]-B[2]*D[0])+A[2]*(B[0]*D[1]-D[0]*B[1])
         if v>0 or v<det: return 0
         if u+v<det: return 0
-        return 1
-        
+        return 1        
     
 def createRW(N):
     data = numpy.zeros((N,3),float)
@@ -1010,19 +792,7 @@ def boundedRW(N):
         while numpy.sqrt((data[i+1]**2).sum()) > rad:  
             data[i+1,:] = data[i,:] + na(random_on_sphere(1))
     return data
-    
-    
 
-def writeRW():
-    for size in [4000,32000,128000]:
-        def dowrite(ind):
-            t = boundedRW(size)
-            a = open("/home/magus/evo/trajectories/boundedRWs/%d/rw%d.dat" % (size,ind),'w')
-            a.write("%d\n" % size)
-            for i in t:
-                a.write("%f\t%f\t%f\n" % tuple(i))
-            a.close()
-        base.fmap(dowrite,range(200),n=4)
 
 def get_distribution(x,num = 200):
     num  = float(num)
@@ -1124,7 +894,3 @@ int intersectValue(double *p1, double *v1, double *p2, double *v2) {
     M,N #Eclipse warning removal
     scipy.weave.inline(code, ['M','olddata','N',"returnArray"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
     return returnArray[0]
-    
-
-    
-

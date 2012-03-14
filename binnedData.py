@@ -1,9 +1,9 @@
 import base,dnaUtils,numutils
 base  # Eclipse warning damper
-from plotting import mat_img, removeBorder 
+from plotting import  removeBorder 
 from numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
 
-import  cPickle, numpy,joblib,scipy.stats  
+import  numpy,joblib
 from math import exp 
 from scipy import weave
 

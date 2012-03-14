@@ -60,8 +60,6 @@ def liftOver(x):
     tmp_error.seek(0, os.SEEK_SET)
     d = tmp_error.read()  
     if len(d) > 10: print d[:1000],"these were first 1000 symbols of error output\n"
-     
-      
     tmp_input.close()
     tmp_output.close()
     tmp_error.close()
