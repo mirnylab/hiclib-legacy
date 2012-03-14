@@ -13,11 +13,18 @@ import random
 
   
     
+#-------------------------
+"Mathematical utilities 
+#-------------------------
+
+
 
 def rank(x):
+    "Returns rank of an array"
     x = numpy.array(x)
     tmp = x.argsort()
     return na(numpy.arange(len(x)),float)[tmp.argsort()]
+
 
 def trunk(x,low=0.005,high = 0.005):
     x  = numpy.array(x)
@@ -130,7 +137,7 @@ def ultracorrectSymmetricWithVector(x,v = None,M=50,chromosomes = None,diag = -1
     "Main method for correcting cis+trans data"    
     totalBias = numpy.ones(len(x),float)
     code = """
-    #line 50 "binary_search.py"
+    #line 133 numutils 
     using namespace std;
     for (int i = 0; i < N; i++)    
     {    

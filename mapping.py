@@ -2,7 +2,7 @@
 mapping - map raw Hi-C reads to a genome
 ========================================
 '''
-import os,sys
+import os
 import glob
 import gzip
 import re
@@ -12,6 +12,11 @@ import numpy as np
 
 import Bio, Bio.SeqIO, Bio.Seq, Bio.Restriction
 import pysam
+
+##TODO: write some autodetection of chromosome lengthes base on genome folder
+##TODO: throw an exception if no chromosomes found in chromosome folder
+
+##TODO: fix #-to-ID correspondence for other species.
 
 """
 The dictionary of chromosome # to the char ID correspondence.
@@ -24,22 +29,6 @@ The dictionary of the chromosome char ID to # correspondence.
 """
 CHRM_IDX = {str(i):i for i in range(1,23)}
 CHRM_IDX.update({'X':23, 'Y':24, 'M':25})
-
-
-##TODO: write some autodetection of chromosome lengthes base on genome folder
-##TODO: throw an exception if no chromosomes found in chromosome folder
-
-"""
-The dictionary of chromosome # to the char ID correspondence.
-"""
-CHRM_ID = {i:str(i) for i in range(1,20)}
-CHRM_ID.update({20:'X', 21:'Y', 22:'M'})
-
-"""
-The dictionary of the chromosome char ID to # correspondence.
-"""
-CHRM_IDX = {str(i):i for i in range(1,20)}
-CHRM_IDX.update({'X':20, 'Y':21, 'M':22})
 
 _CACHED_RSITES_PATH = '%s_rsites.npz'
 
@@ -54,7 +43,7 @@ def _detect_quality_coding_scheme(in_fastq, num_entries = 10000):
             break
 
         if not line.startswith('@'):
-            raise Exception('%s does not comply with the FASTQ standards.' % line)
+            raise Exception('%s does not comply with the FASTQ standards.')
 
         fastq_entry = [line, in_file.readline(), 
                        in_file.readline(), in_file.readline()]
@@ -79,11 +68,13 @@ def filter_fastq(ids, in_fastq, out_fastq):
             break
 
         if not line.startswith('@'):
-            raise Exception('%s does not comply with the FASTQ standards.' % line)
+            raise Exception('%s does not comply with the FASTQ standards.')
 
         fastq_entry = [line, in_file.readline(), 
                        in_file.readline(), in_file.readline()]
-        read_id = line.split("/")[0][1:]
+        read_id = line.split()[0][1:]
+        if read_id.endswith('\1') or read_id.endswith('\2'):
+            read_id = read_id[:-2]
         if read_id in ids:
             out_file.writelines(fastq_entry)
 
@@ -189,7 +180,7 @@ def iterative_mapping(bowtie_path, genome_path, fastq_path, out_sam_path,
         local_5_trim = seq_start
         local_3_trim = raw_seq_len - local_seq_end
         bowtie_command = (
-            ('time %s -x %s --fast --score-min L,-0.6,-0.2 '
+            ('time %s -x %s --very-sensitive --score-min L,-0.6,-0.2 '
              '-q %s -5 %s -3 %s -p %s %s > %s') % (
                 bowtie_path, 
                 genome_path, 
@@ -219,6 +210,7 @@ def iterative_mapping(bowtie_path, genome_path, fastq_path, out_sam_path,
             os.path.split(genome_path)[-1],
             str(local_seq_start),
             str(local_seq_end))
+        
         split_uniquely_mapped(prev_fastq_path, local_sam_path,
                               local_fastq_path, out_sam_file)
 
@@ -291,7 +283,7 @@ def fill_rsites(lib, db_dir_path, enzyme_name,
     lib : dict
         A library of mapped Hi-C molecules. Modified by the function.
 
-    db_dir_path: path to the genome location
+    db_dir_path
         
     '''
     if enzyme_name not in Bio.Restriction.AllEnzymes:
@@ -329,29 +321,47 @@ def fill_rsites(lib, db_dir_path, enzyme_name,
 
     return lib
 
-def _parse_single_sam(sam_path, target_chrms, reverse_complement=False):
+def _parse_single_sam(sam_path, target_chrms, 
+                      max_seq_len = -1, reverse_complement=False):
+    # Pre-read the file and find the length of sequences, ids and # of reads.
+    id_len = 0
+    seq_len = 0
+    num_reads = 0
+    for read in pysam.Samfile(sam_path):
+        if (read.tid + 1) in target_chrms:
+            id_len = max(id_len, len(read.qname))
+            seq_len = max(id_len, len(read.seq))
+            num_reads += 1
+    if max_seq_len > 0:
+        seq_len = min(max_seq_len, seq_len)
+
+    # Initialize the data.
+    chrms = np.zeros((num_reads,), dtype=np.int8)
+    cuts  = np.zeros((num_reads,), dtype=np.int64)
+    dirs  = np.zeros((num_reads,), dtype=np.bool)
+    seqs  = np.zeros((num_reads,), dtype='|S%d' % seq_len)
+    ids   = np.zeros((num_reads,), dtype='|S%d' % id_len)
+
+    # Parse the file.
+    i = 0
     sam_file = pysam.Samfile(sam_path)
-    chrms, cuts, dirs, seqs, ids = [], [], [], [], []
     for read in sam_file:
         if (read.tid + 1) in target_chrms:
-            chrms.append(read.tid + 1)
-            dirs.append(not read.is_reverse)
-            ids.append(read.qname)
+            chrms[i] = read.tid + 1
+            dirs[i] = not read.is_reverse
+            ids[i] = read.qname
             if read.is_reverse:
                 if reverse_complement:
-                    seqs.append(Bio.Seq.reverse_complement(read.seq))
+                    seqs[i] = Bio.Seq.reverse_complement(read.seq)
                 else:
-                    seqs.append(read.seq)
-                cuts.append(read.pos + len(read.seq))
+                    seqs[i] = read.seq
+                cuts[i] = read.pos + len(read.seq)
             else:
-                seqs.append(read.seq)
-                cuts.append(read.pos)
+                seqs[i] = read.seq
+                cuts[i] = read.pos
+            i += 1
 
-    return (np.array(chrms, dtype=np.int8), 
-            np.array(cuts, dtype=np.int32),
-            np.array(dirs, dtype=np.bool),
-            np.array(seqs),
-            np.array(ids))
+    return (chrms, cuts, dirs, seqs, ids)
 
 def parse_sam(sam_path1, sam_path2, target_chrms = range(0, 25),
               reverse_complement=False):
