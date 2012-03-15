@@ -29,10 +29,7 @@ def info(infoType, value, tb):
     #code.InteractiveConsole(globals() ).interact()
     #alternative - PDB degubber 
     pdb.post_mortem(tb) 
-
-#print hasattr(sys,'ps1')
 sys.excepthook = info
-
 
 def run_in_separate_process(func, *args, **kwds):
     pread, pwrite = os.pipe()
@@ -60,12 +57,6 @@ def run_in_separate_process(func, *args, **kwds):
             except cPickle.PicklingError, exc:
                 cPickle.dump((2,exc), f, cPickle.HIGHEST_PROTOCOL)
         os._exit(0)
-
-
-
-
-
-
 
 
 def _nprocessors():
