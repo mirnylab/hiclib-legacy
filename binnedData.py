@@ -153,17 +153,21 @@ class binnedData(object):
     def removeCis(self):
         "sets to zero all cis contacts"
         mask = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]
-        self.mask2D[mask] = False 
+        #self.mask2D[mask] = False 
         for i in self.dataDict.keys():                
             self.dataDict[i][mask] = 0   
         self.removedCis = True           
         
             
-    def fakeCisOnce(self):
+    def fakeCisOnce(self,extraMask = None):
+        """used to fake cis counts.
+        If extra mask is supplied, it also fakes stuff in the extra mask 
+        """
         for i in self.dataDict.keys():
             data = self.dataDict[i] * 1. 
             data = numpy.array(data,order = "C")
             mask = numpy.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)
+            if extraMask != None: mask[extraMask] = 1    
             s = numpy.abs(numpy.sum(data,axis = 0)) <= 1e-20 
             mask[:,s]= 2
             mask[s,:] = 2              
@@ -377,7 +381,18 @@ class binnedData(object):
         self.mask2D = self.mask2D[s,:]
         return s 
 
-
+    def removeX(self):
+        "Makes all X chromosome invisible"    
+        beg = self.genome.chromosomeStarts[-1]
+        end = self.genome.chromosomeEnds[-1]        
+        for i in self.dataDict.values():
+            i[beg:end] = 0 
+            i[:,beg:end] = 0 
+        for i in self.singlesDict.values():
+            i[beg:end] = 0
+        for i in self.trackDict.values():
+            i[beg:end] = 0 
+                
         
     
             

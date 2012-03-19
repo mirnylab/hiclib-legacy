@@ -4,10 +4,10 @@ base #Eclipse warning damper
 import scipy.stats
 
 import plotting 
-import dnaUtils 
+ 
 
 import numpy 
-import numexpr
+
 import cPickle
   
 
@@ -71,8 +71,11 @@ def analyzeBeds():
     d = d1 + d2
     sd = numpy.sort(d)
     mask = (d > sd[0.30  * len(sd)]) *(d < sd[0.70 * len(sd)])     
-    e1 = numpy.concatenate([dnaUtils.load_eigenvector(chrom,0) for chrom in chroms])
-    e2 = numpy.concatenate([dnaUtils.load_eigenvector(chrom,1) for chrom in chroms])
+    #e1 = numpy.concatenate([dnaUtils.load_eigenvector(chrom,0) for chrom in chroms])
+    #e2 = numpy.concatenate([dnaUtils.load_eigenvector(chrom,1) for chrom in chroms])
+    e1 = None
+    e2 = None
+    #TODO: redo the "load eigenvector" part 
     
     print len(d1),len(e1)
     def corr(x,y): return scipy.stats.spearmanr(x, y)[0]

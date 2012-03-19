@@ -28,19 +28,32 @@ def saveData(data,filename,override = True):
         if os.path.exists(filename):
             os.remove(filename)
     joblib.dump(data,filename,compress = 3)
+ 
+"""
+chromosomes -> chrms
+locations -> mids 
+lengthes -> fraglens  
+distances -- 
+fragments - fragids 
+dists -> rsitedists
+cuts -- 
+strands -> strandss
+SS
+DS
+"""
 
 
 class track(object):
     def __init__(self,folder , genomeFolder , maximumMoleculeLength = 500,override = True):
         #These are fields that will be kept on a hard drive
-        self.vectors = {"chromosomes1":"int8","chromosomes2":"int8", #chromosomes. If >chromosomeCount, then it's second chromosome arm! 
-                        "locations1":"int64","locations2":"int64",  #midpoint of a fragment, determined as "(start+end)/2"
-                        "lengthes1":"uint32","lengthes2":"uint32", #fragment lengthes                        
-                        "distances":"uint32", #distance between fragments. If -1, different chromosomes. If -2, different arms.                         
-                        "fragments1":"int64","fragments2":"int64",  #IDs of fragments. 100 * location + chromosome.                         
-                        "dists1":"uint32","dists2":"uint32",
-                        "cuts1":"uint32","cuts2":"uint32",
-                        "strand1":"bool","strand2":"bool",
+        self.vectors = {"chrms1":"int8","chrms2":"int8", #chromosomes. If >chromosomeCount, then it's second chromosome arm! 
+                        "mids1":"int64","mids2":"int64",  #midpoint of a fragment, determined as "(start+end)/2"
+                        "fraglens1":"int32","fraglens2":"int32", #fragment lengthes                        
+                        "distances":"int32", #distance between fragments. If -1, different chromosomes. If -2, different arms.                         
+                        "fragids1":"int64","fragids2":"int64",  #IDs of fragments. 100 * location + chromosome.                         
+                        "dists1":"int32","dists2":"int32",        #distance to rsite
+                        "cuts1":"int32","cuts2":"int32",           #precise location of cut-site 
+                        "strands1":"bool","strands2":"bool",
                         "DS":"bool","SS":"bool"}
         self.saveExtension = "hdf5"
 
@@ -72,13 +85,12 @@ class track(object):
 
     def setData(self,name,data,folder = None):
         "a method to save numpy arrays to HDD quickly"
-        if folder == None: folder = self.folder
-        
+        if folder == None: folder = self.folder        
         if name not in self.vectors.keys():
             raise
         dtype = numpy.dtype(self.vectors[name]) 
         if data.dtype != dtype:
-            data = numpy.array(data,dtype=dtype)
+            data = numpy.asarray(data,dtype=dtype)
         f = h5py.File(os.path.join(folder , '%s.%s' % (name, self.saveExtension))  ,'w')
         f.create_dataset("MyDataset",data = data,compression = "lzf")        
         f.close()
@@ -87,15 +99,12 @@ class track(object):
         "a method to load numpy arrays from HDD quickly"
         if folder == None: folder = self.folder 
         if name not in self.vectors.keys():
-            raise
-                
+            raise                
         try: 
             f = h5py.File(os.path.join(folder , '%s.%s' % (name,self.saveExtension)) ,'r')
         except IOError:             
             print "cannot open file, ", os.path.join(folder , '%s.%s' % (name,self.saveExtension))
-            raise "HDF5 file do not exist. Are you loading existing dataset?"
-            
-        
+            raise IOError("HDF5 file do not exist. Are you loading existing dataset?")
         data = numpy.array(f["MyDataset"])
         f.close()
         return data
@@ -167,25 +176,25 @@ class track(object):
         rsites2 = data["rsites2"]
         pos1 = data["cuts1"]
         pos2 = data["cuts2"]
-        self.setData("chromosomes1",data['chrms1'])        
-        self.setData("chromosomes2",data['chrms2'])                
-        self.setData("DS",self.getData("chromosomes2") != 0)
+        self.setData("chrms1",data['chrms1'])        
+        self.setData("chrms2",data['chrms2'])                
+        self.setData("DS",self.getData("chrms2") != 0)
         self.setData("SS",self.getData("DS") == False) 
-        self.setData("strand1", data["dirs1"])
-        self.setData("strand2",data["dirs2"])
+        self.setData("strands1", data["dirs1"])
+        self.setData("strands2",data["dirs2"])
         self.setData("cuts1" , data["cuts1"])
         self.setData("cuts2" ,data["cuts2"])    
         self.setData("dists1", numpy.abs(rsites1 - pos1))  #distance to the downstream (where read points) restriction site 
         self.setData("dists2", numpy.abs(rsites2 - pos2))  #distance to the downstream (where read points) restriction site
-        self.setData('locations1', (up1 + down1)/2) 
-        self.setData('locations2', (up2 + down2)/2)
-        self.setData("lengthes1",numpy.abs(up1 - down1))
-        self.setData("lengthes2", numpy.abs(up2 - down2))
-        self.setData("fragments1", self.getData("locations1") * 100 + self.getData("chromosomes1"))
-        self.setData("fragments2", self.getData("locations2") * 100 + self.getData("chromosomes2"))                
+        self.setData('mids1', (up1 + down1)/2) 
+        self.setData('mids2', (up2 + down2)/2)
+        self.setData("fraglens1",numpy.abs(up1 - down1))
+        self.setData("fraglens2", numpy.abs(up2 - down2))
+        self.setData("fragids1", self.getData("mids1") * 100 + self.getData("chrms1"))
+        self.setData("fragids2", self.getData("mids2") * 100 + self.getData("chrms2"))                
         
-        distances = numpy.abs(self.getData("locations1") - self.getData("locations2"))
-        distances[self.getData("chromosomes1") != self.getData("chromosomes2")] = -1
+        distances = numpy.abs(self.getData("mids1") - self.getData("mids2"))
+        distances[self.getData("chrms1") != self.getData("chrms2")] = -1
         self.setData("distances",distances)
         print "finished parsing Anton file %s \n" % filename
  
@@ -212,9 +221,9 @@ class track(object):
                 self.calculateWeights()
         if chromosome2 == None: 
             chromosome2 = chromosome                        
-            mask = (self.chromosomes1 == chromosome) * (self.chromosomes2 == chromosome)
-            p1 = self.locations1[mask]
-            p2 = self.locations2[mask]
+            mask = (self.chrms1 == chromosome) * (self.chrms2 == chromosome)
+            p1 = self.mids1[mask]
+            p2 = self.mids2[mask]
             p1 = na(p1,int)
             p2 = na(p2,int)
             b1 = numpy.arange(0,max(p1.max()+resolution,p2.max()+resolution),resolution)            
@@ -222,12 +231,12 @@ class track(object):
             hist = hist + numpy.transpose(hist)
             
         else:
-            mask = (self.chromosomes1 == chromosome) * (self.chromosomes2 == chromosome2)
-            p11 = self.locations1[mask]
-            p21 = self.locations2[mask]            
-            mask = (self.chromosomes1 == chromosome2) * (self.chromosomes2 == chromosome)
-            p12 = self.locations2[mask]
-            p22 = self.locations1[mask]            
+            mask = (self.chrms1 == chromosome) * (self.chrms2 == chromosome2)
+            p11 = self.mids1[mask]
+            p21 = self.mids2[mask]            
+            mask = (self.chrms1 == chromosome2) * (self.chrms2 == chromosome)
+            p12 = self.mids2[mask]
+            p22 = self.mids1[mask]            
             p1 = numpy.r_[p11,p12]
             p2 = numpy.r_[p21,p22]            
             if (len(p1) == 0) or (len(p2) == 0):                 
@@ -270,9 +279,9 @@ class track(object):
         "creates an all-by-all heatmap in accordance with mapping provided by 'genome' class" 
         self.genome.createMapping(resolution)
         dr = self.DS 
-        label1 = self.genome.chromosomeStarts[self.chromosomes1[dr] - 1] + self.locations1[dr] / resolution
+        label1 = self.genome.chromosomeStarts[self.chrms1[dr] - 1] + self.mids1[dr] / resolution
         label1 = numpy.array(label1, dtype = "uint32")
-        label2 = self.genome.chromosomeStarts[self.chromosomes2[dr] - 1] + self.locations2[dr] / resolution
+        label2 = self.genome.chromosomeStarts[self.chrms2[dr] - 1] + self.mids2[dr] / resolution
         label2 = numpy.array(label2, dtype = "uint32")       
         label = label1 * numpy.int64(self.genome.N) + label2
         del label1
@@ -295,7 +304,7 @@ class track(object):
         "creates an SS coverage vector heatmap in accordance with the output of the 'genome' class"
         self.genome.createMapping(resolution)
         ds = self.DS == False        
-        label = self.genome.chromosomeStarts[self.chromosomes1[ds] - 1] + self.locations1[ds] / resolution
+        label = self.genome.chromosomeStarts[self.chrms1[ds] - 1] + self.mids1[ds] / resolution
         counts = sumByArray(label, numpy.arange(self.genome.N))
         return counts
     
@@ -312,50 +321,50 @@ class track(object):
         
 
     
-    def splitFragmentsByStrand(self):
-        "Splits fragments: those with strand = 1 gets location += 100. This is totally safe!  "
+    def splitFragmentsBystrands(self):
+        "Splits fragments: those with strands = 1 gets location += 100. This is totally safe!  "
         "This might be fun if you want to analyze two sides of the fragment separately, but unnecessary otherwise"
-        f1 = self.fragments1
+        f1 = self.fragids1
         f1 += 100*((f1/100) % 2)
-        f1 [self.strand1 == 1] += 100 
-        f2 = self.fragments2
+        f1 [self.strands1 == 1] += 100 
+        f2 = self.fragids2
         f2 += 100*((f2/100) % 2)
-        f2 [self.strand1 == 1] += 100
+        f2 [self.strands1 == 1] += 100
         self.rebuildFragments()
         
 
     
     def filterCentromeres(self):
         "separates chromosomal arms as different chromosomes"
-        #mask = self.chromosomes1 == self.chromosomes2
+        #mask = self.chrms1 == self.chrms2
         centromeres = self.genome.centromeres        
         centromeres = r_[1000000000,centromeres]
-        locations1 = self.locations1 /  centromeres[self.chromosomes1]            
-        tochange = (locations1 > 1)         
-        self.chromosomes1[tochange] += self.chromosomeCount
-        locations2 = self.locations2 /  centromeres[self.chromosomes2]    
-        tochange = (locations2 > 1)         
-        self.chromosomes2[tochange] += self.chromosomeCount
+        mids1 = self.mids1 /  centromeres[self.chrms1]            
+        tochange = (mids1 > 1)         
+        self.chrms1[tochange] += self.chromosomeCount
+        mids2 = self.mids2 /  centromeres[self.chrms2]    
+        tochange = (mids2 > 1)         
+        self.chrms2[tochange] += self.chromosomeCount
         locationsSingles = self.locationsSingles /  centromeres[self.chromosomesSingles]            
         tochange = (locationsSingles > 1)         
         self.chromosomesSingles[tochange] += self.chromosomeCount
-        self.distances[numpy.abs(self.chromosomes1 - self.chromosomes2) == self.chromosomeCount] = -2
-        self.fragments1 = self.locations1 * 100 + self.chromosomes1
-        self.fragments2 = self.locations2 * 100 + self.chromosomes2
+        self.distances[numpy.abs(self.chrms1 - self.chrms2) == self.chromosomeCount] = -2
+        self.fragids1 = self.mids1 * 100 + self.chrms1
+        self.fragids2 = self.mids2 * 100 + self.chrms2
         self.rebuildFragments()
         
     def recoverCentromeres(self):
         "recovers whole chromosomes after chromosomal arm separation" 
-        self.chromosomes1[self.chromosomes1 > self.chromosomeCount] -= self.chromosomeCount
-        self.chromosomes2[self.chromosomes2 > self.chromosomeCount] -= self.chromosomeCount
+        self.chrms1[self.chrms1 > self.chromosomeCount] -= self.chromosomeCount
+        self.chrms2[self.chrms2 > self.chromosomeCount] -= self.chromosomeCount
         self.rebuildFragments()
       
     def fragmentFilter(self,fragments):
         "keeps only reads that originate from fragments in 'fragments' variable, for DS - on both sides"
         if fragments.dtype == numpy.bool:
             fragments = self.ufragments[fragments]        
-        m1 = arrayInArray(self.fragments1,fragments)
-        m2 = arrayInArray(self.fragments2,fragments) + self.SS
+        m1 = arrayInArray(self.fragids1,fragments)
+        m2 = arrayInArray(self.fragids2,fragments) + self.SS
         mask = numpy.logical_and(m1,m2)
         self.maskFilter(mask)
 
@@ -380,14 +389,14 @@ class track(object):
             past = len(self.ufragments)        
         except:
             past = 0        
-        self.ufragments1,self.ufragments1ind = numpy.unique(self.fragments1,return_index=True)
-        self.ufragments2,self.ufragments2ind = numpy.unique(self.fragments2,return_index=True)
+        self.ufragids1,self.ufragids1ind = numpy.unique(self.fragids1,return_index=True)
+        self.ufragids2,self.ufragids2ind = numpy.unique(self.fragids2,return_index=True)
                 
         #Funding unique fragments and unique fragment IDs
-        self.ufragment1len = self.lengthes1[self.ufragments1ind]
-        self.ufragment2len = self.lengthes2[self.ufragments2ind]
+        self.ufragment1len = self.fraglens1[self.ufragids1ind]
+        self.ufragment2len = self.fraglens2[self.ufragids2ind]
  
-        uall = numpy.r_[self.ufragments1,self.ufragments2]
+        uall = numpy.r_[self.ufragids1,self.ufragids2]
         ulen = numpy.r_[self.ufragment1len,self.ufragment2len]
          
         self.ufragments,ind = numpy.unique(uall, True)        
@@ -440,14 +449,14 @@ class track(object):
         "removes reads that start within x bp near rsite"
         print "----->Semi-dangling end filter: remove guys who start %d bp near the rsite" % offset
 #        d1 = self.dist1
-#        l1 = self.lengthes1        
+#        l1 = self.fraglens1        
 #        d2 = self.dist2
-#        l2 = self.lengthes2
+#        l2 = self.fraglens2
 #        ds = self.DS
 #        ss = self.SS
 #        mask = numexpr.evaluate("(abs(d1 - l1) >= offset) and (((abs(d2 - l2) >= offset) and ds)  or  ss)")   #is buggy        
                 
-        mask = (numpy.abs(self.dists1 - self.lengthes1) >=offset) * ((numpy.abs(self.dists2 - self.lengthes2) >= offset )* self.DS + self.SS)
+        mask = (numpy.abs(self.dists1 - self.fraglens1) >=offset) * ((numpy.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)
         self.maskFilter(mask)
         print
         
@@ -456,8 +465,8 @@ class track(object):
         print "----->Filtering duplicates in DS reads: "
         l1 = numpy.array(self.cuts1)
         l2 = numpy.array(self.cuts2)
-        ch1 = self.chromosomes1
-        ch2 = self.chromosomes2
+        ch1 = self.chrms1
+        ch2 = self.chrms2
         n1 = numpy.int64(715827883)
         cc = numpy.int64(self.chromosomeCount)
         cc,n1 #Eclipse warning         
@@ -477,21 +486,21 @@ class track(object):
         print
         
 
-    def fragmentSum(self,fragments = None, strand = "both"):
+    def fragmentSum(self,fragments = None, strands = "both"):
         "returns sum of all counts for a set or subset of fragments"
         if fragments == None: fragments = self.ufragments                
-        if strand == "both":  
-            return sumByArray(self.fragments1,fragments) + sumByArray(self.fragments2[self.DS],fragments) 
-        if strand == 1: return sumByArray(self.fragments1,fragments)
-        if strand == 2:return sumByArray(self.fragments2[self.DS],fragments)
+        if strands == "both":  
+            return sumByArray(self.fragids1,fragments) + sumByArray(self.fragids2[self.DS],fragments) 
+        if strands == 1: return sumByArray(self.fragids1,fragments)
+        if strands == 2:return sumByArray(self.fragids2[self.DS],fragments)
         
         
     def printStats(self):
         print "-----> Statistics for the folder %s!" % self.folder
         print "     Single sided reads: " ,self.SS.sum()
         print "     Double sided reads: " , self.DS.sum()
-        ss1 = self.strand1[self.chromosomes1>0]
-        ss2 = self.strand2[self.chromosomes2>0]
+        ss1 = self.strands1[self.chrms1>0]
+        ss2 = self.strands2[self.chrms2>0]
         sf = ss1.sum() + ss2.sum()
         sr = len(ss1) + len(ss2) - sf
         print "     reverse/forward bias",float(sr)/sf
@@ -499,15 +508,10 @@ class track(object):
     def delete(self,folder = None, angry = True):         
         if folder == None: folder = self.folder
         if angry == True: print "     Folder  %s removed due to inconsistency" % folder
-        else: print "     Override: Folder %s cleaned up" % (folder,)        
-        for name in self.vectors:
-            try: 
-                filename = os.path.join(folder,name+"."+self.saveExtension)
-                os.remove(filename)
-                #print "removed inconsistent file %s" % filename
-            except:
-                filename = os.path.join(folder,name+"."+self.saveExtension)
-                #print "inconsistent file not found: %s" % filename
+        else: print "     Override: Folder %s cleaned up" % (folder,)
+        for i in os.listdir(folder):
+            os.remove(os.path.join(folder,i))
+                    
         
     def save(self,folderName):
         if self.folder == folderName: self.exitProgram("Cannot save to the working folder")
@@ -568,21 +572,21 @@ class HiCStatistics(track):
         for name in self.vectors:
             print "multipliing",name
             one = self.getData(name)
-            if name in ["locations1","locations2"]:
+            if name in ["mids1","mids2"]:
                 one += numpy.random.randint(0,5*N,len(one))            
             blowup = numpy.hstack(tuple([one]*N))
             self.setData(name,blowup)
             
     
-    def buildLengthDependencePlot(self,label = "plot", strand = "both",color = None):
-        "plots dependence of counts on fragment length. May do based on one strand only"
+    def buildLengthDependencePlot(self,label = "plot", strands = "both",color = None):
+        "plots dependence of counts on fragment length. May do based on one strands only"
         "please run  plt.legend & plt.show() after calling this for all datasets you want to consider"     
         fragmentLength = self.ufragmentlen
         pls = numpy.sort(fragmentLength)
         N = len(fragmentLength)
         sums = []
         sizes = []            
-        mysum = self.fragmentSum(None,strand)
+        mysum = self.fragmentSum(None,strands)
     
         for i in numpy.arange(0,0.98,0.015):
             b1,b2 = pls[i*N],pls[(i+0.015)*N-1]
@@ -594,17 +598,17 @@ class HiCStatistics(track):
         else:  plt.plot(sizes,sums,color,linewidth = 2,label = label)
     
         
-    def plotScaling(self,fragments1 = None,fragments2 = None,color = None,label = "",weights = False ,normalize = True):
+    def plotScaling(self,fragids1 = None,fragids2 = None,color = None,label = "",weights = False ,normalize = True):
         "plots scaling over, possibly uses subset of fragmetns, or weigts, possibly normalizes after plotting"
-        if fragments1 == None: fragments1 = self.ufragments
-        if fragments2 == None: fragments2 = self.ufragments
+        if fragids1 == None: fragids1 = self.ufragments
+        if fragids2 == None: fragids2 = self.ufragments
         lens = numpy.array(numutils.logbins(10000,180000000,1.25),float)+0.1        
         positions = []
         values = []
-        p11 = arrayInArray(self.fragments1,fragments1)
-        p12 = arrayInArray(self.fragments1,fragments2)
-        p21 = arrayInArray(self.fragments2,fragments1)
-        p22 = arrayInArray(self.fragments2,fragments2)
+        p11 = arrayInArray(self.fragids1,fragids1)
+        p12 = arrayInArray(self.fragids1,fragids2)
+        p21 = arrayInArray(self.fragids2,fragids1)
+        p22 = arrayInArray(self.fragids2,fragids2)
         mask = numpy.logical_or(p11* p22,p12 * p21)
         mask2 = numpy.logical_and(mask,self.distances > 0)
         dind = numpy.argsort(self.distances[mask2])
@@ -619,14 +623,14 @@ class HiCStatistics(track):
             except:
                 self.calculateWeights()
             uweights = self.weights[args]
-            weights1 = uweights[numpy.searchsorted(usort,fragments1)]
-            weights2 = uweights[numpy.searchsorted(usort,fragments2)]
-        len1 = ulen[numpy.searchsorted(usort,fragments1)]
-        len2 = ulen[numpy.searchsorted(usort,fragments2)]
+            weights1 = uweights[numpy.searchsorted(usort,fragids1)]
+            weights2 = uweights[numpy.searchsorted(usort,fragids2)]
+        len1 = ulen[numpy.searchsorted(usort,fragids1)]
+        len2 = ulen[numpy.searchsorted(usort,fragids2)]
         if (weights == True):
-            maxcountsall = self.calculateExpectedCount(fragments1, fragments2, lens[:-1], lens[1:],len1,len2,weights1,weights2)
+            maxcountsall = self.calculateExpectedCount(fragids1, fragids2, lens[:-1], lens[1:],len1,len2,weights1,weights2)
         else:
-            maxcountsall = self.calculateExpectedCount(fragments1, fragments2, lens[:-1], lens[1:],len1,len2)
+            maxcountsall = self.calculateExpectedCount(fragids1, fragids2, lens[:-1], lens[1:],len1,len2)
         for i in xrange(len(lens) - 1):
             beg = lens[i]
             end = lens[i+1]
@@ -645,7 +649,7 @@ class HiCStatistics(track):
             plt.plot(positions,values, label = label+", %d reads" % len(distances))
         
 
-    def calculateExpectedCount(self,fragments1,fragments2,  #fragments to exclude
+    def calculateExpectedCount(self,fragids1,fragids2,  #fragments to exclude
                                lenmins,lenmaxs,  #beginnings and ends of bins
                                alllen1, alllen2,   #fragment lengthes
                                weights1=None,weights2=None
@@ -653,10 +657,10 @@ class HiCStatistics(track):
         "Used for a fancy scaling calculation; is completely messed up"
         N = len(lenmins)
         count = [0]*N
-        chr1 = fragments1 % 100 
-        chr2 = fragments2 % 100 
-        pos1 = fragments1 / 100        
-        pos2 = fragments2 / 100
+        chr1 = fragids1 % 100 
+        chr2 = fragids2 % 100 
+        pos1 = fragids1 / 100        
+        pos2 = fragids2 / 100
         chromosomes = set(chr1)
         #summedWeights = numpy.cumsum(weights2) 
         for chrom in chromosomes:    
@@ -700,8 +704,8 @@ class HiCStatistics(track):
             mask = self.SS
         else:
             mask = self.DS
-        dists1 = self.lengthes1 - numpy.array(self.dists1,dtype = "int32") 
-        dists2 = self.lengthes2 - numpy.array(self.dists2,dtype = "int32") 
+        dists1 = self.fraglens1 - numpy.array(self.dists1,dtype = "int32") 
+        dists2 = self.fraglens2 - numpy.array(self.dists2,dtype = "int32") 
         m = min(dists1.min(),dists2.min())
         if offset < -m: 
             offset = -m
@@ -711,18 +715,18 @@ class HiCStatistics(track):
         myrange = numpy.arange(-offset,length-offset)
         
         plt.subplot(141)
-        plt.title("strand1, side 1")
-        plt.plot(myrange,numpy.bincount(5+dists1[mask][self.strand1[mask] == True ])[:length])
+        plt.title("strands1, side 1")
+        plt.plot(myrange,numpy.bincount(5+dists1[mask][self.strands1[mask] == True ])[:length])
         plt.subplot(142)
-        plt.title("strand1, side 2")
-        plt.plot(myrange,numpy.bincount(dists2[mask][self.strand1[mask] == True ])[:length])
+        plt.title("strands1, side 2")
+        plt.plot(myrange,numpy.bincount(dists2[mask][self.strands1[mask] == True ])[:length])
         
         plt.subplot(143)
-        plt.title("strand2, side 1")
-        plt.plot(myrange,numpy.bincount(dists1[mask][self.strand1[mask] == False ])[:length])
+        plt.title("strands2, side 1")
+        plt.plot(myrange,numpy.bincount(dists1[mask][self.strands1[mask] == False ])[:length])
         plt.subplot(144)
-        plt.title("strand2, side 2")
-        plt.plot(myrange,numpy.bincount(dists2[mask][self.strand1[mask] == False ])[:length])
+        plt.title("strands2, side 2")
+        plt.plot(myrange,numpy.bincount(dists2[mask][self.strands1[mask] == False ])[:length])
         
         plt.show()
 
@@ -800,11 +804,11 @@ def plotFigure2c():
 def doSupplementaryCoveragePlot():
     TR = track()
     TR.load("GM-all.refined")
-    s1 = TR.fragmentSum(strand = 1)
+    s1 = TR.fragmentSum(strands = 1)
     TR.saveFragments()
     TR.maskFilter(TR.dists1 > 500)
     TR.originalFragments()
-    s2 = TR.fragmentSum(strand = 1)
+    s2 = TR.fragmentSum(strands = 1)
     resolution = 1000000
     def coverage(s1,s2,TR):
         genome = dnaUtils.Genome("HG18")
@@ -833,11 +837,11 @@ def doSupplementaryCoveragePlot():
     
     TR = track()
     TR.load("GM-NcoI.refined")
-    s1 = TR.fragmentSum(strand = 1)
+    s1 = TR.fragmentSum(strands = 1)
     TR.saveFragments()
     TR.maskFilter(TR.dists1 > 500)
     TR.originalFragments()
-    s2 = TR.fragmentSum(strand = 1)
+    s2 = TR.fragmentSum(strands = 1)
     resolution = 1000000
     plt.subplot(122)
     plt.title("NcoI")

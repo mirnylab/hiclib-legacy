@@ -844,7 +844,7 @@ int intersectValue(double *p1, double *v1, double *p2, double *v2) {
     double t1 = (v2xp2[2]-v2xp1[2])/v2xv1[2];
     double t2 = (v1xp1[2]-v1xp2[2])/v1xv2[2];
     if(t1<0 || t1>1 || t2<0 || t2>1) {
-        free(v2xp2);free(v2xp1);free(v2xv1);free(v1xp1);free(v1xp2);free(v1xv2);
+        delete[] v2xp2;delete[] v2xp1;delete[] v2xv1;delete[] v1xp1;delete[] v1xp2;delete[] v1xv2;
         return 0;
     }
     else {
@@ -855,7 +855,7 @@ int intersectValue(double *p1, double *v1, double *p2, double *v2) {
     double z1 = inter1[2];
     double z2 = inter2[2];
     
-    free(v2xp2);free(v2xp1);free(v2xv1);free(v1xp1);free(v1xp2);free(v1xv2);free(inter1);free(inter2);
+    delete[] (v2xp2);delete[] (v2xp1);delete[] (v2xv1);delete[] (v1xp1);delete[] (v1xp2);delete[] (v1xv2);delete[] (inter1);delete[] (inter2);
     if(z1>=z2) return x;
     else return -x;
 }
@@ -884,7 +884,7 @@ int intersectValue(double *p1, double *v1, double *p2, double *v2) {
                 if(j<N-1) v2 = linearCombo(data[j+1],data[j],1,-1);
                 else v2 = linearCombo(data[M],data[N-1],1,-1);                
                 L+=intersectValue(data[i],v1,data[j],v2);
-                free(v1);free(v2);
+                delete[] (v1);delete[] (v2);
             }
         }
         

@@ -1,24 +1,17 @@
-import plotting 
 import numutils 
 import tempfile,subprocess
-from copy import deepcopy  
-
 from array import array 
 import Bio.SeqIO, Bio.SeqUtils
 import numpy 
 from scipy import weave
 from joblib import Memory  
-
 from math import sqrt
 import os,cPickle 
 
 
-#os.chdir("/home/magus/HiC2011/")            
-
 class Genome():
     def __init__(self,genomeFolder, genomeName = None, gapfile = None ):
-        """Loads a genome and calculates certain genomic parameters"""
-        
+        """Loads a genome and calculates certain genomic parameters"""        
         #setting up genome name  and folder
         self.genomeFolder = genomeFolder                 
         if genomeName == None: 
@@ -32,7 +25,6 @@ class Genome():
         mymem = Memory(cachedir = self.genomeFolder)
         self.loadChromosomeLength = mymem.cache(self.loadChromosomeLength)
         self.getBinnedGCContent = mymem.cache(self.getBinnedGCContent)
-
         
         #detecting number of chromosomes        
         names = os.listdir(self.genomeFolder)
@@ -44,11 +36,9 @@ class Genome():
                 chrs.append(int(i[3:-3]))
             except ValueError:
                 pass
-        self.chromosomeCount = max(chrs)+1
-        
+        self.chromosomeCount = max(chrs)+1        
         self.chromosomes = self.loadChromosomeLength()   #loading cached chromosome length
-        self._parseGapfile(gapfile)  #parsing gap file             
-        
+        self._parseGapfile(gapfile)  #parsing gap file                     
         
     def _parseGapfile(self,gapfile):
         "internal: parses .gap file to determine centromere positions"
@@ -72,12 +62,10 @@ class Genome():
         chromnums = [chromnum(i[1]) for i in centromeres]
         cm = max(chromnums)
         if cm+1 != self.chromosomeCount: 
-            raise("Chromosome count mismatch between genome and gapfile")
-            
+            raise("Chromosome count mismatch between genome and gapfile")            
         for i in xrange(len(chromnums)): 
             if chromnums[i] == 0: chromnums[i] = cm + 1
 
-        
         self.centromereStarts = numpy.zeros(cm + 1,int)
         self.centromereEnds = numpy.zeros(cm+1,int)
         for i in xrange(len(chromnums)):
@@ -89,14 +77,11 @@ class Genome():
         lowarms = numpy.array(self.centromereStarts)
         higharms = numpy.array(self.chromosomes) - numpy.array(self.centromereEnds)
         self.maximumChromosomeArm =max(lowarms.max() , higharms.max() )
-        self.maximumChromosome = max(self.chromosomes)  
-        
+        self.maximumChromosome = max(self.chromosomes)          
             
     def loadChromosomeLength(self):
         self.loadSequence()
-        return numpy.array([len(self.genome["chr%d" % i] ) for i in xrange(1,self.chromosomeCount+1)])
-     
-
+        return numpy.array([len(self.genome["chr%d" % i] ) for i in xrange(1,self.chromosomeCount+1)])     
     
     def createMapping(self,resolution,chromosomeExtensionLength = 0 ):
         self.resolution = resolution
@@ -104,8 +89,7 @@ class Genome():
         self.chromosomeSizes = numpy.array([i/self.resolution + 1 + self.chromosomeExtensionLength for i in self.chromosomes])
         self.realChromosomeSizes = numpy.array([i/self.resolution + 1 for i in self.chromosomes])
         self.chromosomeStarts = numpy.r_[0,numpy.cumsum(self.chromosomeSizes)[:-1]]
-        self.centromerePositions = self.chromosomeStarts + numpy.array([i/self.resolution for i in self.centromeres],int)
-         
+        self.centromerePositions = self.chromosomeStarts + numpy.array([i/self.resolution for i in self.centromeres],int)         
         self.chromosomeEnds = numpy.cumsum(self.chromosomeSizes)
         self.realChromosomeEnds = self.chromosomeStarts + self.realChromosomeSizes        
         self.N = self.chromosomeEnds[-1]
@@ -115,8 +99,7 @@ class Genome():
         for i in xrange(self.chromosomeCount):
             self.chromosomeIndex[self.chromosomeStarts[i]:self.chromosomeEnds[i]] = i
             self.positionIndex[self.chromosomeStarts[i]:self.chromosomeEnds[i]] = numpy.arange(-self.chromosomeStarts[i]+self.chromosomeEnds[i]) * self.resolution
-            
-        
+                    
     def loadSequence(self):
         "loads genomic sequence if it wasn't loaded."
         if hasattr(self,"genome"): return 
@@ -129,8 +112,6 @@ class Genome():
             print genome.keys()                
             return genome        
         self.genome = loadGenome("data/%s" % self.type)                    
-        
-
         
     def getSequence(self,chromosome,start,end):
         if not hasattr(self,"genome"): self.loadSequence()        
@@ -148,27 +129,8 @@ class Genome():
                 BinnedGC[chromNum].append(self.getGC(chromNum+1,j*resolution,(j+1)*resolution))
                 print "Chrom:",chromNum,"bin:",j
         return  BinnedGC
-                
-
-
-def rad2(data):    
-    def give_radius_scaling(data):
-        N = len(data[0])
-        target = int(N**(2/3.))
-    
-        coms = numpy.cumsum(data,1)
-        coms2 = numpy.cumsum(data**2,1)
-        def radius_gyration(len2):
-            coms2d = (-coms2[:,:-len2]+coms2[:,len2:])/len2
-            comsd = ((coms[:,:-len2]-coms[:,len2:])/len2)**2
-            diffs = coms2d - comsd
-            sums = numpy.sqrt(numpy.sum(diffs,0))
-            return numpy.mean(sums)
-        return radius_gyration(target)
-     
-    return give_radius_scaling(data)
-
-
+    def getRsites(self,enzyme):
+        pass
      
 def liftOver(x):
     "chromosomes go from 0 to 22, 22 being 'X' chromosome"
@@ -263,17 +225,12 @@ def parseLamin(filename):
           }
        
       double t;
-      int pos;
-        
+      int pos;        
       sscanf(line,"%d\t%lf",&pos,&t);
       chroms[point] = chrom;
       positions[point] = pos;
       values[point] = t;
       point++;
-      
-                         
-
-             
     }
     end[0] = point;
     """
@@ -314,6 +271,7 @@ def liftOverLamin():
 
 
 def parseDNAseFile(DNAseFile):
+    "code used for parsing fixedStep wig files"
     data = numpy.zeros(250000 * 25,float) 
     code = r"""
     #line 14 "binary_search.py"
@@ -359,9 +317,6 @@ def parseDNAseFile(DNAseFile):
     weave.inline(code, ['DNAseFile',"data" ], extra_compile_args=['-march=native -malign-double'],support_code =support )
     cPickle.dump(data,open(file + ".dat",'wb'),-1)
 
-    
-#parseDNAseFile("DNAse/wgEncodeDukeDNaseSeqSignalHepg2V2.wig")
-#parseDNAseFile("DNAse/wgEncodeDukeDNaseSeqSignalGm12878V2.wig")
 
 
 def load(filename,center=True):
@@ -445,6 +400,22 @@ def intload(filename,center = False):
     """
     weave.inline(code, ['filename', 'N' , 'ret' ], extra_compile_args=['-march=native -malign-double'],support_code =support )
     return ret
+
+def rad2(data):    
+    def give_radius_scaling(data):
+        N = len(data[0])
+        target = int(N**(2/3.))    
+        coms = numpy.cumsum(data,1)
+        coms2 = numpy.cumsum(data**2,1)
+        def radius_gyration(len2):
+            coms2d = (-coms2[:,:-len2]+coms2[:,len2:])/len2
+            comsd = ((coms[:,:-len2]-coms[:,len2:])/len2)**2
+            diffs = coms2d - comsd
+            sums = numpy.sqrt(numpy.sum(diffs,0))
+            return numpy.mean(sums)
+        return radius_gyration(target)     
+    return give_radius_scaling(data)
+
 
 
 def giveIntContacts(data):    
