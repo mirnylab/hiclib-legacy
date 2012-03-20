@@ -1,12 +1,13 @@
 import numutils 
 import tempfile,subprocess
 from array import array 
-import Bio.SeqIO, Bio.SeqUtils
+import Bio.SeqIO, Bio.SeqUtils, Bio.Restriction
 import numpy 
 from scipy import weave
 from joblib import Memory  
 from math import sqrt
 import os,cPickle 
+from numutils import arrayInArray
 
 
 class Genome():
@@ -25,6 +26,7 @@ class Genome():
         mymem = Memory(cachedir = self.genomeFolder)
         self.loadChromosomeLength = mymem.cache(self.loadChromosomeLength)
         self.getBinnedGCContent = mymem.cache(self.getBinnedGCContent)
+        self.getRsitesRfrags = mymem.cache(self.getRsitesRfrags)
         
         #detecting number of chromosomes        
         names = os.listdir(self.genomeFolder)
@@ -38,6 +40,9 @@ class Genome():
                 pass
         self.chromosomeCount = max(chrs)+1        
         self.chromosomes = self.loadChromosomeLength()   #loading cached chromosome length
+        self.chromosomeLength = self.chromosomes
+        self.maxChromLem = max(self.chromosomes)  
+        self.fragIDmult = self.maxChromLem + 1000   #to be used when calculating fragment IDs for HiC  
         self._parseGapfile(gapfile)  #parsing gap file                     
         
     def _parseGapfile(self,gapfile):
@@ -80,6 +85,7 @@ class Genome():
         self.maximumChromosome = max(self.chromosomes)          
             
     def loadChromosomeLength(self):
+        #Memorized function
         self.loadSequence()
         return numpy.array([len(self.genome["chr%d" % i] ) for i in xrange(1,self.chromosomeCount+1)])     
     
@@ -123,15 +129,83 @@ class Genome():
         return Bio.SeqUtils.GC(seq.seq)
     
     def getBinnedGCContent(self,resolution):
+        #Memorized function
         BinnedGC = [[] for _ in xrange(self.chromosomeCount)]
         for  chromNum in xrange(self.chromosomeCount):
             for j in xrange(self.chromosomes[chromNum]/resolution + 1):
                 BinnedGC[chromNum].append(self.getGC(chromNum+1,j*resolution,(j+1)*resolution))
                 print "Chrom:",chromNum,"bin:",j
         return  BinnedGC
-    def getRsites(self,enzyme):
-        pass
-     
+    def getRsitesRfrags(self,enzymeName):
+        """returns: tuple(rsiteMap,rfragMap) 
+        Finds restriction sites and mids of rfrags for a given enzyme
+        Note that there is one extra rsite at beginning and end of chromosome
+        Note that there are more rsites than rfrags (by 1)"""
+        
+        #Memorized function
+        self.loadSequence()
+        enzymeSearchFunc = eval('Bio.Restriction.%s.search' % enzymeName)
+        rsiteMap = {}
+        rfragMap = {}        
+        for i in self.genome.keys():
+            rsites = numpy.r_[0,(enzymeSearchFunc(self.genome[i].seq)),len(self.genome[i].seq)] + 1   #+1 is a convention 
+            rfrags = (rsites[:-1] + rsites[1:]) / 2
+            rsiteMap[i] = rsites
+            rfragMap[i] = rfrags          
+        return rsiteMap,rfragMap 
+    
+    def _calculateRsiteIDs(self,enzymeName):
+        "Calculates rsite/rfrag positions and IDs for a given enzyme name and memorizes them"
+        rsiteMap, rfragMap = self.getRsitesRfrags(enzymeName)
+        #Now truncating one "fake" rsite at the end of each chr. so that number of rsites matches number of rfrags         
+        for i in rsiteMap.keys(): rsiteMap[i] = rsiteMap[i][:-1]
+        self.rsiteMap = rsiteMap 
+        self.rfragMap  = rfragMap         
+        rsiteIDs = [self.rsiteMap["chr%d" % chrom] + chrom * self.fragIDmult for chrom in xrange(1,self.chromosomeCount+1)]        
+        rsiteChroms = [numpy.ones(len(self.rsiteMap["chr%d" % chrom]),int) *  chrom for chrom in xrange(1,self.chromosomeCount+1)]
+        rfragIDs = [self.rfragMap["chr%d" % chrom] + chrom * self.fragIDmult for chrom in xrange(1,self.chromosomeCount+1)]
+        self.rsiteIDs = numpy.concatenate(rsiteIDs)
+        self.rsiteChroms = numpy.concatenate(rsiteChroms)
+        self.rfragIDs = numpy.concatenate(rfragIDs)
+        assert (len(self.rsiteIDs) == len(self.rfragIDs))
+        
+        
+    
+    def getFragmentDistance(self,fragments1,fragments2,enzymeName):
+        "returns distance between fragments in... fragments. (neighbors = 1, etc. )"
+        if not hasattr(self,"rsiteIDs"): self._calculateRsiteIDs(enzymeName)
+        frag1ind = numpy.searchsorted(self.rsiteIDs,fragments1)
+        frag2ind = numpy.searchsorted(self.rsiteIDs,fragments2)
+        distance = numpy.abs(frag1ind - frag2ind)
+
+        del frag1ind,frag2ind
+        ch1 = fragments1 / self.fragIDmult
+        ch2 = fragments2 / self.fragIDmult
+        distance[ch1 != ch2] = 1000000
+        return distance
+    
+    def getPairsLessThanDistance(self,fragments1,fragments2,cutoffDistance,enzymeName):
+        "returns all possible pairs (fragment1,fragment2) with fragment distance less-or-equal than cutoff"
+        if not hasattr(self,"rsiteIDs"): self._calculateRsiteIDs(enzymeName)
+        f1ID = numpy.searchsorted(self.rsiteIDs,fragments1) - 1
+        f2ID = numpy.searchsorted(self.rsiteIDs,fragments2) - 1    
+        fragment2Candidates = numpy.concatenate([f1ID + i for i in (range(-cutoffDistance,0) + range(1,cutoffDistance+1))])        
+        fragment1Candidates = numpy.concatenate([f1ID for i in (range(-cutoffDistance,0) + range(1,cutoffDistance+1))])        
+        mask = arrayInArray(fragment2Candidates,f2ID) 
+        
+        fragment2Real = fragment2Candidates[mask]
+        fragment1Real = fragment1Candidates[mask]
+        return  (self.rfragIDs[fragment1Real],self.rfragIDs[fragment2Real])
+        
+        
+        
+         
+        
+         
+    
+
+
+
 def liftOver(x):
     "chromosomes go from 0 to 22, 22 being 'X' chromosome"
      
