@@ -379,11 +379,11 @@ class track(object):
         except:
             past = 0        
         self.ufragids1,self.ufragids1ind = numpy.unique(self.fragids1,return_index=True)
-        self.ufragids2,self.ufragids2ind = numpy.unique(self.fragids2,return_index=True)
+        self.ufragids2,self.ufragids2ind = numpy.unique(self.fragids2[self.DS],return_index=True)
                 
         #Funding unique fragments and unique fragment IDs
         self.ufragment1len = self.fraglens1[self.ufragids1ind]
-        self.ufragment2len = self.fraglens2[self.ufragids2ind]
+        self.ufragment2len = self.fraglens2[self.DS][self.ufragids2ind]
  
         uall = numpy.r_[self.ufragids1,self.ufragids2]
         ulen = numpy.r_[self.ufragment1len,self.ufragment2len]
@@ -591,24 +591,92 @@ class HiCStatistics(track):
                     #One can, for example, limit oneself to only fragments shorter than 1000 bp 
                     #Or calculate scaling only between different arms
                     color = None, label = "", #plot parameters
-                    weights = False ,        #use weights associated with fragment length
+                    useWeights = False ,        #use weights associated with fragment length
                     excludeNeighbors = None, enzyme = None,   #number of neighboring fragments to exclude. Enzyme is needed for that!   
                     normalize = True,          #normalize the final plot to sum to one
                     withinArms = True,                #Treat chromosomal arms separately
-                    mindist = 10000  #Scaling was proved to be unreliable under 10000 bp for 6-cutter enzymes  
+                    mindist = 10000,  #Scaling was proved to be unreliable under 10000 bp for 6-cutter enzymes
+                    #----------Calculating scaling within a set of regions only------
+                    regions = None   #Array of tuples (chrom, start, end) for which scaling should be calculated
+                    #Note that calculation might be extremely long (it might be proportional to # of regions for # > 100)
+                                           
                     ):               #Sad smiley, because this method is very painful and complicated
-        "plots scaling over, possibly uses subset of fragmetns, or weigts, possibly normalizes after plotting"
+        """plots scaling over, possibly uses subset of fragmetns, or weigts, possibly normalizes after plotting
         
+        Plan of scaling calculation: 
+        
+        1. Subdivide all genome into regions. 
+            a. Different chromosomes
+            b. Different arms
+            c. User defined squares/rectangles on a contact map
+               -(chromosome, start,end) square around the diagonal 
+               -(chr1, start1, end1, start2, end2) rectangle
+        
+        2. Use either all fragments, or only interactions between two groups of fragments 
+            e.g. you can calculate how scaling for small fragments is different from that for large
+            It can be possibly used for testing Hi-C protocol issues.
+            One can see effect of weights by doing this
+        
+        3. (optional) Calculate correction associated with fragment length dependence 
+        
+        4. Subdivide all possible genomic separation into log-spaced bins 
+        
+        5. Calculate expected number of fragment pairs within each bin (possibly with weights from step 3). 
+            If exclusion of neighbors is specificed, expected number of fragments knows about this                   
+         
+        """
+        if excludeNeighbors <= 0: excludeNeighbors = None   #Not excluding neighbors  
         #use all fragments if they're not specified 
         if fragids1 == None: fragids1 = self.ufragments
         if fragids2 == None: fragids2 = self.ufragments
         
-        #array of distances
-        if withinArms == True:
-            maxdist = self.genome.maximumChromosomeArm
-        else:
-            maxdist = self.genome.maximumChromosome        
-        lens = numpy.array(numutils.logbins(mindist,maxdist,1.25),float)+0.1        
+        #Calculate regions if not specified 
+        if regions == None: 
+            if withinArms == False: 
+                regions = [(i,0,self.genome.chromosomes[i-1]) for i in xrange(1,self.genome.chromosomeCount+1)]
+            else:
+                regions = [(i,0,self.genome.centromeres[i-1]) for i in xrange(1,self.genome.chromosomeCount+1)] + [(i,self.genome.centromeres[i-1],self.genome.chromosomes[i-1]) for i in xrange(1,self.genome.chromosomeCount+1)]
+                
+        maxdist = max ( max([i[2] - i[1] for i in regions]),  #normal regions 
+                        max([abs(i[2] - i[3]) for i in regions if len(i) > 3] + [0]),   #rectangular regions
+                        max([abs(i[1] - i[4]) for i in regions if len(i) > 3] + [0]))
+
+        regionID = numpy.zeros(len(self.chrms1),numpy.int16) - 1  #Region to which a read belongs             
+        chr1 = self.chrms1
+        chr2 = self.chrms2
+        pos1 = self.mids1
+        pos2 = self.mids2
+        fragRegions1 = numpy.zeros(len(fragids1),int)
+        fragRegions2 = numpy.zeros(len(fragids2),int)
+        fragch1 =  fragids1 / self.fragIDmult
+        fragch2 =  fragids2 / self.fragIDmult
+        fragpos1 = fragids1 % self.fragIDmult
+        fragpos2 = fragids2 % self.fragIDmult            
+        
+        for regionNum,region in enumerate(regions):
+            if len(region) == 3: 
+                chrom,start1,end1  = region
+                mask = (chr1 == chrom) * (pos1 > start1) * (pos1 < end1) * (chr2 == chrom) * (pos2 > start1) * (pos2 < end1)                                     
+                regionID[mask] = regionNum 
+                mask1 = (fragch1 == chrom) * (fragpos1 > start1) * (fragpos1 < end1)
+                mask2 = (fragch2 == chrom) * (fragpos2 > start1) * (fragpos2 < end1)   
+                fragRegions1[mask1] = regionNum
+                fragRegions2[mask2] = regionNum  
+
+            if len(region) == 5: 
+                chrom,start1,end1,start2,end2 = region
+                mask1 = (chr1 == chrom) * (chr2 == chrom) * (pos1 > start1) * (pos1 < end1) * (pos2 > start2) * (pos2  < end2)
+                mask2 = (chr1 == chrom) * (chr2 == chrom) * (pos1 > start2) * (pos1 < end2) * (pos2 > start1) * (pos2  < end1)
+                mask = mask1 + mask2
+                regionID[mask] = regionNum                    
+                mask1 = (fragch1 == chrom) * (fragpos1 > start1) * (fragpos1 < end1)
+                mask2 = (fragch2 == chrom) * (fragpos2 > start2) * (fragpos2 < end2)   
+                fragRegions1[mask1] = regionNum
+                fragRegions2[mask2] = regionNum
+        del chr1,chr2,pos1,pos2                        
+
+                                        
+        lens = numpy.array(numutils.logbins(mindist,maxdist,1.25),float)+0.1   #bins of lengths        
         
         positions = []   #arrays to write the result 
         values = []
@@ -623,147 +691,105 @@ class HiCStatistics(track):
         p12 = arrayInArray(self.fragids1,fragids2)
         p21 = arrayInArray(self.fragids2,fragids1)
         p22 = arrayInArray(self.fragids2,fragids2)
-        mask = numpy.logical_or(p11* p22,p12 * p21)   #reads between fragids1 and fragids2 
-        mask2 = numpy.logical_and(mask,self.distances > 0, self.strands1 == self.strands2) 
+        mask = (p11* p22) + (p12 * p21)   #reads between fragids1 and fragids2 
+        mask2 = (mask) * (regionID >= 0) * (self.strands1 == self.strands2)
+        #Reads only between fragments
+        #Reads from the same region
+        #Reads like --> -->    or <-- <--, discarding --> <-- and <-- -->             
         if excludeNeighbors != None: mask2 = mask2 * mask3    #remove all neighbors 
-        #keeping cis reads, like --> -->    or <-- <--, discarding --> <-- and <-- -->  
-                 
-        dind = numpy.argsort(self.distances[mask2])  #All I need are distances, weights will be added to expected count. 
-        distances = self.distances[mask2][dind]            
-        
+                                     
+        distances = numpy.sort(self.distances[mask2])            
+                
         "calculating fragments lengths for exclusions to expected # of counts"        
         #sorted fragment IDs and lengthes
         args = numpy.argsort(self.ufragments)
-        usort = self.ufragments[args]
-        ulen = self.ufragmentlen[args]   #lenghts for sorted fragments          
+        usort = self.ufragments[args]        
         
-        if weights == True:   #calculating weights if needed  
-            try:
-                self.weights
-            except:
-                self.calculateWeights()
-                
+        if useWeights == True:   #calculating weights if needed  
+            try:      self.weights
+            except:   self.calculateWeights()                
             uweights = self.weights[args]   #weights for sorted fragment IDs 
             weights1 = uweights[numpy.searchsorted(usort,fragids1)]
-            weights2 = uweights[numpy.searchsorted(usort,fragids2)]   #weghts for fragment IDs under  consideration
+            weights2 = uweights[numpy.searchsorted(usort,fragids2)]   #weghts for fragment IDs under  consideration        
         
-        len1 = ulen[numpy.searchsorted(usort,fragids1)]   #lengthes for sorted fragments 
-        len2 = ulen[numpy.searchsorted(usort,fragids2)]
-        
-        if (weights == True):   #Most important part - calculating expected # of fragments 
-            maxcountsall = self.calculateExpectedCount(fragids1, fragids2, lens[:-1], lens[1:],len1,len2,weights1,weights2,excludeNeighbors = excludeNeighbors,enzymeName = enzyme)
-        else:
-            maxcountsall = self.calculateExpectedCount(fragids1, fragids2, lens[:-1], lens[1:],len1,len2,excludeNeighbors = excludeNeighbors,enzymeName = enzyme )
-        
-        
-        
-        
-        for i in xrange(len(lens) - 1):
-            beg = lens[i]
-            end = lens[i+1]
-            first,last = tuple(numpy.searchsorted(distances[:-1],[beg,end]))
-            mycounts = last - first
-            maxcounts = maxcountsall[i]   #
-            
-            positions.append(sqrt(float(beg)*float(end)))
-            values.append(mycounts/float(maxcounts))
-        positions = numpy.array(positions)
-        values = numpy.array(values)
-        if normalize == True: values /= numpy.sum(1. * (positions * values) [numpy.logical_not(numpy.isnan(positions * values))])
-        
-        if color!= None:
-            plt.plot(positions,values,color , label = label+", %d reads" % len(distances))
-        else: 
-            plt.plot(positions,values, label = label+", %d reads" % len(distances))
-        
-
-    def calculateExpectedCount(self,fragids1,fragids2,  #fragments to exclude
-                               lenmins,lenmaxs,  #beginnings and ends of bins
-                               alllen1, alllen2,   #fragment lengthes
-                               weights1=None,weights2=None,  #their weights
-                               excludeNeighbors = None,enzymeName = None 
-                               ):
-        "Used for a fancy scaling calculation; is completely messed up"         
+        lenmins,lenmaxs  = lens[:-1], lens[1:]        
+                 
         N = len(lenmins)   #number of bins 
         count = [0 for _ in xrange(N)]      #count of reads in each min 
         chr1 = fragids1 / self.fragIDmult    
         chr2 = fragids2 / self.fragIDmult
         pos1 = fragids1 % self.fragIDmult        
         pos2 = fragids2 % self.fragIDmult
-        "TODO: split chromosomal arms"
-
         
-        allChromosomes = set(chr1)
-        try: 
-            allChromosomes.remove(0)
-        except KeyError: pass          
-        for chrom in allChromosomes:    
-
-            mask = numpy.nonzero(chr1 == chrom)[0]
-            mask2 = numpy.nonzero(chr2 == chrom)[0]   #masks corresponding to chromosomes  
+        for regionNumber,region  in enumerate(regions):  
             
-            bp1 = pos1[mask]         #positions of fragments on chromosome
-            bp2 = pos2[mask2]
+            mask = numpy.nonzero(fragRegions1  == regionNumber)[0]
+            mask2 = numpy.nonzero(fragRegions2  == regionNumber)[0]  #filtering fragments that correspont to current region
+            if (len(mask) == 0) or (len(mask2) == 0): continue                             
+            bp1, bp2 = pos1[mask], pos2[mask2]         #positions of fragments on chromosome
+             
             p2arg = numpy.argsort(bp2)   
-            p2 = bp2[p2arg]           #sorted positions
+            p2 = bp2[p2arg]           #sorted positions on the second fragment
 
             if excludeNeighbors != None:
                 "calculating excluded fragments (neighbors) and their weights to subtract them later" 
-                excFrag1, excFrag2 = self.genome.getPairsLessThanDistance(fragids1[mask] , fragids2[mask2], excludeNeighbors, enzymeName)
-                excDists = numpy.abs(excFrag2 - excFrag1)         
-                if weights1 != None:        
+                excFrag1, excFrag2 = self.genome.getPairsLessThanDistance(fragids1[mask] , fragids2[mask2], excludeNeighbors, enzyme)                                                
+                excDists = numpy.abs(excFrag2 - excFrag1)  #distances between excluded fragment pairs
+                if useWeights == True:        
                     correctionWeights = weights1[numutils.arraySearch(fragids1,excFrag1)]
-                    correctionWeights = correctionWeights *  weights2[numutils.arraySearch(fragids2,excFrag2)]   #weights for excluded fragment pairs
+                    correctionWeights = correctionWeights *  weights2[numutils.arraySearch(fragids2,excFrag2)]   #weights for excluded fragment pairs            
             
-            
-            if weights1 != None: 
-                w1 = weights1[mask]
-                w2 = weights2[mask2]
-                w2sort = w2[p2arg]      #sorted weights of fragments 
-                sw2 = numpy.r_[numpy.cumsum(w2sort),0]    #cumsum for sorted weights 
-            p1 = bp1
+            if useWeights == True: 
+                w1,w2 = weights1[mask], weights2[mask2]                                  
+                sw2 = numpy.r_[0,numpy.cumsum(w2[p2arg])]    #cumsum for sorted weights on 2 strand             
             
             for lenmin,lenmax,index in zip(lenmins,lenmaxs,range(N)):
-                "Now calculating actual number of fragment pairs for a length-bin, or weight of all these pairs"
-                "It just works."
-                mymin = p1 - lenmax
-                mymax = p1 - lenmin
-                val1 = numpy.searchsorted(p2[:-1],mymin)
-                val2 = numpy.searchsorted(p2[:-1],mymax)
-                cval1 = numpy.maximum(val1-1,0)
-                cval2 = numpy.maximum(val2-1,0)
+                "Now calculating actual number of fragment pairs for a length-bin, or weight of all these pairs"                
+                mymin,mymax = bp1 - lenmax, bp1 - lenmin   #calculating boundaries for fragments on a second strand                  
+                val1 = numpy.searchsorted(p2,mymin)  #Calculating indexes on the second strand 
+                val2 = numpy.searchsorted(p2,mymax)
+                if useWeights == False: curcount = numpy.sum(numpy.abs(val1 - val2))   #just # of fragments 
+                else: curcount = numpy.sum(w1 * numpy.abs(sw2[val1] - sw2[val2]))      #(difference in cumsum of weights) * my weight 
                 
-                if weights1 == None: curcount = numpy.sum(numpy.abs(val1 - val2))
-                else: curcount = numpy.sum(w1 * numpy.abs(sw2[cval1] - sw2[cval2]))
-                mymin = p1 + lenmax
-                mymax = p1 + lenmin
-                val1 = numpy.searchsorted(p2[:-1],mymin)
-                val2 = numpy.searchsorted(p2[:-1],mymax)
-                cval1 = numpy.maximum(val1-1,-1)
-                cval2 = numpy.maximum(val2-1,-1)
-
-                if weights1 == None: curcount += numpy.sum(numpy.abs(val1 - val2))
-                else: curcount += numpy.sum(w1 * numpy.abs(sw2[cval1] - sw2[cval2]))
+                mymin,mymax = bp1 + lenmax, bp1 + lenmin   #repeating the same for 
+                val1 = numpy.searchsorted(p2,mymin)
+                val2 = numpy.searchsorted(p2,mymax)
+                if useWeights == False: curcount += numpy.sum(numpy.abs(val1 - val2))
+                else: curcount += numpy.sum(w1 * numpy.abs(sw2[val1] - sw2[val2]))
                 
-                if excludeNeighbors != None: 
-                
-                    if weights1 == None: 
+                if excludeNeighbors != None:#now modifying expected count because of excluded fragments 
+                    if useWeights == False: 
                         ignore = ((excDists > lenmin) * (excDists < lenmax)).sum()
                     else:                        
                         ignore = (correctionWeights[((excDists > lenmin) * (excDists < lenmax))]).sum()
                     
-                    if (ignore >= curcount) and (ignore != 0): 
+                    if (ignore >= curcount) and (ignore != 0):
                         if ignore < curcount * 1.0001:
-                            curcount = 0
-                        else:
-                            print "lenmin:",lenmin, "  curcount:",curcount, "  ignore:",  ignore
-                    else: #Everything is all right
-                        #print "lenmin:",lenmin, "  curcount:",curcount, "  ignore:",  ignore                                              
+                            curcount = ignore = 0   #Check for error and numerical instabilities  
+                        else:   print "error found" , "lenmin:",lenmin, "  curcount:",curcount, "  ignore:",  ignore
+                    else: #Everything is all right                                                                      
                         curcount  -= ignore
-                     
-                      
                 count[index] += curcount 
-        return count
+        maxcountsall = count        
+         
+        for i in xrange(len(lens) - 1):
+            beg,end  = lens[i], lens[i+1]            
+            first,last = tuple(numpy.searchsorted(distances[:-1],[beg,end]))            
+            mycounts = last - first
+            maxcounts = maxcountsall[i]
+                                     
+            positions.append(sqrt(float(beg)*float(end)))
+            values.append(mycounts/float(maxcounts))
+        positions = numpy.array(positions)
+        values = numpy.array(values)
+         
+        if normalize == True: values /= numpy.sum(1. * (positions * values) [numpy.logical_not(numpy.isnan(positions * values))])        
+        if color!= None:
+            plt.plot(positions,values,color , label = label+", %d reads" % len(distances))
+        else: 
+            plt.plot(positions,values, label = label+", %d reads" % len(distances))
+        return (positions, values) 
+        
     
     def plotRsiteStartDistribution(self,useSSReadsOnly = False,offset = 5,length = 200):
         if useSSReadsOnly == True:

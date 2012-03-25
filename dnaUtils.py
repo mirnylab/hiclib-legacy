@@ -154,7 +154,7 @@ class Genome():
         rsiteMap = {}
         rfragMap = {}        
         for i in self.genome.keys():
-            rsites = numpy.r_[0,(enzymeSearchFunc(self.genome[i].seq)),len(self.genome[i].seq)] + 1   #+1 is a convention 
+            rsites = numpy.r_[-1 ,(enzymeSearchFunc(self.genome[i].seq)),len(self.genome[i].seq)-1] + 1   #+1 is a convention 
             rfrags = (rsites[:-1] + rsites[1:]) / 2
             rsiteMap[i] = rsites
             rfragMap[i] = rfrags          
@@ -193,14 +193,19 @@ class Genome():
     def getPairsLessThanDistance(self,fragments1,fragments2,cutoffDistance,enzymeName):
         "returns all possible pairs (fragment1,fragment2) with fragment distance less-or-equal than cutoff"
         if not hasattr(self,"rsiteIDs"): self._calculateRsiteIDs(enzymeName)
-        f1ID = numpy.searchsorted(self.rsiteIDs,fragments1) - 1
-        f2ID = numpy.searchsorted(self.rsiteIDs,fragments2) - 1    
+        f1ID = numpy.searchsorted(self.rsiteIDs,fragments1)-1 
+        f2ID = numpy.searchsorted(self.rsiteIDs,fragments2)-1
+        assert (fragments1 - self.rfragIDs[f1ID]).sum() == 0 
+        assert (fragments2 - self.rfragIDs[f2ID]).sum() == 0
+
         fragment2Candidates = numpy.concatenate([f1ID + i for i in (range(-cutoffDistance,0) + range(1,cutoffDistance+1))])        
-        fragment1Candidates = numpy.concatenate([f1ID for i in (range(-cutoffDistance,0) + range(1,cutoffDistance+1))])        
+        fragment1Candidates = numpy.concatenate([f1ID for i in (range(-cutoffDistance,0) + range(1,cutoffDistance+1))])                 
         mask = arrayInArray(fragment2Candidates,f2ID) 
+         
         
         fragment2Real = fragment2Candidates[mask]
         fragment1Real = fragment1Candidates[mask]
+        
         return  (self.rfragIDs[fragment1Real],self.rfragIDs[fragment2Real])
         
         
