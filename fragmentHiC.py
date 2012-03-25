@@ -589,18 +589,28 @@ class HiCStatistics(track):
         
     def plotScaling(self,fragids1 = None,fragids2 = None,   #IDs of fragments for which to plot scaling. 
                     #One can, for example, limit oneself to only fragments shorter than 1000 bp 
+                    #Or calculate scaling only between different arms
                     color = None, label = "", #plot parameters
                     weights = False ,        #use weights associated with fragment length
                     excludeNeighbors = None, enzyme = None,   #number of neighboring fragments to exclude. Enzyme is needed for that!   
-                    normalize = True          #normalize the final plot to sum to one 
-                    ):
+                    normalize = True,          #normalize the final plot to sum to one
+                    withinArms = True,                #Treat chromosomal arms separately
+                    mindist = 10000  #Scaling was proved to be unreliable under 10000 bp for 6-cutter enzymes  
+                    ):               #Sad smiley, because this method is very painful and complicated
         "plots scaling over, possibly uses subset of fragmetns, or weigts, possibly normalizes after plotting"
+        
         #use all fragments if they're not specified 
         if fragids1 == None: fragids1 = self.ufragments
         if fragids2 == None: fragids2 = self.ufragments
+        
         #array of distances
-        lens = numpy.array(numutils.logbins(10,180000000,1.25),float)+0.1        
-        positions = []
+        if withinArms == True:
+            maxdist = self.genome.maximumChromosomeArm
+        else:
+            maxdist = self.genome.maximumChromosome        
+        lens = numpy.array(numutils.logbins(mindist,maxdist,1.25),float)+0.1        
+        
+        positions = []   #arrays to write the result 
         values = []
         
         if excludeNeighbors != None: 
@@ -748,7 +758,7 @@ class HiCStatistics(track):
                         else:
                             print "lenmin:",lenmin, "  curcount:",curcount, "  ignore:",  ignore
                     else: #Everything is all right
-                        print "lenmin:",lenmin, "  curcount:",curcount, "  ignore:",  ignore                                              
+                        #print "lenmin:",lenmin, "  curcount:",curcount, "  ignore:",  ignore                                              
                         curcount  -= ignore
                      
                       

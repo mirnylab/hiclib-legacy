@@ -21,14 +21,14 @@ import pysam
 """
 The dictionary of chromosome # to the char ID correspondence.
 """
-CHRM_ID = {i:str(i) for i in range(1,23)}
+CHRM_ID = dict((i,str(i) for i in range(1,23))
 CHRM_ID.update({23:'X', 24:'Y', 25:'M'})
 
 """
 The dictionary of the chromosome char ID to # correspondence.
 """
-CHRM_IDX = {str(i):i for i in range(1,23)}
-CHRM_IDX.update({'X':23, 'Y':24, 'M':25})
+#CHRM_IDX = {str(i):i for i in range(1,23)}
+#CHRM_IDX.update({'X':23, 'Y':24, 'M':25})
 
 _CACHED_RSITES_PATH = '%s_rsites.npz'
 

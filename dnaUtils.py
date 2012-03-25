@@ -2,6 +2,7 @@ import numutils
 import tempfile,subprocess
 from array import array 
 import Bio.SeqIO, Bio.SeqUtils, Bio.Restriction
+Bio.Restriction
 import numpy 
 from scipy import weave
 from joblib import Memory  
@@ -40,7 +41,7 @@ class Genome():
                 pass
         self.chromosomeCount = max(chrs)+1        
         self.chromosomes = self.loadChromosomeLength()   #loading cached chromosome length
-        self.chromosomeLength = self.chromosomes
+        self.chromosomeLength = self.chromosomes   #backwards compatibility - chromsomeLength should be preferred
         self.maxChromLem = max(self.chromosomes)  
         self.fragIDmult = self.maxChromLem + 1000   #to be used when calculating fragment IDs for HiC  
         self._parseGapfile(gapfile)  #parsing gap file                     
@@ -52,7 +53,10 @@ class Genome():
         try: 
             gapfile = open(gapfile).readlines()
         except IOError: 
-            print "Gap file not found! \n Please provide a link to a gapfile or put a file genome_name.gap in a genome directory"
+            print """Gap file not found! \n 
+            Please provide a link to a gapfile or put a file genome_name.gap in a genome directory.
+            If there is no gapfile, create a gapfile with "centromere" records for each chromosome.  
+            """
             exit() 
         gaps = [i.split() for i in gapfile]
         centromeres = [i for i in gaps if i[7] == 'centromere']
@@ -67,7 +71,7 @@ class Genome():
         chromnums = [chromnum(i[1]) for i in centromeres]
         cm = max(chromnums)
         if cm+1 != self.chromosomeCount: 
-            raise("Chromosome count mismatch between genome and gapfile")            
+            raise ValueError("Chromosome count mismatch between genome and gapfile")            
         for i in xrange(len(chromnums)): 
             if chromnums[i] == 0: chromnums[i] = cm + 1
 
@@ -81,7 +85,7 @@ class Genome():
         self.centromeres = (self.centromereStarts + self.centromereEnds) / 2
         lowarms = numpy.array(self.centromereStarts)
         higharms = numpy.array(self.chromosomes) - numpy.array(self.centromereEnds)
-        self.maximumChromosomeArm =max(lowarms.max() , higharms.max() )
+        self.maximumChromosomeArm = max(lowarms.max() , higharms.max() )
         self.maximumChromosome = max(self.chromosomes)          
             
     def loadChromosomeLength(self):
@@ -90,12 +94,14 @@ class Genome():
         return numpy.array([len(self.genome["chr%d" % i] ) for i in xrange(1,self.chromosomeCount+1)])     
     
     def createMapping(self,resolution,chromosomeExtensionLength = 0 ):
+        """Calculates chromosome start/end positions for whole-genome datasets"""
         self.resolution = resolution
         self.chromosomeExtensionLength = chromosomeExtensionLength
         self.chromosomeSizes = numpy.array([i/self.resolution + 1 + self.chromosomeExtensionLength for i in self.chromosomes])
         self.realChromosomeSizes = numpy.array([i/self.resolution + 1 for i in self.chromosomes])
         self.chromosomeStarts = numpy.r_[0,numpy.cumsum(self.chromosomeSizes)[:-1]]
         self.centromerePositions = self.chromosomeStarts + numpy.array([i/self.resolution for i in self.centromeres],int)         
+        
         self.chromosomeEnds = numpy.cumsum(self.chromosomeSizes)
         self.realChromosomeEnds = self.chromosomeStarts + self.realChromosomeSizes        
         self.N = self.chromosomeEnds[-1]
