@@ -3,7 +3,7 @@ na = numpy.array
 import  scipy.weave,scipy.sparse.linalg  
 from scipy import weave 
 import scipy.linalg
-
+from math import cos,log,sin,sqrt
 #-------------------------
 "Mathematical utilities first" 
 #-------------------------
@@ -172,6 +172,71 @@ def coarsegrain(array,size):
         for i in xrange(size):
             narray += array[i::size]
         return narray
+
+def corr2d(x):
+    "FFT-based 2D correlation"
+    x = numpy.array(x)
+    t = numpy.fft.fft2(x)
+    return numpy.real(numpy.fft.ifft2(t*numpy.conjugate(t)))
+
+def logbins(a, b, pace, N_in=0):
+    "create log-spaced bins"
+    beg = log(a)
+    end = log(b - 1)
+    pace = log(pace)
+    N = int((end - beg) / pace)
+    if N_in != 0: N = N_in  
+    pace = (end - beg) / N
+    mas = numpy.arange(beg, end + 0.000000001, pace)
+    ret = numpy.exp(mas)
+    ret = numpy.array([int(i) for i in ret])
+    ret[-1] = b 
+    for i in xrange(len(ret) - 1):
+        if ret[i + 1] <= ret[i]:
+            ret[i + 1: - 1] += 1
+    return [int(i) for i in ret]
+
+
+def rescale(data):
+    "rescales array to zero mean unit variance"
+    data = numpy.asarray(data,dtype = float)
+    return (data - data.mean())/ sqrt(data.var())
+    
+def autocorr(x):
+    "autocorrelation function"
+    x = rescale(x)
+    result = numpy.correlate(x, x, mode='full')
+    return result[result.size/2:]
+
+def rotationMatrix(theta):
+    "Calculates 3D rotation matrix based on matrices"
+    tx,ty,tz = theta    
+    Rx = numpy.array([[1,0,0], [0, cos(tx), -sin(tx)], [0, sin(tx), cos(tx)]])
+    Ry = numpy.array([[cos(ty), 0, -sin(ty)], [0, 1, 0], [sin(ty), 0, cos(ty)]])
+    Rz = numpy.array([[cos(tz), -sin(tz), 0], [sin(tz), cos(tz), 0], [0,0,1]])    
+    return numpy.dot(Rx, numpy.dot(Ry, Rz))
+
+def random_on_sphere(r=1):
+    while True:        
+        a = numpy.random.random(2);
+        x1 = 2*a[0]-1
+        x2 = 2*a[1]-1
+        if x1**2 + x2**2 >1: continue
+        t = sqrt(1 - x1**2 - x2**2)
+        x = r*2*x1* t
+        y = r*2* x2 * t
+        z = r*(1 - 2*(x1**2 + x2**2))
+        return (x,y,z)
+
+def random_in_sphere(r=1):
+    while True:
+        a = numpy.random.random(3)*2-1
+        if numpy.sum(a**2) < 1:
+            return r*a
+randomInSphere = random_in_sphere
+randomOnSphere = random_on_sphere
+
+
 
 #-----------------------------------
 "Iterative correction, PCA and other Hi-C related things"

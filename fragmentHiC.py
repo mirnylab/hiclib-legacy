@@ -757,7 +757,7 @@ class HiCStatistics(track):
                 if useWeights == False: curcount += numpy.sum(numpy.abs(val1 - val2))
                 else: curcount += numpy.sum(w1 * numpy.abs(sw2[val1] - sw2[val2]))
                 
-                if excludeNeighbors != None:#now modifying expected count because of excluded fragments 
+                if excludeNeighbors != None: #now modifying expected count because of excluded fragments 
                     if useWeights == False: 
                         ignore = ((excDists > lenmin) * (excDists < lenmax)).sum()
                     else:                        
@@ -772,7 +772,7 @@ class HiCStatistics(track):
                 count[index] += curcount 
         maxcountsall = count        
          
-        for i in xrange(len(lens) - 1):
+        for i in xrange(len(lens) - 1):   #Dividing observed by expected
             beg,end  = lens[i], lens[i+1]            
             first,last = tuple(numpy.searchsorted(distances[:-1],[beg,end]))            
             mycounts = last - first
