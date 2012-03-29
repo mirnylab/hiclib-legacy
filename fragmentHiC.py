@@ -9,7 +9,8 @@ This includes read statistics, scalings, etc.
 import systemutils
 systemutils.setExceptionHook() 
 import os,cPickle
-import dnautils 
+
+from genome import Genome 
   
 import numpy
 from numpy import array as na  
@@ -27,6 +28,8 @@ import numexpr
 import joblib 
 
 import h5py
+
+from h5dict import h5dict
 r_ = numpy.r_
 
 def corr(x,y): return stats.spearmanr(x, y)[0]        
@@ -50,13 +53,13 @@ class HiCdataset(object):
     If you apply any filters to a dataset, it will actually modify the content of the current working folder. 
     Thus, to preserve the data, making a copy of the folder using "load" is adviced. """
     
-    def __init__(self,folder , genomeFolder , maximumMoleculeLength = 500,override = True):
+    def __init__(self,folder , genome , maximumMoleculeLength = 500,override = True):
         """
         Parameters
         ----------
         folder : string 
             A folder to store HiC dataset. Different tracks are stored as different files using h5pydict class. 
-        genomeFolder : string 
+        genome : folder with genome, or Genome object 
             A folder with fastq files of the genome and gap table from Genome browser.
             Name of the folder should match the genome name.  
         maximumMoleculeLength : int, optional 
@@ -77,11 +80,17 @@ class HiCdataset(object):
                         "strands1":"bool","strands2":"bool",
                         "DS":"bool","SS":"bool"}
         self.saveExtension = "hdf5"
-
-        self.genome = dnautils.Genome(genomeFolder)
-        self.chromosomeCount = len(self.genome.chromosomes)  #used for building heatmaps
+        if type(genome) == str: 
+            self.genome = Genome(genomePath = genome, readChrms = ["#","X"])
+        else:
+            self.genome = genome 
+            
+        assert isinstance(self.genome, Genome)
+        
+        
+        self.chromosomeCount = self.genome.chrmCount  #used for building heatmaps
         self.fragIDmult = self.genome.fragIDmult
-        print "----> New dataset opened, genome %s,  %s chromosomes" % (self.genome.type, self.chromosomeCount)
+        print "----> New dataset opened, genome %s,  %s chromosomes" % (self.genome.folderName, self.chromosomeCount)
 
         self.maximumMoleculeLength = maximumMoleculeLength  #maximum length of a molecule for SS reads
 
@@ -338,24 +347,25 @@ class HiCdataset(object):
         Resolution : int
             Resolution of a heatmap 
         """ 
-        self.genome.createMapping(resolution)
+        self.genome.setResolution(resolution)
         dr = self.DS 
-        label1 = self.genome.chromosomeStarts[self.chrms1[dr] ] + self.mids1[dr] / resolution
+        
+        label1 = self.genome.chrmStartsBinCont[self.chrms1[dr] ] + self.mids1[dr] / resolution
         label1 = numpy.array(label1, dtype = "uint32")
-        label2 = self.genome.chromosomeStarts[self.chrms2[dr] ] + self.mids2[dr] / resolution
+        label2 = self.genome.chrmStartsBinCont[self.chrms2[dr] ] + self.mids2[dr] / resolution
         label2 = numpy.array(label2, dtype = "uint32")       
-        label = label1 * numpy.int64(self.genome.N) + label2
+        label = label1 * numpy.int64(self.genome.numBins) + label2
         del label1
         del label2
-        if self.genome.N < 65000:
+        if self.genome.numBins < 65000:
             label = numpy.array(label, dtype = "uint32")                    
          
-        counts = numpy.bincount(label, minlength = self.genome.N**2)
-        if len(counts) > self.genome.N**2:
+        counts = numpy.bincount(label, minlength = self.genome.numBins**2)
+        if len(counts) > self.genome.numBins**2:
             print "heatmap exceed length of the genome!!! Check genome"
             exit()
             
-        counts.shape = (self.genome.N,self.genome.N)
+        counts.shape = (self.genome.numBins,self.genome.numBins)
         for i in xrange(len(counts)):
             counts[i,i:] += counts[i:,i]
             counts[i:,i] = counts[i,i:]        
@@ -363,21 +373,21 @@ class HiCdataset(object):
     
     def buildSinglesCoverage(self,resolution):
         "creates an SS coverage vector heatmap in accordance with the output of the 'genome' class"
-        self.genome.createMapping(resolution)
+        self.genome.setResolution(resolution)
         ds = self.DS == False        
-        label = self.genome.chromosomeStarts[self.chrms1[ds] ] + self.mids1[ds] / resolution
-        counts = sumByArray(label, numpy.arange(self.genome.N))
+        label = self.genome.chrmStartsBinCont[self.chrms1[ds] ] + self.mids1[ds] / resolution
+        counts = sumByArray(label, numpy.arange(self.genome.numBins))
         return counts
     
     def buildFragmetCoverage(self,resolution):
         "creates HindIII density vector (visible sites only) heatmap in accordance with the output of the 'genome' class"         
-        self.genome.createMapping(resolution)
+        self.genome.setResolution(resolution)
         try: self.ufragments
         except: self.rebuildFragments()
         chroms = self.ufragments / self.fragIDmult
         positions = self.ufragments % self.fragIDmult
-        label = self.genome.chromosomeStarts[chroms - 1] + positions / resolution
-        counts = sumByArray(label, numpy.arange(self.genome.N))
+        label = self.genome.chrmStartsBinCont[chroms - 1] + positions / resolution
+        counts = sumByArray(label, numpy.arange(self.genome.numBins))
         return counts
         
 
@@ -607,15 +617,17 @@ class HiCdataset(object):
         heatmap = self.buildAllHeatmap(resolution)        
         singles = self.buildSinglesCoverage(resolution)        
         frags = self.buildFragmetCoverage(resolution)
-        chromosomeStarts = numpy.array(self.genome.chromosomeStarts)
-        tosave = {}
+        chromosomeStarts = numpy.array(self.genome.chrmStartsBinCont)
+        tosave = h5dict(path = filename)
         tosave["resolution"] = resolution
         tosave["heatmap"] = heatmap
         tosave["singles"] = singles
         tosave["frags"] = frags
-        tosave["genome"] = self.genome.type
+        tosave["genomeBinNum"] = self.genome.numBins
         tosave["chromosomeSTarts"] = chromosomeStarts
-        saveData(tosave,filename)
+        
+
+        
         print "----> Heatmap saved to '%s' at %d resolution" % (filename,resolution)
         
     def exitProgram(self,a):
@@ -739,9 +751,9 @@ class HiCStatistics(HiCdataset):
         #Calculate regions if not specified 
         if regions == None: 
             if withinArms == False: 
-                regions = [(i,0,self.genome.chromosomes[i]) for i in xrange(self.genome.chromosomeCount)]
+                regions = [(i,0,self.genome.chrmLens[i]) for i in xrange(self.genome.chrmCount)]
             else:
-                regions = [(i,0,self.genome.centromeres[i]) for i in xrange(self.genome.chromosomeCount)] + [(i,self.genome.centromeres[i],self.genome.chromosomes[i]) for i in xrange(self.genome.chromosomeCount)]
+                regions = [(i,0,self.genome.cntrMids[i]) for i in xrange(self.genome.chrmCount)] + [(i,self.genome.cntrMids[i],self.genome.chrmLens[i]) for i in xrange(self.genome.chrmCount)]
                 
         
         if maxdist == None: maxdist = max ( max([i[2] - i[1] for i in regions]),  #normal regions 
@@ -1049,7 +1061,7 @@ def doSupplementaryCoveragePlot():
     s2 = TR.fragmentSum(strands = 1)
     resolution = 1000000
     def coverage(s1,s2,TR):
-        genome = dnautils.Genome("HG18")
+        genome = Genome()
         genome.createMapping(resolution)            
         label = genome.chromosomeStarts[TR.ufragments / TR.fragIDmult - 1] + (TR.ufragments % TR.fragIDmult ) / resolution
         counts = numpy.bincount(label, weights = s1)

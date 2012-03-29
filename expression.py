@@ -17,7 +17,7 @@ def corr(x,y): return scipy.stats.spearmanr(x, y)[0]
         
 #HG18 = Genome("HG18")
 
-
+#newline 
 def doBedCoverage(filename):
     chromosomes =  [247199719, 242751149, 199446827, 191263063, 180837866, 170896993, 158821424, 146274826, 140442298, 135374737, 134452384, 132289534, 114127980, 106360585, 100338915, 88822254, 78654742, 76117153, 63806651, 62435965, 46944323, 49528953]
     arrays = [0] + [numpy.zeros(i/100+10,numpy.int32) for i in chromosomes]

@@ -2,7 +2,7 @@ import systemutils,numutils
 systemutils.setExceptionHook()
 from plotting import  removeBorder 
 from numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
-import dnautils
+from genome import Genome 
 import  numpy,joblib
 from math import exp 
 from scipy import weave
@@ -10,19 +10,32 @@ from scipy import weave
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt 
 
-
-
     
 class binnedData(object):
     "base class to work with binned data"
     
-    def __init__(self, resolution,genomeFolder):
-        self.genome = dnautils.Genome(genomeFolder = genomeFolder)
+    def __init__(self, resolution,genome):
+        """
+        Sets up the Genome object and resolution. 
+        
+        Parameters
+        ----------
+        resolution : int 
+            Resolution of all datasets
+        genome : genome Folder or Genome object
+        
+        """        
+        if type(genome) == str: 
+            self.genome = Genome(genomePath = genome, readChrms = ["#","X"])
+        else:
+            self.genome = genome 
+            
+        assert isinstance(self.genome, Genome)
+
         if resolution != None: self.resolution = resolution
-        self.chromosomes = self.genome.chromosomes
-        self.resolution = resolution
-        self.chromosomeExtensionLength = 0   #length of the gap between chromosomes                
-        self.genome.createMapping(self.resolution)                        
+        self.chromosomes = self.genome.chrmLens
+        self.resolution = resolution                    
+        self.genome.setResolution(self.resolution)                        
         self.initChromosomes()        
         self.dataDict = {}
         self.biasDict = {}
@@ -31,17 +44,16 @@ class binnedData(object):
         self.fragsDict = {}
         
     def initChromosomes(self):
-        "loads mappings from the genome class based on resolution"
-        self.genome.createMapping(self.resolution,chromosomeExtensionLength = self.chromosomeExtensionLength)
-        self.chromosomeStarts = self.genome.chromosomeStarts
-        self.centromerePositions = self.genome.centromerePositions
-        self.chromosomeEnds = self.genome.realChromosomeEnds
-        self.trackLength = self.genome.chromosomeEnds[-1]
-        self.N = self.genome.N
-        self.chromosomeCount = self.genome.chromosomeCount
-        self.chromosomeIndex = self.genome.chromosomeIndex
-        self.positionIndex = self.genome.positionIndex        
-        self.armIndex = self.chromosomeIndex * 2 + numpy.array(self.positionIndex > self.genome.centromeres[self.chromosomeIndex],int)
+        "loads mappings from the genome class based on resolution"        
+        self.chromosomeStarts = self.genome.chrmStartsBinCont
+        self.centromerePositions = self.genome.cntrMidsBinCont
+        self.chromosomeEnds = self.genome.chrmEndsBinCont
+        self.trackLength = self.genome.numBins
+                
+        self.chromosomeCount = self.genome.chrmCount
+        self.chromosomeIndex = self.genome.chrmIdxBinCont
+        self.positionIndex = self.genome.posBinCont        
+        self.armIndex = self.chromosomeIndex * 2 + numpy.array(self.positionIndex > self.genome.cntrMids[self.chromosomeIndex],int)
                 
     
     def simpleLoad(self,filename,name,checkGenomes = True):
@@ -50,11 +62,11 @@ class binnedData(object):
         self.dataDict[name] = alldata["heatmap"]        
         self.singlesDict[name] = alldata["singles"]
         self.fragsDict[name] = alldata["frags"]
-        if self.genome.type != alldata["genome"]: 
+        if self.genome.numBins != alldata["genomeBinNum"]: 
             if checkGenomes == True: 
-                print "Genome name mismatch!!!"
-                print "source genome",alldata["genome"]
-                print "our genome",self.genome.type
+                print "Genome length mismatch!!!"
+                print "source genome",alldata["genomeBinNum"]
+                print "our genome",self.genome.numBins
                 self.exit()
         try: self.resolution
         except: self.resolution = alldata["resolution"]
@@ -67,7 +79,7 @@ class binnedData(object):
         
     def loadGC(self):        
         "loads GC content at given resolution"
-        data = self.genome.getBinnedGCContent(self.resolution)
+        data = self.genome.GCBin
         eigenvector = numpy.zeros(self.trackLength,float)        
         for chrom in range(1,self.chromosomeCount + 1):
             eigenvector[self.chromosomeStarts[chrom-1]:self.chromosomeStarts[chrom-1] + len(data[chrom-1])] = data[chrom-1]
@@ -115,8 +127,7 @@ class binnedData(object):
         
     
     def removeStandalone(self,offset = 3):
-        "removes standalone bins (groups of less-than-offset-long bins)"
-        self.N = len(self.dataDict.values()[0])        
+        "removes standalone bins (groups of less-than-offset-long bins)"                
         diffs = numpy.diff(numpy.array(numpy.r_[False, self.giveMask(), False],int))
         begins = numpy.nonzero(diffs == 1)[0] 
         ends = numpy.nonzero(diffs == -1)[0]
@@ -148,7 +159,7 @@ class binnedData(object):
         mask2D = mask[:,None] * mask[None,:]
         for i in self.dataDict.values(): i[mask2D == False] = 0
               
-    def TrunkTrans(self,high = 0.0005):
+    def trunkTrans(self,high = 0.0005):
         "trunkates trans contacts to remove blowouts"
         for i in self.dataDict.keys():
             data = self.dataDict[i]
@@ -232,7 +243,7 @@ class binnedData(object):
             #mat_img(data)
 
     def fakeCis(self):
-        "fakes cis contacts in a fancy way"
+        "fakes cis contacts in an interative way"
         self.removeCis()
         self.ultracorrect(M=5)
         self.fakeCisOnce()
@@ -274,7 +285,7 @@ class binnedData(object):
 
 
     def fakeMissing(self, stay = False):
-        "fakes missing megabases in the fancy way"
+        "fakes missing megabases"
         for i in self.dataDict.keys():
             data = self.dataDict[i] * 1.
             sm = numpy.sum(data,axis = 0) > 0  
@@ -325,14 +336,14 @@ class binnedData(object):
         "performs single correction without SS"
         self.ultracorrect(names,M=1)
         
-    def ultracorrect(self, names = None,M=50):
+    def iterativeCorrectWithoutSS(self, names = None,M=50):
         "performs iterative correction wihtout SS"
         if names == None: names = self.dataDict.keys()
         
         for i in names:
             self.dataDict[i] = ultracorrectSymmetricWithVector(self.dataDict[i],M=M)[0]
 
-    def ultracorrectAll(self,names = None,M = 55):
+    def iterativeCorrectWithSS(self,names = None,M = 55):
         "performs iterative correction with SS"
         if names == None: names = self.dataDict.keys()
         for i in names:
@@ -343,7 +354,7 @@ class binnedData(object):
             self.singlesDict[i] = nvec
             self.biasDict[i] = (vec / nvec)
             
-    def ultracorrectByTrans(self,names = None):
+    def iterativeCorrectByTrans(self,names = None):
         "performs iterative correction by trans data only, corrects cis also"
         if names == None: names = self.dataDict.keys()        
         self.transmap = self.chromosomeIndex[:,None] != self.chromosomeIndex[None,:]
@@ -410,24 +421,7 @@ class binnedData(object):
                 mydict[key] = numpy.zeros(N,dtype = a.dtype)
                 mydict[key][s] = a
                         
-        self.initChromosomes()
-         
-
-        
-
-
-    def removeX(self):
-        "Makes all X chromosome invisible"    
-        beg = self.genome.chromosomeStarts[-1]
-        end = self.genome.chromosomeEnds[-1]        
-        for i in self.dataDict.values():
-            i[beg:end] = 0 
-            i[:,beg:end] = 0 
-        for i in self.singlesDict.values():
-            i[beg:end] = 0
-        for i in self.trackDict.values():
-            i[beg:end] = 0 
-                
+        self.initChromosomes()               
         
     
             
@@ -438,10 +432,10 @@ class binnedData(object):
             print "Cis contacts have not been removed and/or faked."
             print 'Are you sure you want to continue???'
             raw_input("press any button to continue... <-----")            
-        self.PCA = {}
+        self.PCDict = {}
         for i in self.dataDict.keys():
-            self.PCA[i] = PCA(self.dataDict[i])
-        return self.PCA
+            self.PCDict[i] = PCA(self.dataDict[i])
+        return self.PCDict
             
     def doEig(self):
         """performs eigenvector expansion on the data
@@ -451,10 +445,10 @@ class binnedData(object):
             print 'Are you sure you want to continue???'
             raw_input("press any button to continue... <-----")
 
-        self.EIG = {}
+        self.EigDict = {}
         for i in self.dataDict.keys():
-            self.EIG[i] = EIG(self.dataDict[i])
-        return self.EIG
+            self.EigDict[i] = EIG(self.dataDict[i])
+        return self.EigDict
     
     
     def cisToTrans(self,mode = "All", filename = "GM-all"):
@@ -489,7 +483,7 @@ class binnedDataAnalysis(binnedData):
     def plotScaling(self,name,label = "BLA", color = None):
         "plots scaling of a heatmap,treating arms separately"
         data = self.dataDict[name]
-        bins = numutils.logbins(2,self.genome.maximumChromosomeArm/self.resolution,1.17)
+        bins = numutils.logbins(2,self.genome.maxChrmArm/self.resolution,1.17)
         s = numpy.sum(data,axis = 0) > 0 
         mask = s[:,None] * s[None,:]
         chroms = []
@@ -545,10 +539,10 @@ class binnedDataAnalysis(binnedData):
                 for k in [-1,1]:
                     for l in [-1,1]:
                         if i == j: continue 
-                        cenbeg1 = self.chromosomeStarts[i] + self.genome.centromereStarts[i] / self.resolution
-                        cenbeg2 = self.chromosomeStarts[j] + self.genome.centromereStarts[j] / self.resolution
-                        cenend1 = self.chromosomeStarts[i] + self.genome.centromereEnds[i] / self.resolution
-                        cenend2 = self.chromosomeStarts[j] + self.genome.centromereEnds[j] / self.resolution
+                        cenbeg1 = self.chromosomeStarts[i] + self.genome.cntrStarts[i] / self.resolution
+                        cenbeg2 = self.chromosomeStarts[j] + self.genome.cntrStarts[j] / self.resolution
+                        cenend1 = self.chromosomeStarts[i] + self.genome.cntrEnds[i] / self.resolution
+                        cenend2 = self.chromosomeStarts[j] + self.genome.cntrEnds[j] / self.resolution
                         
                         beg1 = self.chromosomeStarts[i]
                         beg2 = self.chromosomeStarts[j]
