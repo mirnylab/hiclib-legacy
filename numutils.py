@@ -473,7 +473,7 @@ def ultracorrectBiasReturn(x,M=20):
     return newx,ball
 
 def create_regions(a):
-    "creates array of nonzero regions"    
+    "creates array of start/stop positions of continuous nonzero regions of array a"    
     a = numpy.array(a,int)
     a = numpy.concatenate([numpy.array([0],int),a,numpy.array([0],int)])
     a1 = numpy.nonzero(a[1:] * (1-a[:-1]))[0]

@@ -1,7 +1,15 @@
-import base
-base #Eclipse warning remover 
+"""
+This is a module class for fragment-level Hi-C data analysis.
+The base class "HiCdataset" can load, save and merge Hi-C datasets, perform certain filters, and save binned heatmaps.   
+
+Additional class HiCStatistics contains methods to analyze HiC data on a fragment level. 
+This includes read statistics, scalings, etc.
+"""
+
+import systemutils
+systemutils.setExceptionHook() 
 import os,cPickle
- 
+import dnautils 
   
 import numpy
 from numpy import array as na  
@@ -13,8 +21,8 @@ from math import sqrt
 import plotting 
 from plotting import mat_img,removeAxes
 import numutils 
-from numutils import arrayInArray, arraySumByArray, sumByArray, correct, ultracorrect
-import dnaUtils
+from numutils import arrayInArray,  sumByArray, correct, ultracorrect
+
 import numexpr
 import joblib 
 
@@ -33,8 +41,31 @@ def saveData(data,filename,override = True):
 "TODO: Rewrite glue between my and Anton's code; make universal interface for other types of data" 
 
 
-class track(object):
+class HiCdataset(object):
+    """Base class to operate on HiC dataset. 
+    
+    This class stores all information about HiC reads on a hard drive. 
+    Whenever a variable corresponding to any record is used, it is loaded/saved to/from HDD. 
+    
+    If you apply any filters to a dataset, it will actually modify the content of the current working folder. 
+    Thus, to preserve the data, making a copy of the folder using "load" is adviced. """
+    
     def __init__(self,folder , genomeFolder , maximumMoleculeLength = 500,override = True):
+        """
+        Parameters
+        ----------
+        folder : string 
+            A folder to store HiC dataset. Different tracks are stored as different files using h5pydict class. 
+        genomeFolder : string 
+            A folder with fastq files of the genome and gap table from Genome browser.
+            Name of the folder should match the genome name.  
+        maximumMoleculeLength : int, optional 
+            Maximum length of molecules in the HiC library, used as a cutoff for dangling ends filter
+        override : bool, optional
+            Use dataset in the working folder, do not remove it's contents. 
+            By default, working folder is cleaned up upon initialization.         
+        
+        """
         #These are fields that will be kept on a hard drive
         self.vectors = {"chrms1":"int8","chrms2":"int8", #chromosomes. If >chromosomeCount, then it's second chromosome arm! 
                         "mids1":"int64","mids2":"int64",  #midpoint of a fragment, determined as "(start+end)/2"
@@ -47,7 +78,7 @@ class track(object):
                         "DS":"bool","SS":"bool"}
         self.saveExtension = "hdf5"
 
-        self.genome = dnaUtils.Genome(genomeFolder)
+        self.genome = dnautils.Genome(genomeFolder)
         self.chromosomeCount = len(self.genome.chromosomes)  #used for building heatmaps
         self.fragIDmult = self.genome.fragIDmult
         print "----> New dataset opened, genome %s,  %s chromosomes" % (self.genome.type, self.chromosomeCount)
@@ -74,8 +105,8 @@ class track(object):
                          
         
 
-    def setData(self,name,data,folder = None):
-        "a method to save numpy arrays to HDD quickly"
+    def _setData(self,name,data,folder = None):
+        "an internal method to save numpy arrays to HDD quickly"        
         if folder == None: folder = self.folder        
         if name not in self.vectors.keys():
             raise
@@ -86,8 +117,8 @@ class track(object):
         f.create_dataset("MyDataset",data = data,compression = "lzf")        
         f.close()
     
-    def getData(self,name,folder = None):
-        "a method to load numpy arrays from HDD quickly"
+    def _getData(self,name,folder = None):
+        "an internal method to load numpy arrays from HDD quickly"
         if folder == None: folder = self.folder 
         if name not in self.vectors.keys():
             raise                
@@ -105,7 +136,7 @@ class track(object):
         if x == "vectors": return object.__getattribute__(self,x)
         
         if x in self.vectors.keys():            
-            a =  self.getData(x)            
+            a =  self._getData(x)            
             return a        
          
         else:
@@ -116,34 +147,44 @@ class track(object):
         if x == "vectors": return object.__setattr__(self,x,value)
         
         if x in self.vectors.keys():        
-            self.setData(x,value)            
+            self._setData(x,value)            
             
         else:
             return object.__setattr__(self,x,value)
         
     
     def merge(self,folders):
-        "combines data from multiple datasets"
+        """combines data from multiple datasets
+        
+        Parameters
+        ----------
+            folders : list of strings
+                List of folders to merge to current working folder                
+        """
         if self.folder in folders:
             self.exitProgram("----> Cannot merge folder into itself! Create a new folder")        
         for name in self.vectors.keys():
             res = []
             for folder in folders:
-                res.append(self.getData(name,folder))
+                res.append(self._getData(name,folder))
             res = numpy.concatenate(res)
-            self.setData(name,res)
+            self._setData(name,res)
 
     
     def parseAnton(self,filename):
-        "This method unpickles files saved by Anton"
+        "This method unpickles files saved by old code"
         #data = shelve.open(filename)                        
         #self.parsedfilename = filename+".dat"
         
-        data = dict(numpy.load(filename))      
+        data = dict(numpy.load(filename))
+        #temporary fix
+        data["chrms1"] = data["chrms1"] - 1
+        data["chrms2"] = data["chrms2"] - 1
+              
         print "----> File loaded: ", filename, "total reads: ", len(data["chrms1"])        
 
         DE = (data['rfrags1']  == data['rfrags2'] ) * (data["chrms1"] == data["chrms2"])  #filtering out same fragment reads  
-        mask = ((DE == False)  * (data['chrms1'] <= self.chromosomeCount) * (data["chrms2"] <= self.chromosomeCount)) #filtering chromosomes        
+        mask = ((DE == False)  * (data['chrms1'] < self.chromosomeCount) * (data["chrms2"] < self.chromosomeCount)) #filtering chromosomes        
         dist = data["cuts1"] * (2 * data["dirs1"]-1) + data["cuts2"] * (2 * data["dirs2"] - 1) #distance between reads pointing to each other
         readsMolecules = (data["chrms1"] == data["chrms2"])*(data["dirs1"] != data["dirs2"]) *  (dist <=0) * (dist >= -self.maximumMoleculeLength)#filtering out DE 
         mask *= (readsMolecules  == False)
@@ -152,11 +193,11 @@ class track(object):
 
         for i in data.keys():
             data[i] = data[i][mask]
-        mask = data['chrms1'] == 0  #moving SS reads to start at first side only 
+        mask = data['chrms1'] == -1  #moving SS reads to start at first side only 
         variables = set([i[:-1] for i in data.keys()])
         for i in variables:
             exec("data['%s1'][mask]  = data['%s2'][mask]" % (i,i))
-            exec("data['%s2'][mask] = 0" % (i))
+            exec("data['%s2'][mask] = -1" % (i))
         
         up1 = data["uprsites1"]
         up2 = data["uprsites2"]
@@ -166,25 +207,25 @@ class track(object):
         rsites2 = data["rsites2"]
         pos1 = data["cuts1"]
         pos2 = data["cuts2"]
-        self.setData("chrms1",data['chrms1'])        
-        self.setData("chrms2",data['chrms2'])                
-        self.setData("DS",self.getData("chrms2") != 0)
-        self.setData("SS",self.getData("DS") == False) 
-        self.setData("strands1", data["dirs1"])
-        self.setData("strands2",data["dirs2"])
-        self.setData("cuts1" , data["cuts1"])
-        self.setData("cuts2" ,data["cuts2"])    
-        self.setData("dists1", numpy.abs(rsites1 - pos1))  #distance to the downstream (where read points) restriction site 
-        self.setData("dists2", numpy.abs(rsites2 - pos2))  #distance to the downstream (where read points) restriction site
-        self.setData('mids1', (up1 + down1)/2) 
-        self.setData('mids2', (up2 + down2)/2)
-        self.setData("fraglens1",numpy.abs(up1 - down1))
-        self.setData("fraglens2", numpy.abs(up2 - down2))
+        self._setData("chrms1",data['chrms1'])        
+        self._setData("chrms2",data['chrms2'])                
+        self._setData("DS",self._getData("chrms2") >= 0)
+        self._setData("SS",self._getData("DS") == False) 
+        self._setData("strands1", data["dirs1"])
+        self._setData("strands2",data["dirs2"])
+        self._setData("cuts1" , data["cuts1"])
+        self._setData("cuts2" ,data["cuts2"])    
+        self._setData("dists1", numpy.abs(rsites1 - pos1))  #distance to the downstream (where read points) restriction site 
+        self._setData("dists2", numpy.abs(rsites2 - pos2))  #distance to the downstream (where read points) restriction site
+        self._setData('mids1', (up1 + down1)/2) 
+        self._setData('mids2', (up2 + down2)/2)
+        self._setData("fraglens1",numpy.abs(up1 - down1))
+        self._setData("fraglens2", numpy.abs(up2 - down2))
         self.fragids1 = self.mids1 + numpy.array(self.chrms1,dtype = "int64") * self.fragIDmult
         self.fragids2 = self.mids2 + numpy.array(self.chrms2,dtype = "int64") * self.fragIDmult 
-        distances = numpy.abs(self.getData("mids1") - self.getData("mids2"))
-        distances[self.getData("chrms1") != self.getData("chrms2")] = -1
-        self.setData("distances",distances)
+        distances = numpy.abs(self._getData("mids1") - self._getData("mids2"))
+        distances[self._getData("chrms1") != self._getData("chrms2")] = -1
+        self._setData("distances",distances)
         print "finished parsing Anton file %s \n" % filename
  
             
@@ -198,16 +239,45 @@ class track(object):
         self.ufragments = numpy.array(self.ufragmentsOriginal)
         self.ufragmentlen = numpy.array(self.ufragmentlenOriginal)
 
-    def buildHeatmap(self,chromosome = 36,chromosome2 = None,resolution = 1000000,show = True,weights = False):
-        "builds two chromosome heatmap, possibly accepts weights"
+    def calculateWeights(self):
+        "calculates weights for reads based on fragment length correction similar to Tanay's, may be used for scalings or creating heatmaps"        
+        fragmentLength = self.ufragmentlen
+        pls = numpy.sort(fragmentLength)
+        pls = numpy.r_[pls,pls[-1]+1]
+        N = len(fragmentLength)    
+        mysum = numpy.array(self.fragmentSum(),float)
+        self.weights = numpy.ones(N,float)
+        meanSum = numpy.mean(numpy.array(mysum,float))
+        #watch = numpy.zeros(len(mysum),int)
+        for i in numpy.arange(0,0.991,0.01):
+            b1,b2 = pls[i*N],pls[(i+0.01)*N]
+            p = (b1 <= fragmentLength)* (b2 > fragmentLength)
+            #watch[p] += 1                        
+            value = numpy.mean(mysum[p])      
+            if p.sum() > 0:
+                self.weights[p] =  value / meanSum
+            else:
+                print "no weights",i,b1,b2
 
+
+
+    def buildHeatmap(self,chromosome = 14,chromosome2 = None,resolution = 1000000,show = False,useRsiteDensity = True):
+        """Builds heatmaps between any two chromosomes at a given resolution
         
-        if weights == True: 
-            try:
-                self.weights
-            except:
-                print "!!!!!Forced calculation of weights"
-                self.calculateWeights()
+        Parameters
+        ----------
+        chromosome1 : int
+            First chromosome
+        chromosome2 : int, optional 
+            Second chromosome, if the map is trans. 
+        resolution : int
+            Resolution of a heatmap. Default is 1M  
+        show : bool , optional
+            Show heatmap, or just output it?
+        useRsiteDensity : bool, optional
+            Correct map by density of rsites.              
+        
+        """        
         if chromosome2 == None: 
             chromosome2 = chromosome                        
             mask = (self.chrms1 == chromosome) * (self.chrms2 == chromosome)
@@ -235,23 +305,19 @@ class track(object):
             l1 = len(b1)
             l2 = len(b2)
             hist = numpy.histogram2d(p1,p2,(b1,b2))[0]
-        "now calculating weights"
+
         if chromosome2 == None: chromosome2 = chromosome
-        try: self.weights
-        except:weights = False
-        if weights == True:            
+        if useRsiteDensity == True:            
             m1 = self.ufragments / self.fragIDmult == chromosome
             m2 = self.ufragments / self.fragIDmult == chromosome2
             p1 = self.ufragments[m1]  % self.fragIDmult 
             p2 = self.ufragments[m2]  % self.fragIDmult
-            w1 = self.weights[m1]
-            w2 = self.weights[m2]
             p1mod = p1 / resolution
             p2mod = p2 / resolution            
             myarray = numpy.array(range(numpy.max(p1mod)+1))
-            vec1 =  arraySumByArray(p1mod,myarray,w1)
+            vec1 =  sumByArray(p1mod,myarray)
             myarray = numpy.array(range(numpy.max(p2mod)+1))
-            vec2 = arraySumByArray(p2mod,myarray,w2)
+            vec2 = sumByArray(p2mod,myarray)
             vec1 = vec1[:l1]
             vec2 = vec2[:l2]
             correction = na(vec1[:,None] * vec2[None,:],float)
@@ -265,12 +331,18 @@ class track(object):
         else: return numpy.array(hist)
     
     def buildAllHeatmap(self,resolution):
-        "creates an all-by-all heatmap in accordance with mapping provided by 'genome' class" 
+        """Creates an all-by-all heatmap in accordance with mapping provided by 'genome' class
+        
+        Parameters
+        ----------
+        Resolution : int
+            Resolution of a heatmap 
+        """ 
         self.genome.createMapping(resolution)
         dr = self.DS 
-        label1 = self.genome.chromosomeStarts[self.chrms1[dr] - 1] + self.mids1[dr] / resolution
+        label1 = self.genome.chromosomeStarts[self.chrms1[dr] ] + self.mids1[dr] / resolution
         label1 = numpy.array(label1, dtype = "uint32")
-        label2 = self.genome.chromosomeStarts[self.chrms2[dr] - 1] + self.mids2[dr] / resolution
+        label2 = self.genome.chromosomeStarts[self.chrms2[dr] ] + self.mids2[dr] / resolution
         label2 = numpy.array(label2, dtype = "uint32")       
         label = label1 * numpy.int64(self.genome.N) + label2
         del label1
@@ -293,7 +365,7 @@ class track(object):
         "creates an SS coverage vector heatmap in accordance with the output of the 'genome' class"
         self.genome.createMapping(resolution)
         ds = self.DS == False        
-        label = self.genome.chromosomeStarts[self.chrms1[ds] - 1] + self.mids1[ds] / resolution
+        label = self.genome.chromosomeStarts[self.chrms1[ds] ] + self.mids1[ds] / resolution
         counts = sumByArray(label, numpy.arange(self.genome.N))
         return counts
     
@@ -310,46 +382,15 @@ class track(object):
         
 
     
-    def splitFragmentsBystrands(self):
-        "Splits fragments: those with strands = 1 gets location += 100. This is totally safe!  "
-        "This might be fun if you want to analyze two sides of the fragment separately, but unnecessary otherwise"
-        f1 = self.fragids1
-        f1 += ((f1 % self.fragIDmult) % 2)
-        f1 [self.strands1 == 1] += 1 
-        f2 = self.fragids2
-        f1 += ((f2 % self.fragIDmult) % 2)
-        f2 [self.strands1 == 1] += 1
-        self.rebuildFragments()
         
-
     
-    def filterCentromeres(self):
-        "separates chromosomal arms as different chromosomes"
-        #mask = self.chrms1 == self.chrms2
-        centromeres = self.genome.centromeres        
-        centromeres = r_[1000000000,centromeres]
-        mids1 = self.mids1 /  centromeres[self.chrms1]            
-        tochange = (mids1 > 1)         
-        self.chrms1[tochange] += self.chromosomeCount
-        mids2 = self.mids2 /  centromeres[self.chrms2]    
-        tochange = (mids2 > 1)         
-        self.chrms2[tochange] += self.chromosomeCount
-        locationsSingles = self.locationsSingles /  centromeres[self.chromosomesSingles]            
-        tochange = (locationsSingles > 1)         
-        self.chromosomesSingles[tochange] += self.chromosomeCount
-        self.distances[numpy.abs(self.chrms1 - self.chrms2) == self.chromosomeCount] = -2
-        self.fragids1 = self.mids1  + numpy.array(self.chrms1 * self.fragIDmult,"int64")
-        self.fragids2 = self.mids2  + numpy.array(self.chrms2 * self.fragIDmult,"int64")
-        self.rebuildFragments()
-        
-    def recoverCentromeres(self):
-        "recovers whole chromosomes after chromosomal arm separation" 
-        self.chrms1[self.chrms1 > self.chromosomeCount] -= self.chromosomeCount
-        self.chrms2[self.chrms2 > self.chromosomeCount] -= self.chromosomeCount
-        self.rebuildFragments()
-      
     def fragmentFilter(self,fragments):
-        "keeps only reads that originate from fragments in 'fragments' variable, for DS - on both sides"
+        """keeps only reads that originate from fragments in 'fragments' variable, for DS - on both sides
+        Parameters 
+        ----------
+        fragments : np.array of fragment IDs or bools
+            List of fragments to keep, or their indexes in self.ufragments        
+        """
         if fragments.dtype == numpy.bool:
             fragments = self.ufragments[fragments]        
         m1 = arrayInArray(self.fragids1,fragments)
@@ -359,17 +400,22 @@ class track(object):
 
     
     def maskFilter(self,mask):
-        "keeps only reads designated by mask"
+        """keeps only reads designated by mask
+        Parameters
+        ----------
+        mask : array of bools
+            Indexes of reads to keep 
+        """
         print "          Number of reads changed  %d ---> %d" % (len(mask),mask.sum()),
         length = 0 
         for name in self.vectors:
-            data = self.getData(name)
+            data = self._getData(name)
             ld = len(data)
             if length == 0: length = ld
             else:
                 if ld != length: 
                     self.delete()             
-            self.setData(name,data[mask])  
+            self._setData(name,data[mask])  
         self.rebuildFragments()
         
     def rebuildFragments(self):
@@ -392,26 +438,6 @@ class track(object):
         self.ufragmentlen = ulen[ind]            
         print "          Fragments number changed -   %d --->  %d" % (past, len(self.ufragments))
         
-    def calculateWeights(self):
-        "calculates weights for reads based on fragment length correction similar to Tanay's, may be used for scalings or creating heatmaps"        
-        fragmentLength = self.ufragmentlen
-        pls = numpy.sort(fragmentLength)
-        pls = numpy.r_[pls,pls[-1]+1]
-        N = len(fragmentLength)    
-        mysum = numpy.array(self.fragmentSum(),float)
-        self.weights = numpy.ones(N,float)
-        meanSum = numpy.mean(numpy.array(mysum,float))
-        #watch = numpy.zeros(len(mysum),int)
-        for i in numpy.arange(0,0.991,0.01):
-            b1,b2 = pls[i*N],pls[(i+0.01)*N]
-            p = (b1 <= fragmentLength)* (b2 > fragmentLength)
-            #watch[p] += 1                        
-            value = numpy.mean(mysum[p])      
-            if p.sum() > 0:
-                self.weights[p] =  value / meanSum
-            else:
-                print "no weights",i,b1,b2
-
             
 
     def filterExtreme(self,cutH = 0.005,cutL = 0):
@@ -427,7 +453,15 @@ class track(object):
         print
         
     def filterLarge(self,cutlarge = 100000,cutsmall = 100 ):
-        "removes very large and small fragments"
+        """removes very large and small fragments
+        
+        Parameters
+        ----------
+        cutlarge : int 
+            remove fragments larger than it
+        cutsmall : int
+            remove fragments smaller than it
+        """
         print "----->Small/large fragments filter: keep strictly less than %d, strictly more than %d bp" % (cutlarge, cutsmall)                
         p = (self.ufragmentlen < (cutlarge ) ) * (self.ufragmentlen > cutsmall)                      
         self.fragmentFilter(self.ufragments[p])
@@ -435,7 +469,13 @@ class track(object):
 
     
     def filterRsiteStart(self,offset = 5):
-        "removes reads that start within x bp near rsite"
+        """removes reads that start within x bp near rsite
+        
+        Parameters
+        ----------
+        offset : int 
+            Number of bp to exclude next to rsite, not including offset
+        """
         print "----->Semi-dangling end filter: remove guys who start %d bp near the rsite" % offset
 #        d1 = self.dist1
 #        l1 = self.fraglens1        
@@ -476,7 +516,14 @@ class track(object):
         
 
     def fragmentSum(self,fragments = None, strands = "both"):
-        "returns sum of all counts for a set or subset of fragments"
+        """returns sum of all counts for a set or subset of fragments
+        Parameters
+        ---------- 
+        fragments : list of fragment IDs, optional
+            Use only this fragments. By default all fragments are used
+        strands : 1,2 or "both" (default) 
+            Use only first or second side of the read (first has SS, second - doesn't) 
+        """
         if fragments == None: fragments = self.ufragments                
         if strands == "both":  
             return sumByArray(self.fragids1,fragments) + sumByArray(self.fragids2[self.DS],fragments) 
@@ -488,13 +535,23 @@ class track(object):
         print "-----> Statistics for the folder %s!" % self.folder
         print "     Single sided reads: " ,self.SS.sum()
         print "     Double sided reads: " , self.DS.sum()
-        ss1 = self.strands1[self.chrms1>0]
-        ss2 = self.strands2[self.chrms2>0]
+        ss1 = self.strands1[self.chrms1>=0]
+        ss2 = self.strands2[self.chrms2>=0]
         sf = ss1.sum() + ss2.sum()
         sr = len(ss1) + len(ss2) - sf
         print "     reverse/forward bias",float(sr)/sf
         
-    def delete(self,folder = None, angry = True):         
+    def delete(self,folder = None, angry = True): 
+        """
+        Clears the content of the folder, when called. 
+        
+        Parameters
+        ----------
+        folder : str, optional
+            Folder to be deleted, by default is working folder.
+        angry : bool, optional
+            If set to False, assumes that deletion was intentional. 
+        """        
         if folder == None: folder = self.folder
         if angry == True: print "     Folder  %s removed due to inconsistency" % folder
         else: print "     Override: Folder %s cleaned up" % (folder,)
@@ -503,17 +560,19 @@ class track(object):
                     
         
     def save(self,folderName):
+        "Saves dataset to folderName, does not change the working folder."
         if self.folder == folderName: self.exitProgram("Cannot save to the working folder")
         try: os.mkdir(folderName)
         except: print "folder exists", folderName
-        for name in self.vectors.keys(): self.setData(name, self.getData(name),folderName)
+        for name in self.vectors.keys(): self._setData(name, self._getData(name),folderName)
         print "----> Data saved to folder %s" % (folderName,)
     
     def load(self,folderName):
+        "Loads dataset from folderName to working folder; check for inconsistency"
         if folderName == self.folder: self.exitProgram("Cannot load from the working folder")
         length = 0 
         for name in self.vectors:
-            data = self.getData(name,folderName)
+            data = self._getData(name,folderName)
             ld = len(data)
             if length == 0: 
                 length = len(data)
@@ -525,12 +584,23 @@ class track(object):
                     self.delete(folderName)
                     self.exitProgram("----> Data removed! Sorry...")
                     
-            self.setData(name,data,self.folder) 
+            self._setData(name,data,self.folder) 
         print "---->Loaded data from folder %s, contains %d reads" % (folderName, length)
             
 
         
     def saveHeatmap(self,filename,resolution = 1000000):
+        """
+        Saves heatmap to filename at given resolution. 
+        
+        .. note:: More than one file may be used to store the data, as joblib creates extra files
+        to store huge numpy arrays. All files will start with filename, but some may end with _01.npy.z  
+        
+        Parameters
+        ----------
+        filename : str
+        resolution : int              
+        """
         
         try: os.remove(filename)
         except: pass        
@@ -553,18 +623,18 @@ class track(object):
         print "     ----> Bye! :) <----"
         exit()
 
-class HiCStatistics(track):
-    "a sub-class of a 'track' class used to do statistics on Hi-C reads" 
+class HiCStatistics(HiCdataset):
+    "a sub-class of a 'HiCdataset' class used to do statistics on Hi-C reads" 
 
     def multiplyForTesting(self,N = 100):
         "used for heavy load testing only"
         for name in self.vectors:
             print "multipliing",name
-            one = self.getData(name)
+            one = self._getData(name)
             if name in ["mids1","mids2"]:
                 one += numpy.random.randint(0,5*N,len(one))            
             blowup = numpy.hstack(tuple([one]*N))
-            self.setData(name,blowup)
+            self._setData(name,blowup)
             
     
     def buildLengthDependencePlot(self,label = "plot", strands = "both",color = None):
@@ -589,55 +659,92 @@ class HiCStatistics(track):
         
     def plotScaling(self,fragids1 = None,fragids2 = None,   #IDs of fragments for which to plot scaling. 
                     #One can, for example, limit oneself to only fragments shorter than 1000 bp 
-                    #Or calculate scaling only between different arms
-                    color = None, label = "", #plot parameters
-                    useWeights = False ,        #use weights associated with fragment length
+                    #Or calculate scaling only between different arms                    
+                    useWeights = False ,        #use weights associated with fragment length                    
                     excludeNeighbors = None, enzyme = None,   #number of neighboring fragments to exclude. Enzyme is needed for that!   
                     normalize = True,          #normalize the final plot to sum to one
                     withinArms = True,                #Treat chromosomal arms separately
                     mindist = 10000,  #Scaling was proved to be unreliable under 10000 bp for 6-cutter enzymes
+                    maxdist = None,
                     #----------Calculating scaling within a set of regions only------
-                    regions = None   #Array of tuples (chrom, start, end) for which scaling should be calculated
+                    regions = None,   #Array of tuples (chrom, start, end) for which scaling should be calculated
                     #Note that calculation might be extremely long (it might be proportional to # of regions for # > 100)
-                                           
+                    appendReadCount = True,   #Append read count to the plot label 
+                    **kwargs #kwargs to be passed to plotting                       
                     ):               #Sad smiley, because this method is very painful and complicated
         """plots scaling over, possibly uses subset of fragmetns, or weigts, possibly normalizes after plotting
         
         Plan of scaling calculation: 
         
-        1. Subdivide all genome into regions. 
-            a. Different chromosomes
-            b. Different arms
-            c. User defined squares/rectangles on a contact map
-               -(chromosome, start,end) square around the diagonal 
-               -(chr1, start1, end1, start2, end2) rectangle
-        
-        2. Use either all fragments, or only interactions between two groups of fragments 
-            e.g. you can calculate how scaling for small fragments is different from that for large
-            It can be possibly used for testing Hi-C protocol issues.
-            One can see effect of weights by doing this
-        
+        1. Subdivide all genome into regions. \n         
+            a. Different chromosomes \n            
+            b. Different arms \n            
+            c. User defined squares/rectangles on a contact map \n            
+               -(chromosome, start,end) square around the diagonal \n                
+               -(chr1, start1, end1, start2, end2) rectangle \n
+                       
+        2. Use either all fragments, or only interactions between two groups of fragments \n         
+            e.g. you can calculate how scaling for small fragments is different from that for large \n            
+            It can be possibly used for testing Hi-C protocol issues. \n             
+            One can see effect of weights by doing this \n        
+            
         3. (optional) Calculate correction associated with fragment length dependence 
-        
-        4. Subdivide all possible genomic separation into log-spaced bins 
-        
-        5. Calculate expected number of fragment pairs within each bin (possibly with weights from step 3). 
-            If exclusion of neighbors is specificed, expected number of fragments knows about this                   
+                         
+        4. Subdivide all possible genomic separation into log-spaced bins
+                 
+        5. Calculate expected number of fragment pairs within each bin (possibly with weights from step 3).
+         
+            If exclusion of neighbors is specificed, expected number of fragments knows about this
+            
+        Parameters
+        ----------
+        fragids1, fragids2 : numpy.array of fragment IDs, optional 
+            Scaling is calculated only for interactions between fragids1 and fragids2
+            If omitted, all fragments are used
+            If boolean array is supplied, it serves as a mask for fragments. 
+        useWeights : bool, optional 
+            Use weights calculated from fragment length
+        excludeNeighbors : int or None, optional
+            If None, all fragment pairs are considered. 
+            If integer, only fragment pairs separated by this rsites are considered.
+        enzyme : string ("HindIII","NcoI")
+            If excludeNeighbors is used, you have to specify restriction enzyme
+        normalize : bool, optional
+            Do an overall normalization of the answer, by default True. 
+        withinArms : bool, optional
+            Set to false to use whole chromosomes instead of arms
+        mindist, maxdist : int, optional
+            Use lengthes from mindist to maxdist
+        regions : list of (chrom, start,end), optional
+            Restrict scaling calculation to only certain squares of the map
+        appendReadCount : bool, optional 
+            Append read count to the plot label
+        kwargs : dict, optional
+            Dictionary of kw args to be passed to plt.plot
+            
+        Returns
+        -------
+        (bins,probabilities) - values to plot on the scaling plot        
          
         """
         if excludeNeighbors <= 0: excludeNeighbors = None   #Not excluding neighbors  
         #use all fragments if they're not specified 
         if fragids1 == None: fragids1 = self.ufragments
         if fragids2 == None: fragids2 = self.ufragments
+        if fragids1.dtype == numpy.bool: 
+            fragids1 = self.ufragments[fragids1]
+        if fragids2.dtype == numpy.bool:
+            fragids2 = self.ufragments[fragids2]
         
         #Calculate regions if not specified 
         if regions == None: 
             if withinArms == False: 
-                regions = [(i,0,self.genome.chromosomes[i-1]) for i in xrange(1,self.genome.chromosomeCount+1)]
+                regions = [(i,0,self.genome.chromosomes[i]) for i in xrange(self.genome.chromosomeCount)]
             else:
-                regions = [(i,0,self.genome.centromeres[i-1]) for i in xrange(1,self.genome.chromosomeCount+1)] + [(i,self.genome.centromeres[i-1],self.genome.chromosomes[i-1]) for i in xrange(1,self.genome.chromosomeCount+1)]
+                regions = [(i,0,self.genome.centromeres[i]) for i in xrange(self.genome.chromosomeCount)] + [(i,self.genome.centromeres[i],self.genome.chromosomes[i]) for i in xrange(self.genome.chromosomeCount)]
                 
-        maxdist = max ( max([i[2] - i[1] for i in regions]),  #normal regions 
+        
+        if maxdist == None: maxdist = max ( max([i[2] - i[1] for i in regions]),  #normal regions 
                         max([abs(i[2] - i[3]) for i in regions if len(i) > 3] + [0]),   #rectangular regions
                         max([abs(i[1] - i[4]) for i in regions if len(i) > 3] + [0]))
 
@@ -646,8 +753,8 @@ class HiCStatistics(track):
         chr2 = self.chrms2
         pos1 = self.mids1
         pos2 = self.mids2
-        fragRegions1 = numpy.zeros(len(fragids1),int)
-        fragRegions2 = numpy.zeros(len(fragids2),int)
+        fragRegions1 = numpy.zeros(len(fragids1),int) - 1
+        fragRegions2 = numpy.zeros(len(fragids2),int) - 1 
         fragch1 =  fragids1 / self.fragIDmult
         fragch2 =  fragids2 / self.fragIDmult
         fragpos1 = fragids1 % self.fragIDmult
@@ -673,7 +780,8 @@ class HiCStatistics(track):
                 mask2 = (fragch2 == chrom) * (fragpos2 > start2) * (fragpos2 < end2)   
                 fragRegions1[mask1] = regionNum
                 fragRegions2[mask2] = regionNum
-        del chr1,chr2,pos1,pos2                        
+        del chr1,chr2,pos1,pos2
+        print regions                         
 
                                         
         lens = numpy.array(numutils.logbins(mindist,maxdist,1.25),float)+0.1   #bins of lengths        
@@ -724,7 +832,7 @@ class HiCStatistics(track):
         for regionNumber,region  in enumerate(regions):  
             
             mask = numpy.nonzero(fragRegions1  == regionNumber)[0]
-            mask2 = numpy.nonzero(fragRegions2  == regionNumber)[0]  #filtering fragments that correspont to current region
+            mask2 = numpy.nonzero(fragRegions2  == regionNumber)[0]  #filtering fragments that correspont to current region             
             if (len(mask) == 0) or (len(mask2) == 0): continue                             
             bp1, bp2 = pos1[mask], pos2[mask2]         #positions of fragments on chromosome
              
@@ -743,7 +851,7 @@ class HiCStatistics(track):
                 w1,w2 = weights1[mask], weights2[mask2]                                  
                 sw2 = numpy.r_[0,numpy.cumsum(w2[p2arg])]    #cumsum for sorted weights on 2 strand             
             
-            for lenmin,lenmax,index in zip(lenmins,lenmaxs,range(N)):
+            for lenmin,lenmax,index in zip(lenmins,lenmaxs,range(len(lenmins))):
                 "Now calculating actual number of fragment pairs for a length-bin, or weight of all these pairs"                
                 mymin,mymax = bp1 - lenmax, bp1 - lenmin   #calculating boundaries for fragments on a second strand                  
                 val1 = numpy.searchsorted(p2,mymin)  #Calculating indexes on the second strand 
@@ -769,25 +877,30 @@ class HiCStatistics(track):
                         else:   print "error found" , "lenmin:",lenmin, "  curcount:",curcount, "  ignore:",  ignore
                     else: #Everything is all right                                                                      
                         curcount  -= ignore
-                count[index] += curcount 
+                count[index] += curcount
+                #print index,count[index]
         maxcountsall = count        
-         
+        rawValues = []
         for i in xrange(len(lens) - 1):   #Dividing observed by expected
             beg,end  = lens[i], lens[i+1]            
-            first,last = tuple(numpy.searchsorted(distances[:-1],[beg,end]))            
+            first,last = tuple(numpy.searchsorted(distances,[beg,end]))            
             mycounts = last - first
-            maxcounts = maxcountsall[i]
-                                     
+            maxcounts = maxcountsall[i]                                     
             positions.append(sqrt(float(beg)*float(end)))
             values.append(mycounts/float(maxcounts))
+            rawValues.append(mycounts)
+        print rawValues
+        print count
+            
         positions = numpy.array(positions)
         values = numpy.array(values)
          
         if normalize == True: values /= numpy.sum(1. * (positions * values) [numpy.logical_not(numpy.isnan(positions * values))])        
-        if color!= None:
-            plt.plot(positions,values,color , label = label+", %d reads" % len(distances))
-        else: 
-            plt.plot(positions,values, label = label+", %d reads" % len(distances))
+        
+        if appendReadCount == True: 
+            if "label" in kwargs.keys(): 
+                kwargs["label"]  = kwargs["label"] + ", %d reads" % len(distances)
+        plt.plot(positions,values, **kwargs)
         return (positions, values) 
         
     
@@ -827,9 +940,42 @@ class HiCStatistics(track):
 
 
 
+class experimentalFeatures(HiCdataset):
+    def splitFragmentsBystrands(self):
+        "Splits fragments: those with strands = 1 gets location += 100. This is totally safe!  "
+        "This might be fun if you want to analyze two sides of the fragment separately, but unnecessary otherwise"
+        f1 = self.fragids1
+        f1 += ((f1 % self.fragIDmult) % 2)
+        f1 [self.strands1 == 1] += 1 
+        f2 = self.fragids2
+        f1 += ((f2 % self.fragIDmult) % 2)
+        f2 [self.strands1 == 1] += 1
+        self.rebuildFragments()
+    
+    def calculateWeights(self):
+        "calculates weights for reads based on fragment length correction similar to Tanay's, may be used for scalings or creating heatmaps"        
+        fragmentLength = self.ufragmentlen
+        pls = numpy.sort(fragmentLength)
+        pls = numpy.r_[pls,pls[-1]+1]
+        N = len(fragmentLength)    
+        mysum = numpy.array(self.fragmentSum(),float)
+        self.weights = numpy.ones(N,float)
+        meanSum = numpy.mean(numpy.array(mysum,float))
+        #watch = numpy.zeros(len(mysum),int)
+        for i in numpy.arange(0,0.991,0.01):
+            b1,b2 = pls[i*N],pls[(i+0.01)*N]
+            p = (b1 <= fragmentLength)* (b2 > fragmentLength)
+            #watch[p] += 1                        
+            value = numpy.mean(mysum[p])      
+            if p.sum() > 0:
+                self.weights[p] =  value / meanSum
+            else:
+                print "no weights",i,b1,b2
+
+
 
 def plotFigure2c():
-    TR = track()
+    TR = HiCdataset()
     TR.load("GM-all.refined")
     hm = TR.buildHeatmap(1, 1, 1000000, False,False)
     TR.calculateWeights()    
@@ -894,7 +1040,7 @@ def plotFigure2c():
 
 
 def doSupplementaryCoveragePlot():
-    TR = track()
+    TR = HiCdataset()
     TR.load("GM-all.refined")
     s1 = TR.fragmentSum(strands = 1)
     TR.saveFragments()
@@ -903,7 +1049,7 @@ def doSupplementaryCoveragePlot():
     s2 = TR.fragmentSum(strands = 1)
     resolution = 1000000
     def coverage(s1,s2,TR):
-        genome = dnaUtils.Genome("HG18")
+        genome = dnautils.Genome("HG18")
         genome.createMapping(resolution)            
         label = genome.chromosomeStarts[TR.ufragments / TR.fragIDmult - 1] + (TR.ufragments % TR.fragIDmult ) / resolution
         counts = numpy.bincount(label, weights = s1)
@@ -926,7 +1072,7 @@ def doSupplementaryCoveragePlot():
     plt.title("HinIII")
     coverage(s1,s2,TR)
     
-    TR = track()
+    TR = HiCdataset()
     TR.load("GM-NcoI.refined")
     s1 = TR.fragmentSum(strands = 1)
     TR.saveFragments()

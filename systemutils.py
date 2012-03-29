@@ -1,36 +1,23 @@
-import os, sys, cPickle, numpy, pdb 
+import os, sys, cPickle, pdb 
 import traceback
 
 import ctypes 
 from copy import copy
-import scipy.stats 
 
 
 
-na = numpy.array
-r_ = numpy.r_
-
-
-cr = scipy.stats.spearmanr
-cc = numpy.corrcoef
 
 
 
-def info(infoType, value, tb):
+def _exceptionHook(infoType, value, tb):
     "sets exception hook to pdb"
-    #if hasattr(sys, 'ps1') or not sys.stderr.isatty():
-    # we are in interactive mode or we don't have a tty-like
-    # device, so we call the default hook
-    #sys.__excepthook__(type, value, tb)
-    #else:
     
     traceback.print_exception(infoType, value, tb)
     print
-    #import code    
-    #code.InteractiveConsole(globals() ).interact()
-    #alternative - PDB degubber 
     pdb.post_mortem(tb) 
-sys.excepthook = info
+
+def setExceptionHook():
+    sys.excepthook = _exceptionHook
 
 def run_in_separate_process(func, *args, **kwds):
     pread, pwrite = os.pipe()
@@ -153,9 +140,15 @@ def fmap(f, *a, **kw):
 
 
 
-def fmapred(function,data,reduction = lambda x,y:x+y, n=4,debug=False):
-    "fork-map-reduce"
+def _fmapredcount(function,data,reduction = lambda x,y:x+y, n=4,exceptionList = [IOError]):
+    """fork-map-reduce
+    Performs fork-map of function on data, automatically reducing the data inside each worker. 
+    If evaluation throws the exception from exceptionList, this results are simply ignored 
+    """
     def funsum(x,y):
+        """reduces two x[0],y[0], keeping track of # of
+        successful evaluations that were made
+        Also keeps track of None's that can occur if evaluation failed"""
         if x==None:
             if y==None:
                 return None
@@ -165,61 +158,69 @@ def fmapred(function,data,reduction = lambda x,y:x+y, n=4,debug=False):
             if y ==None:
                 return x
             else:
-                return (reduction(x[0],y[0]),x[1]+y[1])
+                return (reduction(x[0],y[0]),x[1]+y[1])            
+    
     def newfunction(x):
+        "if function is evaluated, it was evaluated one time"
         return function(x),1
-
+    
     if len(data) < n:
         n = len(data) 
     datas = []
+    
     for i in xrange(n): 
-        datas.append(copy(data[i::n]))
-    def worker(x):
-        if (debug == False):
-            try:
-                x[0] = newfunction(x[0])
-                return reduce(lambda z,y:funsum(z,newfunction(y)),x)
-            except:
-                return None
-        else: 
-            x[0] = newfunction(x[0])
-            return reduce(lambda z,y:funsum(z,newfunction(y)),x)
+        datas.append(copy(data[i::n]))   #split like that if beginning and end of the array have different evaluation time
+    
+    def worker(dataList):        
+        try:
+            dataList[0] = newfunction(dataList[0])
+            return reduce(lambda z,y:funsum(z,newfunction(y)),dataList)  #reducing newfunction with our new reduction algorithm
+        except tuple(exceptionList):
+            return None
                      
     reduced = fmap(worker,datas,n=n)
-    return reduce(funsum,reduced)[0]
+    return reduce(funsum,reduced)
+
+def fmapred(function,data,reduction = lambda x,y:x+y, n=4,exceptionList = [IOError]):
+    """reduces two x[0],y[0], keeping track of # of
+    successful evaluations that were made
+    Also ignores failed evaluations with exceptions from exceptionList. 
+    
+    Parameters
+    ----------
+    function : function
+        function to be applied to the data
+    data : iterable
+        input data
+    reduction : function, optional
+        Reduction function. By default - sum
+    n : int, optional
+        number of CPUs
+    exceptionList : list, optional 
+        list of exceptions to be ignored during reduction. By default, only IOError is ignored. 
+    """
+    return _fmapredcount(function,data,reduction = reduction, n=n,exceptionList = exceptionList)[0]
+
+def fmapav(function,data,reduction = lambda x,y:x+y, n=4,exceptionList = [IOError]):
+    """Calculates averate of [fucntion(i) for i in data]
+    Also ignores failed evaluations with exceptions from exceptionList.
+    
+    Parameters
+    ----------
+    function : function
+        function to be applied to the data
+    data : iterable
+        input data
+    reduction : function, optional
+        Reduction function. By default - sum
+    n : int, optional
+        number of CPUs
+    exceptionList : list, optional 
+        list of exceptions to be ignored during reduction. By default, only IOError is ignored. 
+    """
+
+    a = _fmapredcount(function,data,reduction = reduction, n=n,exceptionList = exceptionList)
+    return a[0]/float(a[1])
+    
 
 
-
-def fmapav(function,data,reduction = lambda x,y:x+y, n=8):
-    "fork-map-average"
-    def funsum(x,y):
-        if x==None:
-            if y==None:
-                return None
-            else:
-                return y
-        else:
-            if y ==None:
-                return x
-            else:
-                return (reduction(x[0],y[0]),x[1]+y[1])
-    def newfunction(x):
-        try: return function(x),1
-        except IOError: 
-            print "not found",x
-            return None 
-
-    if len(data) < n:
-        n = len(data) 
-    datas = []
-    for i in xrange(n): 
-        datas.append(copy(data[i::n]))
-    def worker(x):
-        try:
-            x[0] = newfunction(x[0])
-            return reduce(lambda z,y:funsum(z,newfunction(y)),x)
-        except:            
-            return None         
-    reduced = fmap(worker,datas,n=n)
-    t =  reduce(funsum,reduced)
-    return t[0]/float(t[1])

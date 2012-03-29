@@ -1,8 +1,8 @@
-import base,dnaUtils,numutils
-base  # Eclipse warning damper
+import systemutils,numutils
+systemutils.setExceptionHook()
 from plotting import  removeBorder 
 from numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
-
+import dnautils
 import  numpy,joblib
 from math import exp 
 from scipy import weave
@@ -17,7 +17,7 @@ class binnedData(object):
     "base class to work with binned data"
     
     def __init__(self, resolution,genomeFolder):
-        self.genome = dnaUtils.Genome(genomeFolder = genomeFolder)
+        self.genome = dnautils.Genome(genomeFolder = genomeFolder)
         if resolution != None: self.resolution = resolution
         self.chromosomes = self.genome.chromosomes
         self.resolution = resolution
@@ -99,46 +99,54 @@ class binnedData(object):
             self.dataDict[i] = data
             #mat_img(data) 
             
-        
-        
-    
-    def removeStandalone(self,offset = 3):
-        "removes standalone bins (groups of less-than-offset-long bins)"
-        self.N = len(self.dataDict.values()[0])
+    def giveMask(self):
         self.mask = numpy.ones(len(self.dataDict.values()[0]),numpy.bool)
         for data in self.dataDict.values():
             datasum = numpy.sum(data,axis = 0)
             datamask = datasum > 0
-            self.mask *= datamask  
-        diffs = numpy.diff(numpy.array(numpy.r_[False, self.mask, False],int))
+            self.mask *= datamask
+        return self.mask
+    
+    def giveMask2D(self):
+        self.giveMask()
+        self.mask2D = self.mask[:,None] * self.mask[None,:]
+        return self.mask2D   
+         
+        
+    
+    def removeStandalone(self,offset = 3):
+        "removes standalone bins (groups of less-than-offset-long bins)"
+        self.N = len(self.dataDict.values()[0])        
+        diffs = numpy.diff(numpy.array(numpy.r_[False, self.giveMask(), False],int))
         begins = numpy.nonzero(diffs == 1)[0] 
         ends = numpy.nonzero(diffs == -1)[0]
         beginsmask = (ends - begins) <= offset
         newbegins = begins[beginsmask]
         newends = ends[beginsmask]        
         print "removing %d standalone megabases"% numpy.sum(newends - newbegins)
-        for i in xrange(len(newbegins)): self.mask[newbegins[i]:newends[i]] = False
-        self.mask2D = self.mask[:,None] * self.mask[None,:]
-        for i in self.dataDict.values(): i[self.mask2D == False] = 0
+        mask = self.giveMask()
+        for i in xrange(len(newbegins)): mask[newbegins[i]:newends[i]] = False
+        mask2D = mask[:,None] * mask[None,:]        
+        for i in self.dataDict.values(): i[mask2D == False] = 0
         
     def removePoorRegions(self,names = None, cutoff = 2):
         "removes cutoff persent of bins with least counts"
         statmask = numpy.zeros(len(self.dataDict.values()[0]),numpy.bool)
-        self.mask = numpy.ones(len(self.dataDict.values()[0]),numpy.bool)
+        mask = numpy.ones(len(self.dataDict.values()[0]),numpy.bool)
         if names == None: names =self.dataDict.keys()  
         for i in names:
             data = self.dataDict[i]
             datasum = numpy.sum(data,axis = 0)            
             datamask = datasum > 0
-            self.mask *= datamask  
+            mask *= datamask  
             try: countsum = numpy.sum(data,axis = 0) + self.singlesDict[i]
             except: countsum = numpy.sum(data,axis = 0) 
             newmask = countsum >= numpy.percentile(countsum[datamask],cutoff)
-            self.mask *= newmask  
+            mask *= newmask  
             statmask [(newmask == False) * (datamask == True)] = True
         print "removed %d poor megabases", statmask.sum() 
-        self.mask2D = self.mask[:,None] * self.mask[None,:]
-        for i in self.dataDict.values(): i[self.mask2D == False] = 0
+        mask2D = mask[:,None] * mask[None,:]
+        for i in self.dataDict.values(): i[mask2D == False] = 0
               
     def TrunkTrans(self,high = 0.0005):
         "trunkates trans contacts to remove blowouts"
@@ -152,8 +160,7 @@ class binnedData(object):
         
     def removeCis(self):
         "sets to zero all cis contacts"
-        mask = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]
-        #self.mask2D[mask] = False 
+        mask = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]         
         for i in self.dataDict.keys():                
             self.dataDict[i][mask] = 0   
         self.removedCis = True           
@@ -351,7 +358,7 @@ class binnedData(object):
         """removes bins with zero counts
         keeps chromosome starts, ends, etc. consistent"""
         
-        s = numpy.sum(self.mask2D,axis = 0) > 0
+        s = numpy.sum(self.giveMask2D(),axis = 0) > 0
         for i in self.dataDict.values():
             s *= (numpy.sum(i,axis = 0) > 0)
         indices = numpy.zeros(len(s),int)
@@ -372,14 +379,42 @@ class binnedData(object):
         for mydict in dicts:
             for key in mydict.keys():
                 mydict[key] = mydict[key][s]
+                
+        
         self.chromosomeIndex = self.chromosomeIndex[s]
         self.armIndex = self.armIndex[s]
         self.chromosomeEnds = indices[self.chromosomeEnds]
         self.chromosomeStarts = indices[self.chromosomeStarts]
         self.centromerePositions = indices[self.centromerePositions]
-        self.mask2D = self.mask2D[:,s]
-        self.mask2D = self.mask2D[s,:]
+        self.removeZerosMask = s 
         return s 
+
+    def restoreZeros(self, value = numpy.NAN):
+        """Restores zeros that were removed by removeZeros command. 
+        
+        .. warning:: You can restore zeros only if you used removeZeros once.   
+        """        
+        s = self.removeZerosMask
+        N = len(s)
+
+        for i in self.dataDict.keys():
+            a = self.dataDict[i]
+            self.dataDict[i] = numpy.zeros((N,N),dtype = a.dtype)
+            tmp = numpy.zeros((N,len(a)),dtype = a.dtype)
+            tmp[s,:] = a
+            self.dataDict[i][:,s] = tmp             
+        dicts = [self.trackDict, self.biasDict, self.singlesDict, self.fragsDict]
+        for mydict in dicts:
+            for key in mydict.keys():
+                a = mydict[key]
+                mydict[key] = numpy.zeros(N,dtype = a.dtype)
+                mydict[key][s] = a
+                        
+        self.initChromosomes()
+         
+
+        
+
 
     def removeX(self):
         "Makes all X chromosome invisible"    
@@ -594,13 +629,14 @@ class binnedDataAnalysis(binnedData):
  
     def divideOutAveragesPerChromosome(self):
         "divides each interchromosomal map by it's mean value"
+        mask2D = self.giveMask2D()
         for chrom1 in xrange(self.chromosomeCount):
             for chrom2 in xrange(self.chromosomeCount):
                 for i in self.dataDict.keys():
                     value = self.dataDict[i]
                     submatrix = value[self.chromosomeStarts[chrom1]:self.chromosomeEnds[chrom1],
                                       self.chromosomeStarts[chrom2]:self.chromosomeEnds[chrom2]]
-                    masksum = numpy.sum(self.mask2D[self.chromosomeStarts[chrom1]:self.chromosomeEnds[chrom1],
+                    masksum = numpy.sum(mask2D[self.chromosomeStarts[chrom1]:self.chromosomeEnds[chrom1],
                                       self.chromosomeStarts[chrom2]:self.chromosomeEnds[chrom2]])
                     valuesum = numpy.sum(submatrix)
                     mean = valuesum / masksum

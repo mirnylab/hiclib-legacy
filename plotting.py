@@ -1,18 +1,11 @@
-import base
-base #Eclipse warning damper 
+import systemutils
+systemutils.setExceptionHook() 
 from copy import  deepcopy
 import matplotlib
 import matplotlib.pyplot as plt 
 
 import numpy 
-#import matplotlib.pyplot as plt
-#import matplotlib
 
-#from weblogolib import *
-savedplot = 0
-savedpointplot = 0
-#plot to be saved to file
-error_labels = None
 
 
 def cmap_map(function,cmap,mapRange = [0,1]):
@@ -51,10 +44,23 @@ def cmap_map(function,cmap,mapRange = [0,1]):
     return matplotlib.colors.LinearSegmentedColormap('colormap',cdict,1024)
 
 
-def show3D(x,y=None,z=None):
-    """accepts data as x,y,z or as an array of Nx3 or 3xN shape"
-    shows system in rasmol by drawing spheres
-    draws 4 spheres in between any two points (5 * N spheres total)"""
+def showPolymerRasmol(x,y=None,z=None):
+    """
+    Shows the polymer using rasmol.
+    Can't properly treat continuous chains (they will have linkers of 5 balls between chains) 
+    Accepts data as x,y,z or as an array of Nx3 or 3xN shape"
+    Shows system  by drawing spheres
+    draws 4 spheres in between any two points (5 * N spheres total)
+    
+    Parameters
+    ----------
+    x : array
+        Nx3 or 3xN array, or N-long array
+    y,z : array or None
+        if array, it corresponds to y coordinate. If none, x is assumed to have 3 coordinates
+    
+    """
+    
     import os, tempfile      
     #if you want to change positions of the spheres along each segment, change these numbers
     #e.g. [0,.1, .2 ...  .9] will draw 10 spheres, and this will look better
@@ -114,7 +120,7 @@ def show3D(x,y=None,z=None):
 
 
 def scatter3D(x,y,z,color):
-     
+    """shows a scatterplot in 3D"""
         
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -134,11 +140,8 @@ def scatter3D(x,y,z,color):
     plt.show()
                 
                 
-            
-def integrate(a,b):
-    return [i[1]/(b[-1]**0.33333) for i in zip(b,a)],[i/float(b[-1]) for i in b]
-
-def removeAxes(mode = "normal",shift = 10, ax = None):
+def removeAxes(mode = "normal",shift = 0, ax = None):
+    
     if ax == None: 
         ax = plt.gca()
     for loc, spine in ax.spines.iteritems():
@@ -202,8 +205,6 @@ def mat_img(a,cmap="hot_r",trunk = False, **kwargs):
     
     #plt.close() 
 
-def img_show(*args,**kwargs):
-    mat_img(*args,**kwargs)
 
 
 def plot_occupation(*prop):
@@ -250,7 +251,6 @@ def pointplot(data,lines=1,labels=None,size=(5,5),fs=15,linewidth=None,markersiz
         labels = [str(i) for i in range(len(data))]
     global savedpointplot
     savedpointplot = deepcopy(data)
-    pl = []
     if linewidth == None: linewidth = [1 for i in xrange(len(data))]
     if markersize == None: markersize = [3 for i in xrange(len(data))]
     for j,i in enumerate(data):
@@ -284,137 +284,4 @@ def pointplot(data,lines=1,labels=None,size=(5,5),fs=15,linewidth=None,markersiz
     #plt.grid()
     plt.legend(loc=0,prop={"size":int(1.1*fs)})
     plt.show()
-    #raw_input("Press any key to continue...")
 
-#pointplot(1,[[1,2],[1,2]],[[2,3],[3,4]])    
-color_counter = 1
-
-#===============================================================================
-# mycmap = cmap_map(lambda x:x,plt.cm.jet,range = (0.15,0.67))
-# colors = [mycmap(i/float(6)) for i in xrange(6)]
-# print colors
-# exit()  
-#===============================================================================
-
-class plot():
-    def __init__(self,data,dataType = None,**kwargs):
-        self.type = dataType
-        
-        self.label = kwargs.get("label","Plot")        
-        self.xlabel = kwargs.get("xlabel","x-value")
-        self.ylabel = kwargs.get("ylabel","y-values")
-        self.logscale = kwargs.get("logscale",False)
-        self.error_up = self.error_down = self.error_left = self.error_right = None
-        
-        
-        
-        if self.type=="occ":
-            self.datay = numpy.array(data)
-            self.N = len(data)
-            self.datax = numpy.array([i for i in xrange(self.N)])
-        if self.type=="point":
-            
-            self.datax = numpy.array(data[0])
-            self.datay = numpy.array(data[1])
-            self.N = len(self.datax)
-        if self.type == "errorbars":
-            self.datax = numpy.array(data[0])
-            self.datay = numpy.array(data[1])
-            self.N = len(self.datax)
-            self.error_labels = kwargs.get("error_labels","xy")
-            for i in xrange(len(error_labels)):
-                if error_labels[i] == 'u':
-                    self.error_up = data[i+2]
-                if error_labels[i] == 'd':
-                    self.error_down = data[i+2]
-                if error_labels[i] == 'l':
-                    self.error_left = data[i+2]
-                if error_labels[i] == 'r':
-                    self.error_right = data[i+2]
-                if error_labels[i] == 'x':
-                    self.error_right = data[i+2]
-                    self.error_left = data[i+2]                    
-                if error_labels[i] == 'y':
-                    self.error_up = data[i+2]
-                    self.error_down = data[i+2]
-        if self.type == "sigmaplot":
-            
-            leg = numpy.array(data[1])
-            self.sigmas = leg
-            self.datax = data[0]
-            M = len(leg)
-            
-            avs = numpy.sum(leg,0)/M + (numpy.random.random(len(leg[0])) - 0.5)*0.000000000000000000001
-            
-          
-            self.datay = avs
-            if len(self.sigmas) < 0:                          
-                sigmaup = numpy.sqrt(numpy.sum(((leg - avs)*((leg-avs)>0))**2,0)*(1./numpy.sum((leg-avs)>0,0)))
-                sigmadown = numpy.sqrt(numpy.sum(((leg - avs)*((leg-avs)<0))**2,0)*(1./numpy.sum((leg-avs)<0,0)))
-            else:
-                sigmaup = numpy.zeros(len(avs),float)
-                sigmadown = numpy.zeros(len(avs),float)
-            self.error_up = sigmaup
-            self.error_down = sigmadown
-
-            
-    def add_plot(self,graph,color_counter=-1,N=-1,color=None,linewidth = None):
-        #print color_counter,N
-        def f(x):
-            if len(x) == 1:
-                return x+x
-            return x
-        mycmap = cmap_map(lambda x:x,plt.cm.get_cmap("jet"),range = (0.15,0.70))
-        colors = [mycmap(i/float(N-1)) for i in xrange(N)]       
-        #print colors
-        keys = {}
-        if color == None:
-            if color_counter != -1: keys["color"] = colors[color_counter]
-        else: keys["color"] = color
-
-        if linewidth != None: keys["linewidth"] = linewidth
-        else:keys["linewidth"] = 2 
-
-
-        if self.error_down!=None or self.error_up!=None:
-            keys["yerr"] = [self.error_down,self.error_up]
-            
-        if self.error_left!=None or self.error_right!=None:
-            keys["xerr"] = [self.error_left,self.error_right]
-        keys["label"] = self.label
-         
-        
-        
-        if self.type == "sigmaplot":
-            graph.errorbar(self.datax,self.datay,**keys)
-            print list(self.datax)
-            print list(self.datay)
-        else:
-            graph.plot(self.datax,self.datay,**keys)
-            print list(self.datax)
-            print list(self.datay)
-            
-    def integrate(self):
-        self.datay,self.datax = integrate(self.datay,self.datax)
-        if self.error_up != None: self.error_up= integrate(self.error_up)
-        if self.error_down != None: self.error_down= integrate(self.error_down)
-        
-        
-
-#def printlogo(pwm,filename):
-#    PWMdata = numpy.array([[pwm[i][j] for i in xrange(4)] for j in xrange(len(pwm[0]))])
-#    import subprocess
-#            
-#    
-#    data = LogoData.from_counts(std_alphabets["dna"],PWMdata)
-#    options = LogoOptions()
-#    options.title = "A Logo Title"
-#    format = LogoFormat(data, options)
-#    fout = open(filename+".eps", 'w') 
-#    eps_formatter( data, format, fout)
-#    fout.close()
-#    subprocess.Popen(("gswin32.exe -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m -r200 -dGraphicsAlphaBits=4   -sOutputFile=%s.png %s.eps" % (filename,filename)).split())
-
-
-    
-    
