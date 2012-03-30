@@ -6,22 +6,23 @@ Additional class HiCStatistics contains methods to analyze HiC data on a fragmen
 This includes read statistics, scalings, etc.
 """
 import warnings
-import systemutils
+from mirnylab import systemutils
 systemutils.setExceptionHook() 
 import os,cPickle
-from genome import Genome 
-import hic.mapping  
+from mirnylab.genome import Genome 
+import mirnylab.hic.mapping 
 import numpy
 from numpy import array as na  
 from scipy import stats
 import matplotlib
 import matplotlib.pyplot as plt
 from math import sqrt 
-from h5dict import h5dict 
-import plotting 
-from plotting import mat_img,removeAxes
-import numutils 
-from numutils import arrayInArray,  sumByArray, correct, ultracorrect
+from mirnylab.h5dict import h5dict 
+from mirnylab import plotting 
+from mirnylab.plotting import mat_img,removeAxes
+
+from mirnylab import numutils  
+from mirnylab.numutils import arrayInArray,  sumByArray, correct, ultracorrect
 import numexpr
  
 
@@ -204,6 +205,7 @@ class HiCdataset(object):
         self.cuts1 = dictLike["cuts1"]
         self.cuts2 = dictLike["cuts2"]    
         
+
         if not (("strands1" in dictLike.keys()) and ("strands2" in dictLike.keys())):
             print "No strand information provided, assigning random strands."
             t = numpy.random.randint(0,2,self.trackLen)
@@ -214,27 +216,30 @@ class HiCdataset(object):
             self.strands1 = dictLike["strands1"]
             self.strands2 = dictLike["strands2"]            
             noStrand = False   #strand information filled in 
-            
-        "TODO: write this part" 
         
         if noRsites == True:   #We have to fill rsites ousrlves. Let's see what enzyme to use! 
             if (enzymeToFillRsites == None) and (self.genome.hasEnzyme() == False) :
                 raise ValueError("Please specify enzyme if your data has no rsites")
-            print "Filling rsites"
             if enzymeToFillRsites != None:
                 if self.genome.hasEnzyme() == True:
                     if enzymeToFillRsites != self.genome.enzymeName:
                         warnings.warn("genome.enzymeName different from supplied enzyme")                                         
                 self.genome.setEnzyme(enzymeToFillRsites)
             #enzymeToFillRsites has preference over self.genome's enzyme
-            rsitedict = h5dict()
-            rsitedict.update(dictLike)
-            hic.mapping.fill_rsites(lib = rsitedict, genome_db = self.genome)
+                
+            print "Filling rsites"            
+            rsitedict = h5dict()  #creating dict to pass to anton's code 
+            rsitedict["chrms1"] = self.chrms1
+            rsitedict["chrms2"] = self.chrms2
+            rsitedict["cuts1"] = self.cuts1
+            rsitedict["cuts2"] = self.cuts2            
+            rsitedict["strands1"] = self.strands1
+            rsitedict["strands2"] = self.strands2            
+            mirnylab.hic.mapping.fill_rsites(lib = rsitedict, genome_db = self.genome)
         else:
-            rsitedict = dictLike 
+            rsitedict = dictLike #rsite information is in our dictionary        
         
-        
-        self.DS = (self.chrms1 >= 0) * (self.chrms2 >=0)   #if we have reads from both chromosomes, we're DS read
+        self.DS = (self.chrms1 >= 0) * (self.chrms2 >=0)   #if we have reads from both chromosomes, we're a DS read
         self.SS = (self.DS == False)
         
         self.dists1 = numpy.abs(rsitedict["rsites1"] - self.cuts1)
@@ -547,6 +552,7 @@ class HiCdataset(object):
 #        mask = numexpr.evaluate("(abs(d1 - l1) >= offset) and (((abs(d2 - l2) >= offset) and ds)  or  ss)")   #is buggy        
                 
         mask = (numpy.abs(self.dists1 - self.fraglens1) >=offset) * ((numpy.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)
+        raise
         self.maskFilter(mask)
         print
         

@@ -1,11 +1,11 @@
-import systemutils,numutils
+from mirnylab import systemutils,numutils
 systemutils.setExceptionHook()
-from plotting import  removeBorder 
-from numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
-from genome import Genome 
+from mirnylab.plotting import  removeBorder 
+from mirnylab.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
+from mirnylab.genome import Genome 
 import  numpy
 from math import exp
-from h5dict import h5dict  
+from mirnylab.h5dict import h5dict  
 from scipy import weave
 
 from scipy.stats.stats import spearmanr
