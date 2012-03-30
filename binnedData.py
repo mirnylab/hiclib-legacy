@@ -4,7 +4,8 @@ from plotting import  removeBorder
 from numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
 from genome import Genome 
 import  numpy,joblib
-from math import exp 
+from math import exp
+from h5dict import h5dict  
 from scipy import weave
 
 from scipy.stats.stats import spearmanr
@@ -58,7 +59,7 @@ class binnedData(object):
     
     def simpleLoad(self,filename,name,checkGenomes = True):
         "load standard type data"
-        alldata = dict(joblib.load(filename))        
+        alldata = h5dict(filename,mode = "r")        
         self.dataDict[name] = alldata["heatmap"]        
         self.singlesDict[name] = alldata["singles"]
         self.fragsDict[name] = alldata["frags"]

@@ -18,7 +18,7 @@ from scipy import stats
 import matplotlib
 import matplotlib.pyplot as plt
 from math import sqrt 
-
+from h5dict import h5dict 
 import plotting 
 from plotting import mat_img,removeAxes
 import numutils 
@@ -53,7 +53,7 @@ class HiCdataset(object):
     If you apply any filters to a dataset, it will actually modify the content of the current working folder. 
     Thus, to preserve the data, making a copy of the folder using "load" is adviced. """
     
-    def __init__(self,folder , genome , maximumMoleculeLength = 500,override = True):
+    def __init__(self, filename , genome , maximumMoleculeLength = 500 , override = True , autoFlush = True):
         """
         Parameters
         ----------
@@ -66,10 +66,15 @@ class HiCdataset(object):
             Maximum length of molecules in the HiC library, used as a cutoff for dangling ends filter
         override : bool, optional
             Use dataset in the working folder, do not remove it's contents. 
-            By default, working folder is cleaned up upon initialization.         
+            By default, working folder is cleaned up upon initialization.
+        autoFlush : bool, optional
+            Set to True to disable autoflush - possibly speeds up read/write operations. 
+            Don't forget to run flush then! 
+            
         
-        """
-        #These are fields that will be kept on a hard drive
+        """                
+        #---------->>> Important::: do not define any variables before vectors!!! <<<-------- 
+        #These are fields that will be kept on a hard drive 
         self.vectors = {"chrms1":"int8","chrms2":"int8", #chromosomes. If >chromosomeCount, then it's second chromosome arm! 
                         "mids1":"int64","mids2":"int64",  #midpoint of a fragment, determined as "(start+end)/2"
                         "fraglens1":"int32","fraglens2":"int32", #fragment lengthes                        
@@ -79,66 +84,50 @@ class HiCdataset(object):
                         "cuts1":"int32","cuts2":"int32",           #precise location of cut-site 
                         "strands1":"bool","strands2":"bool",
                         "DS":"bool","SS":"bool"}
-        self.saveExtension = "hdf5"
+        self.autoFlush = autoFlush        
+        
         if type(genome) == str: 
             self.genome = Genome(genomePath = genome, readChrms = ["#","X"])
         else:
             self.genome = genome 
             
-        assert isinstance(self.genome, Genome)
-        
+        assert isinstance(self.genome, Genome)        
         
         self.chromosomeCount = self.genome.chrmCount  #used for building heatmaps
         self.fragIDmult = self.genome.fragIDmult
         print "----> New dataset opened, genome %s,  %s chromosomes" % (self.genome.folderName, self.chromosomeCount)
 
         self.maximumMoleculeLength = maximumMoleculeLength  #maximum length of a molecule for SS reads
-
-        self.folder = folder #folder to save the data. May be empty.         
-         
-        if os.path.isfile(self.folder) == True:
-            self.exitProgram("Specified folder is a file")        
         
-        if os.path.exists(os.path.join(self.folder,"%s.%s" % (self.vectors.keys()[0],self.saveExtension))):
+        self.filename = filename #File to save the data
+                 
+                 
+        if os.path.exists(self.filename):
             if override == False: 
-                print "----->!!!Another dataset found in the folder. It will be used, or overriden if loaded." 
+                print "----->!!!File alreadi exists! It will be opened in the 'append' mode."  
                 print "     If you want to use it, be sure it is consistent."
-                print "     Otherwise, loading datasets is adviced as it checks for consistency"
+                print "     Otherwise, loading will override the changes."
                 print
             else:
-                self.delete(angry = False)  
-            
-        if os.path.exists(self.folder) == False:
-            os.mkdir(self.folder)
-            print "Folder created: %s" % (self.folder,)
-                         
+                os.remove(self.filename)
         
+        self.h5dict = h5dict(self.filename,autoflush = self.autoFlush )
 
-    def _setData(self,name,data,folder = None):
-        "an internal method to save numpy arrays to HDD quickly"        
-        if folder == None: folder = self.folder        
+
+    def _setData(self,name,data):
+        "an internal method to save numpy arrays to HDD quickly"                         
         if name not in self.vectors.keys():
-            raise
-        dtype = numpy.dtype(self.vectors[name]) 
-        if data.dtype != dtype:
-            data = numpy.asarray(data,dtype=dtype)
-        f = h5py.File(os.path.join(folder , '%s.%s' % (name, self.saveExtension))  ,'w')
-        f.create_dataset("MyDataset",data = data,compression = "lzf")        
-        f.close()
+            raise ValueError("Attept to save data not specified in self.vectors")
+        dtype = numpy.dtype(self.vectors[name])         
+        data = numpy.asarray(data,dtype=dtype)        
+        self.h5dict[name] = data
+
     
-    def _getData(self,name,folder = None):
-        "an internal method to load numpy arrays from HDD quickly"
-        if folder == None: folder = self.folder 
+    def _getData(self,name):
+        "an internal method to load numpy arrays from HDD quickly"         
         if name not in self.vectors.keys():
-            raise                
-        try: 
-            f = h5py.File(os.path.join(folder , '%s.%s' % (name,self.saveExtension)) ,'r')
-        except IOError:             
-            print "cannot open file, ", os.path.join(folder , '%s.%s' % (name,self.saveExtension))
-            raise IOError("HDF5 file do not exist. Are you loading existing dataset?")
-        data = numpy.array(f["MyDataset"])
-        f.close()
-        return data
+            raise ValueError("Attept to load data not specified in self.vectors")
+        return self.h5dict[name]                
     
     def __getattribute__(self,x):
         "a method that overrides set/get operation for self.vectors so that they're always on HDD"
@@ -146,8 +135,7 @@ class HiCdataset(object):
         
         if x in self.vectors.keys():            
             a =  self._getData(x)            
-            return a        
-         
+            return a                 
         else:
             return object.__getattribute__(self,x)
 
@@ -156,13 +144,16 @@ class HiCdataset(object):
         if x == "vectors": return object.__setattr__(self,x,value)
         
         if x in self.vectors.keys():        
-            self._setData(x,value)            
-            
+            self._setData(x,value)                        
         else:
             return object.__setattr__(self,x,value)
         
+    def flush(self):
+        "Flush h5dict if used in no-flush mode"
+        self.h5dict.flush()
+        
     
-    def merge(self,folders):
+    def merge(self,filenames):
         """combines data from multiple datasets
         
         Parameters
@@ -170,12 +161,13 @@ class HiCdataset(object):
             folders : list of strings
                 List of folders to merge to current working folder                
         """
-        if self.folder in folders:
-            self.exitProgram("----> Cannot merge folder into itself! Create a new folder")        
+        if self.filename in filenames:
+            self.exitProgram("----> Cannot merge folder into itself! Create a new folder")
+        h5dicts = [h5dict(i,mode = 'r') for i in filenames]        
         for name in self.vectors.keys():
             res = []
-            for folder in folders:
-                res.append(self._getData(name,folder))
+            for mydict in h5dicts:
+                res.append(mydict[name])
             res = numpy.concatenate(res)
             self._setData(name,res)
 
@@ -542,7 +534,7 @@ class HiCdataset(object):
         
         
     def printStats(self):
-        print "-----> Statistics for the folder %s!" % self.folder
+        print "-----> Statistics for the file  %s!" % self.filename
         print "     Single sided reads: " ,self.SS.sum()
         print "     Double sided reads: " , self.DS.sum()
         ss1 = self.strands1[self.chrms1>=0]
@@ -550,52 +542,31 @@ class HiCdataset(object):
         sf = ss1.sum() + ss2.sum()
         sr = len(ss1) + len(ss2) - sf
         print "     reverse/forward bias",float(sr)/sf
-        
-    def delete(self,folder = None, angry = True): 
-        """
-        Clears the content of the folder, when called. 
-        
-        Parameters
-        ----------
-        folder : str, optional
-            Folder to be deleted, by default is working folder.
-        angry : bool, optional
-            If set to False, assumes that deletion was intentional. 
-        """        
-        if folder == None: folder = self.folder
-        if angry == True: print "     Folder  %s removed due to inconsistency" % folder
-        else: print "     Override: Folder %s cleaned up" % (folder,)
-        for i in os.listdir(folder):
-            os.remove(os.path.join(folder,i))
                     
         
-    def save(self,folderName):
-        "Saves dataset to folderName, does not change the working folder."
-        if self.folder == folderName: self.exitProgram("Cannot save to the working folder")
-        try: os.mkdir(folderName)
-        except: print "folder exists", folderName
-        for name in self.vectors.keys(): self._setData(name, self._getData(name),folderName)
-        print "----> Data saved to folder %s" % (folderName,)
+    def save(self,filename):
+        "Saves dataset to filename, does not change the working file."
+        if self.filename == filename: self.exitProgram("Cannot save to the working file")
+        newh5dict = h5dict(filename,mode = 'w')
+        for name in self.vectors.keys(): newh5dict[name] = self.h5dict[name]
+        print "----> Data saved to file %s" % (filename,)
     
-    def load(self,folderName):
-        "Loads dataset from folderName to working folder; check for inconsistency"
-        if folderName == self.folder: self.exitProgram("Cannot load from the working folder")
+    def load(self,filename):
+        "Loads dataset from file to working file; check for inconsistency"
+        otherh5dict = h5dict(filename,'r')
         length = 0 
         for name in self.vectors:
-            data = self._getData(name,folderName)
+            data = otherh5dict[name]
             ld = len(data)
             if length == 0: 
-                length = len(data)
+                length = ld
             else:
                 if ld != length: 
-                    print("---->!!!!!Folder %s contains inconsistend data<----" % folderName)
-                    print("     Both folders will be removed")
-                    self.delete()
-                    self.delete(folderName)
-                    self.exitProgram("----> Data removed! Sorry...")
+                    print("---->!!!!!File %s contains inconsistend data<----" % filename)
+                    self.exitProgram("----> Sorry...")
                     
-            self._setData(name,data,self.folder) 
-        print "---->Loaded data from folder %s, contains %d reads" % (folderName, length)
+            self._setData(name,data) 
+        print "---->Loaded data from file %s, contains %d reads" % (filename, length)
             
 
         
@@ -618,7 +589,7 @@ class HiCdataset(object):
         singles = self.buildSinglesCoverage(resolution)        
         frags = self.buildFragmetCoverage(resolution)
         chromosomeStarts = numpy.array(self.genome.chrmStartsBinCont)
-        tosave = h5dict(path = filename)
+        tosave = h5dict(path = filename,mode = "w")
         tosave["resolution"] = resolution
         tosave["heatmap"] = heatmap
         tosave["singles"] = singles
