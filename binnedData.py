@@ -3,7 +3,7 @@ systemutils.setExceptionHook()
 from plotting import  removeBorder 
 from numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
 from genome import Genome 
-import  numpy,joblib
+import  numpy
 from math import exp
 from h5dict import h5dict  
 from scipy import weave
@@ -128,14 +128,20 @@ class binnedData(object):
         
     
     def removeStandalone(self,offset = 3):
-        "removes standalone bins (groups of less-than-offset-long bins)"                
+        """removes standalone bins (groups of less-than-offset-long bins)
+        
+        Parameters
+        ----------
+        offset : int 
+            Maximum length of group of bins to be removed
+        """                
         diffs = numpy.diff(numpy.array(numpy.r_[False, self.giveMask(), False],int))
         begins = numpy.nonzero(diffs == 1)[0] 
         ends = numpy.nonzero(diffs == -1)[0]
         beginsmask = (ends - begins) <= offset
         newbegins = begins[beginsmask]
         newends = ends[beginsmask]        
-        print "removing %d standalone megabases"% numpy.sum(newends - newbegins)
+        print "removing %d standalone bins"% numpy.sum(newends - newbegins)
         mask = self.giveMask()
         for i in xrange(len(newbegins)): mask[newbegins[i]:newends[i]] = False
         mask2D = mask[:,None] * mask[None,:]        

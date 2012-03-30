@@ -5,13 +5,12 @@ The base class "HiCdataset" can load, save and merge Hi-C datasets, perform cert
 Additional class HiCStatistics contains methods to analyze HiC data on a fragment level. 
 This includes read statistics, scalings, etc.
 """
-
+import warnings
 import systemutils
 systemutils.setExceptionHook() 
 import os,cPickle
-
 from genome import Genome 
-  
+import hic.mapping  
 import numpy
 from numpy import array as na  
 from scipy import stats
@@ -23,60 +22,48 @@ import plotting
 from plotting import mat_img,removeAxes
 import numutils 
 from numutils import arrayInArray,  sumByArray, correct, ultracorrect
-
 import numexpr
-import joblib 
+ 
 
-import h5py
-
-from h5dict import h5dict
 r_ = numpy.r_
 
 def corr(x,y): return stats.spearmanr(x, y)[0]        
-
-def saveData(data,filename,override = True):
-    "function to save numpy arrays on HDD"
-    if override == True:
-        if os.path.exists(filename):
-            os.remove(filename)
-    joblib.dump(data,filename,compress = 3)
-    
-"TODO: Rewrite glue between my and Anton's code; make universal interface for other types of data" 
 
 
 class HiCdataset(object):
     """Base class to operate on HiC dataset. 
     
     This class stores all information about HiC reads on a hard drive. 
-    Whenever a variable corresponding to any record is used, it is loaded/saved to/from HDD. 
+    Whenever a variable corresponding to any record is used, it is loaded/saved from/to the HDD. 
     
-    If you apply any filters to a dataset, it will actually modify the content of the current working folder. 
-    Thus, to preserve the data, making a copy of the folder using "load" is adviced. """
+    If you apply any filters to a dataset, it will actually modify the content of the current working file.  
+    Thus, to preserve the data, loading datasets is advised. """
     
     def __init__(self, filename , genome , maximumMoleculeLength = 500 , override = True , autoFlush = True):
         """
+        Initializes empty dataset by default. 
+        If "override" is False, works with existing dataset.   
+        
         Parameters
         ----------
-        folder : string 
-            A folder to store HiC dataset. Different tracks are stored as different files using h5pydict class. 
+        filename : string 
+            A filename to store HiC dataset in an HDF5 file.  
         genome : folder with genome, or Genome object 
-            A folder with fastq files of the genome and gap table from Genome browser.
-            Name of the folder should match the genome name.  
+            A folder with fastq files of the genome and gap table from Genome browser.              
         maximumMoleculeLength : int, optional 
             Maximum length of molecules in the HiC library, used as a cutoff for dangling ends filter
         override : bool, optional
-            Use dataset in the working folder, do not remove it's contents. 
-            By default, working folder is cleaned up upon initialization.
+            Use specified dataset, do not remove it's contents. 
+            By default, if filename exists, it is deleted upon initialization.
         autoFlush : bool, optional
             Set to True to disable autoflush - possibly speeds up read/write operations. 
-            Don't forget to run flush then! 
-            
+            Don't forget to run flush then!             
         
         """                
         #---------->>> Important::: do not define any variables before vectors!!! <<<-------- 
         #These are fields that will be kept on a hard drive 
         self.vectors = {"chrms1":"int8","chrms2":"int8", #chromosomes. If >chromosomeCount, then it's second chromosome arm! 
-                        "mids1":"int64","mids2":"int64",  #midpoint of a fragment, determined as "(start+end)/2"
+                        "mids1":"int32","mids2":"int32",  #midpoint of a fragment, determined as "(start+end)/2"
                         "fraglens1":"int32","fraglens2":"int32", #fragment lengthes                        
                         "distances":"int32", #distance between fragments. If -1, different chromosomes. If -2, different arms.                         
                         "fragids1":"int64","fragids2":"int64",  #IDs of fragments. fragIDmult * chromosome + location                          
@@ -84,38 +71,33 @@ class HiCdataset(object):
                         "cuts1":"int32","cuts2":"int32",           #precise location of cut-site 
                         "strands1":"bool","strands2":"bool",
                         "DS":"bool","SS":"bool"}
-        self.autoFlush = autoFlush        
         
+        self.autoFlush = autoFlush
+                       
         if type(genome) == str: 
             self.genome = Genome(genomePath = genome, readChrms = ["#","X"])
         else:
-            self.genome = genome 
-            
+            self.genome = genome             
         assert isinstance(self.genome, Genome)        
         
         self.chromosomeCount = self.genome.chrmCount  #used for building heatmaps
         self.fragIDmult = self.genome.fragIDmult
         print "----> New dataset opened, genome %s,  %s chromosomes" % (self.genome.folderName, self.chromosomeCount)
 
-        self.maximumMoleculeLength = maximumMoleculeLength  #maximum length of a molecule for SS reads
-        
-        self.filename = filename #File to save the data
-                 
+        self.maximumMoleculeLength = maximumMoleculeLength  #maximum length of a molecule for SS reads        
+        self.filename = filename #File to save the data                             
                  
         if os.path.exists(self.filename):
             if override == False: 
-                print "----->!!!File alreadi exists! It will be opened in the 'append' mode."  
-                print "     If you want to use it, be sure it is consistent."
-                print "     Otherwise, loading will override the changes."
+                print "----->!!!File already exists! It will be opened in the 'append' mode."  
                 print
             else:
                 os.remove(self.filename)
         
         self.h5dict = h5dict(self.filename,autoflush = self.autoFlush )
 
-
     def _setData(self,name,data):
-        "an internal method to save numpy arrays to HDD quickly"                         
+        "an internal method to save numpy arrays to HDD quickly"
         if name not in self.vectors.keys():
             raise ValueError("Attept to save data not specified in self.vectors")
         dtype = numpy.dtype(self.vectors[name])         
@@ -149,7 +131,7 @@ class HiCdataset(object):
             return object.__setattr__(self,x,value)
         
     def flush(self):
-        "Flush h5dict if used in no-flush mode"
+        "Flushes h5dict if used in autoFlush = False mode"
         self.h5dict.flush()
         
     
@@ -172,63 +154,130 @@ class HiCdataset(object):
             self._setData(name,res)
 
     
-    def parseAnton(self,filename):
-        "This method unpickles files saved by old code"
-        #data = shelve.open(filename)                        
-        #self.parsedfilename = filename+".dat"
+    def parseInputData(self,dictLike,zeroBaseChrom = True ,enzymeToFillRsites = None):        
+        """Inputs data from a dictionary-like object, containing coordinates of the reads. 
+        Performs filtering of the reads.   
         
-        data = dict(numpy.load(filename))
-        #temporary fix
-        data["chrms1"] = data["chrms1"] - 1
-        data["chrms2"] = data["chrms2"] - 1
-              
-        print "----> File loaded: ", filename, "total reads: ", len(data["chrms1"])        
-
-        DE = (data['rfrags1']  == data['rfrags2'] ) * (data["chrms1"] == data["chrms2"])  #filtering out same fragment reads  
-        mask = ((DE == False)  * (data['chrms1'] < self.chromosomeCount) * (data["chrms2"] < self.chromosomeCount)) #filtering chromosomes        
-        dist = data["cuts1"] * (2 * data["dirs1"]-1) + data["cuts2"] * (2 * data["dirs2"] - 1) #distance between reads pointing to each other
-        readsMolecules = (data["chrms1"] == data["chrms2"])*(data["dirs1"] != data["dirs2"]) *  (dist <=0) * (dist >= -self.maximumMoleculeLength)#filtering out DE 
-        mask *= (readsMolecules  == False)
-        print "     number of reads ---> (<=%d) <--- : " % (self.maximumMoleculeLength),readsMolecules.sum() 
-        print "     resulting number of reads: ", mask.sum()
-
-        for i in data.keys():
-            data[i] = data[i][mask]
-        mask = data['chrms1'] == -1  #moving SS reads to start at first side only 
-        variables = set([i[:-1] for i in data.keys()])
-        for i in variables:
-            exec("data['%s1'][mask]  = data['%s2'][mask]" % (i,i))
-            exec("data['%s2'][mask] = -1" % (i))
+        A good example of a dict-like object is a numpy.savez 
         
-        up1 = data["uprsites1"]
-        up2 = data["uprsites2"]
-        down1 = data["downrsites1"]
-        down2 = data["downrsites2"]
-        rsites1 = data["rsites1"]
-        rsites2 = data["rsites2"]
-        pos1 = data["cuts1"]
-        pos2 = data["cuts2"]
-        self._setData("chrms1",data['chrms1'])        
-        self._setData("chrms2",data['chrms2'])                
-        self._setData("DS",self._getData("chrms2") >= 0)
-        self._setData("SS",self._getData("DS") == False) 
-        self._setData("strands1", data["dirs1"])
-        self._setData("strands2",data["dirs2"])
-        self._setData("cuts1" , data["cuts1"])
-        self._setData("cuts2" ,data["cuts2"])    
-        self._setData("dists1", numpy.abs(rsites1 - pos1))  #distance to the downstream (where read points) restriction site 
-        self._setData("dists2", numpy.abs(rsites2 - pos2))  #distance to the downstream (where read points) restriction site
-        self._setData('mids1', (up1 + down1)/2) 
-        self._setData('mids2', (up2 + down2)/2)
-        self._setData("fraglens1",numpy.abs(up1 - down1))
-        self._setData("fraglens2", numpy.abs(up2 - down2))
+        ..warning::  Restriction fragments MUST be specified exactly as in the Genome class.
+        
+        ..warning:: Strand information is needed for proper scaling calculations, but will be imitated if not provided
+        
+        ..note::  
+                    
+        
+        Parameters
+        ----------
+        dictLike["chrms1,2"] : Chromosomes of 2 sides of the read 
+        dictLike["cuts1,2"] : Exact position of cuts
+        dictLike["strands1,2"], essential : Direction of the read
+        dictLike["rsites1,2"], optional : Position of rsite to which the read is pointing                         
+        dictLike["uprsites1,2"] , optional : rsite upstream (larger genomic coordinate) of the cut position
+        dictLike["downrsites1,2"] , optional  : rsite downstream (smaller genomic coordinate) of the cut position
+        
+        zeroBaseChrom : bool , optional
+            Use zero-base chromosome counting if True, one-base if False
+        enzymeToFillRsites = None or str, optional if rsites are specified
+            Enzyme name to use with Bio.restriction
+                 
+        """
+        
+        rsite_related = ["rsites1","rsites2","uprsites1","uprsites2","downrsites1","downrsites2","bla"]
+        
+        if False not in [i in dictLike.keys() for i in rsite_related]:
+            noRsites = False            
+        else:
+            noRsites = True
+        
+        "Filling in chromosomes and positions - mandatory objects"
+        a = dictLike["chrms1"]
+        self.trackLen = len(a)         
+        
+        if zeroBaseChrom == True:
+            self.chrms1 = a        
+            self.chrms2 = dictLike["chrms2"]
+        else:
+            self.chrms1 = a - 1
+            self.chrms2 = dictLike["chrms2"] - 1
+            
+        self.cuts1 = dictLike["cuts1"]
+        self.cuts2 = dictLike["cuts2"]    
+        
+        if not (("strands1" in dictLike.keys()) and ("strands2" in dictLike.keys())):
+            print "No strand information provided, assigning random strands."
+            t = numpy.random.randint(0,2,self.trackLen)
+            self.strands1 = t
+            self.strands2 = 1-t
+            noStrand = True 
+        else:
+            self.strands1 = dictLike["strands1"]
+            self.strands2 = dictLike["strands2"]            
+            noStrand = False   #strand information filled in 
+            
+        "TODO: write this part" 
+        
+        if noRsites == True:   #We have to fill rsites ousrlves. Let's see what enzyme to use! 
+            if (enzymeToFillRsites == None) and (self.genome.hasEnzyme() == False) :
+                raise ValueError("Please specify enzyme if your data has no rsites")
+            print "Filling rsites"
+            if enzymeToFillRsites != None:
+                if self.genome.hasEnzyme() == True:
+                    if enzymeToFillRsites != self.genome.enzymeName:
+                        warnings.warn("genome.enzymeName different from supplied enzyme")                                         
+                self.genome.setEnzyme(enzymeToFillRsites)
+            #enzymeToFillRsites has preference over self.genome's enzyme
+            rsitedict = h5dict()
+            rsitedict.update(dictLike)
+            hic.mapping.fill_rsites(lib = rsitedict, genome_db = self.genome)
+        else:
+            rsitedict = dictLike 
+        
+        
+        self.DS = (self.chrms1 >= 0) * (self.chrms2 >=0)   #if we have reads from both chromosomes, we're DS read
+        self.SS = (self.DS == False)
+        
+        self.dists1 = numpy.abs(rsitedict["rsites1"] - self.cuts1)
+        self.dists2 = numpy.abs(rsitedict["rsites2"] - self.cuts2)
+        
+        self.mids1 = (rsitedict["uprsites1"] + rsitedict["downrsites1"])/2
+        self.mids2 = (rsitedict["uprsites2"] + rsitedict["downrsites2"])/2
+        
+        self.fraglens1 = numpy.abs((rsitedict["uprsites1"] - rsitedict["downrsites1"]))
+        self.fraglens2 = numpy.abs((rsitedict["uprsites2"] - rsitedict["downrsites2"]))
+        
+        del rsitedict   #deletes hdf5 file, so it's important 
+        
         self.fragids1 = self.mids1 + numpy.array(self.chrms1,dtype = "int64") * self.fragIDmult
         self.fragids2 = self.mids2 + numpy.array(self.chrms2,dtype = "int64") * self.fragIDmult 
-        distances = numpy.abs(self._getData("mids1") - self._getData("mids2"))
-        distances[self._getData("chrms1") != self._getData("chrms2")] = -1
-        self._setData("distances",distances)
-        print "finished parsing Anton file %s \n" % filename
- 
+        
+        distances = numpy.abs(self.mids1 - self.mids2)
+        distances[self.chrms1 != self.chrms2] = -1
+        self.distances = distances   #distances between restriction fragments
+        
+        mask = self.chrms1 == -1  #moving SS reads to the first side
+        mask #Eclipse warning removal 
+        variables = set([i[:-1] for i in self.vectors.keys() if i[-1] == 1])  #set of variables to change
+        for i in variables:  
+            exec("a = self.%s1" % i)
+            exec("b = self.%s2" % i)
+            exec("a[mask] = b[mask]")
+            exec("b[mask] = -1")
+            exec("self.%s1 = a" % i)
+            exec("self.%s2 = b" % i)
+                
+        mask = (self.fragids1 != self.fragids2)   #Discard dangling ends and self-circles           
+        mask *=  ((self.chrms1 < self.chromosomeCount) * (self.chrms2 < self.chromosomeCount))  #Discard unused chromosomes        
+        mask *= ((self.chrms1 >=0) + (self.chrms2 >=0))   #Has to have at least one side mapped        
+         
+        if noStrand == True: 
+            dist = numpy.abs(self.cuts1 - self.cuts2)  #Can't tell if reads point to each other. 
+        else: 
+            dist = - self.cuts1 * (2 * self.strand1 -1) - self.cuts2 * (2 * self.strand2 - 1)  #distance between sites facing each other
+            
+        mask *= (self.chrms1 != self.chrms2)  +  (self.strands1 != self.strands2) * ((dist <=0 ) + (dist >= self.maximumMoleculeLength))                
+        self.maskFilter(mask)
+        
             
     def saveFragments(self):
         "saves fragment data to make correct expected estimates after applying a heavy mask"
@@ -241,7 +290,8 @@ class HiCdataset(object):
         self.ufragmentlen = numpy.array(self.ufragmentlenOriginal)
 
     def calculateWeights(self):
-        "calculates weights for reads based on fragment length correction similar to Tanay's, may be used for scalings or creating heatmaps"        
+        """Calculates weights for reads based on fragment length correction similar to Tanay's;
+         may be used for scalings or creating heatmaps"""        
         fragmentLength = self.ufragmentlen
         pls = numpy.sort(fragmentLength)
         pls = numpy.r_[pls,pls[-1]+1]
@@ -372,7 +422,7 @@ class HiCdataset(object):
         return counts
     
     def buildFragmetCoverage(self,resolution):
-        "creates HindIII density vector (visible sites only) heatmap in accordance with the output of the 'genome' class"         
+        "creates restriction site density vector (visible sites only) in accordance with the 'genome' class"         
         self.genome.setResolution(resolution)
         try: self.ufragments
         except: self.rebuildFragments()
@@ -408,6 +458,7 @@ class HiCdataset(object):
         mask : array of bools
             Indexes of reads to keep 
         """
+        
         print "          Number of reads changed  %d ---> %d" % (len(mask),mask.sum()),
         length = 0 
         for name in self.vectors:
@@ -443,7 +494,15 @@ class HiCdataset(object):
             
 
     def filterExtreme(self,cutH = 0.005,cutL = 0):
-        "removes fragments with most and/or least # counts"
+        """removes fragments with most and/or least # counts
+        
+        Parameters
+        ----------
+        cutH : float, 0<=cutH < 1, optional
+            Fraction of the most-counts fragments to be removed
+        cutL: float, 0<=cutL<1, optional 
+            Fraction of the least-counts fragments to be removed
+        """
         print "----->Extreme fragments filter: remove top %lf, bottom %lf fragments" % (cutH, cutL)
         s  = self.fragmentSum()
         ss = numpy.sort(s)
@@ -498,10 +557,10 @@ class HiCdataset(object):
         l2 = numpy.array(self.cuts2)
         ch1 = self.chrms1
         ch2 = self.chrms2
-        n1 = numpy.int64(715827883)
+        n1 = numpy.int64(715827883)  #Big-big number 
         cc = numpy.int64(self.chromosomeCount)
         cc,n1 #Eclipse warning         
-        uid = numexpr.evaluate("(l1 * cc + ch1) * n1 + (l2 * cc + ch2)")
+        uid = numexpr.evaluate("(l1 * cc + ch1) * n1 + (l2 * cc + ch2)")   #unique ID 
         del l1
         del l2
         del ch1
@@ -788,14 +847,14 @@ class HiCStatistics(HiCdataset):
         #Reads from the same region
         #Reads like --> -->    or <-- <--, discarding --> <-- and <-- -->             
         if excludeNeighbors != None: mask2 = mask2 * mask3    #remove all neighbors 
-                                     
+                    
         distances = numpy.sort(self.distances[mask2])            
                 
         "calculating fragments lengths for exclusions to expected # of counts"        
         #sorted fragment IDs and lengthes
         args = numpy.argsort(self.ufragments)
         usort = self.ufragments[args]        
-        
+
         if useWeights == True:   #calculating weights if needed  
             try:      self.weights
             except:   self.calculateWeights()                
@@ -813,7 +872,7 @@ class HiCStatistics(HiCdataset):
         pos2 = fragids2 % self.fragIDmult
         
         for regionNumber,region  in enumerate(regions):  
-            
+
             mask = numpy.nonzero(fragRegions1  == regionNumber)[0]
             mask2 = numpy.nonzero(fragRegions2  == regionNumber)[0]  #filtering fragments that correspont to current region             
             if (len(mask) == 0) or (len(mask2) == 0): continue                             
@@ -828,12 +887,10 @@ class HiCStatistics(HiCdataset):
                 excDists = numpy.abs(excFrag2 - excFrag1)  #distances between excluded fragment pairs
                 if useWeights == True:        
                     correctionWeights = weights1[numutils.arraySearch(fragids1,excFrag1)]
-                    correctionWeights = correctionWeights *  weights2[numutils.arraySearch(fragids2,excFrag2)]   #weights for excluded fragment pairs            
-            
+                    correctionWeights = correctionWeights *  weights2[numutils.arraySearch(fragids2,excFrag2)]   #weights for excluded fragment pairs                        
             if useWeights == True: 
                 w1,w2 = weights1[mask], weights2[mask2]                                  
-                sw2 = numpy.r_[0,numpy.cumsum(w2[p2arg])]    #cumsum for sorted weights on 2 strand             
-            
+                sw2 = numpy.r_[0,numpy.cumsum(w2[p2arg])]    #cumsum for sorted weights on 2 strand                         
             for lenmin,lenmax,index in zip(lenmins,lenmaxs,range(len(lenmins))):
                 "Now calculating actual number of fragment pairs for a length-bin, or weight of all these pairs"                
                 mymin,mymax = bp1 - lenmax, bp1 - lenmin   #calculating boundaries for fragments on a second strand                  
