@@ -23,7 +23,6 @@ from mirnylab.plotting import mat_img,removeAxes
 
 from mirnylab import numutils  
 from mirnylab.numutils import arrayInArray,  sumByArray, correct, ultracorrect
-import numexpr
  
 
 r_ = numpy.r_
@@ -50,7 +49,8 @@ class HiCdataset(object):
         filename : string 
             A filename to store HiC dataset in an HDF5 file.  
         genome : folder with genome, or Genome object 
-            A folder with fastq files of the genome and gap table from Genome browser.              
+            A folder with fastq files of the genome and gap table from Genome browser.
+            Alternatively, mirnylab.genome.Genome object.               
         maximumMoleculeLength : int, optional 
             Maximum length of molecules in the HiC library, used as a cutoff for dangling ends filter
         override : bool, optional
@@ -184,7 +184,7 @@ class HiCdataset(object):
                  
         """
         
-        rsite_related = ["rsites1","rsites2","uprsites1","uprsites2","downrsites1","downrsites2","bla"]
+        rsite_related = ["rsites1","rsites2","uprsites1","uprsites2","downrsites1","downrsites2"]
         
         if False not in [i in dictLike.keys() for i in rsite_related]:
             noRsites = False            
@@ -262,7 +262,7 @@ class HiCdataset(object):
         
         mask = self.chrms1 == -1  #moving SS reads to the first side
         mask #Eclipse warning removal 
-        variables = set([i[:-1] for i in self.vectors.keys() if i[-1] == 1])  #set of variables to change
+        variables = set([i[:-1] for i in self.vectors.keys() if i[-1] == "1"])  #set of variables to change
         for i in variables:  
             exec("a = self.%s1" % i)
             exec("b = self.%s2" % i)
@@ -271,16 +271,21 @@ class HiCdataset(object):
             exec("self.%s1 = a" % i)
             exec("self.%s2 = b" % i)
                 
-        mask = (self.fragids1 != self.fragids2)   #Discard dangling ends and self-circles           
-        mask *=  ((self.chrms1 < self.chromosomeCount) * (self.chrms2 < self.chromosomeCount))  #Discard unused chromosomes        
-        mask *= ((self.chrms1 >=0) + (self.chrms2 >=0))   #Has to have at least one side mapped        
-         
+        mask = (self.fragids1 != self.fragids2)   #Discard dangling ends and self-circles                
+        mask *=  ((self.chrms1 < self.chromosomeCount) * (self.chrms2 < self.chromosomeCount))  #Discard unused chromosomes                
+        mask *= ((self.chrms1 >=0) + (self.chrms2 >=0))   #Has to have at least one side mapped                
         if noStrand == True: 
             dist = numpy.abs(self.cuts1 - self.cuts2)  #Can't tell if reads point to each other. 
         else: 
-            dist = - self.cuts1 * (2 * self.strand1 -1) - self.cuts2 * (2 * self.strand2 - 1)  #distance between sites facing each other
-            
-        mask *= (self.chrms1 != self.chrms2)  +  (self.strands1 != self.strands2) * ((dist <=0 ) + (dist >= self.maximumMoleculeLength))                
+            dist = - self.cuts1 * (2 * self.strands1 -1) - self.cuts2 * (2 * self.strands2 - 1)  #distance between sites facing each other
+                                
+                                
+        readsMolecules = (self.chrms1 == self.chrms2)*(self.strands1 != self.strands2) *  (dist >=0) * (dist <= self.maximumMoleculeLength)#filtering out DE         
+        mask *= (readsMolecules  == False)                                
+        
+        
+                        
+        print len(mask),mask.sum()
         self.maskFilter(mask)
         
             
@@ -469,11 +474,14 @@ class HiCdataset(object):
         for name in self.vectors:
             data = self._getData(name)
             ld = len(data)
-            if length == 0: length = ld
+            if length == 0: 
+                length = ld
+                
             else:
                 if ld != length: 
                     self.delete()             
-            self._setData(name,data[mask])  
+            self._setData(name,data[mask])
+        self.N = mask.sum()   
         self.rebuildFragments()
         
     def rebuildFragments(self):
@@ -551,33 +559,27 @@ class HiCdataset(object):
 #        ss = self.SS
 #        mask = numexpr.evaluate("(abs(d1 - l1) >= offset) and (((abs(d2 - l2) >= offset) and ds)  or  ss)")   #is buggy        
                 
-        mask = (numpy.abs(self.dists1 - self.fraglens1) >=offset) * ((numpy.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)
-        raise
+        mask = (numpy.abs(self.dists1 - self.fraglens1) >=offset) * ((numpy.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)    
         self.maskFilter(mask)
         print
         
     def filterDuplicates(self):
         "removes duplicate molecules in DS reads"
         print "----->Filtering duplicates in DS reads: "
-        l1 = numpy.array(self.cuts1)
-        l2 = numpy.array(self.cuts2)
-        ch1 = self.chrms1
-        ch2 = self.chrms2
-        n1 = numpy.int64(715827883)  #Big-big number 
-        cc = numpy.int64(self.chromosomeCount)
-        cc,n1 #Eclipse warning         
-        uid = numexpr.evaluate("(l1 * cc + ch1) * n1 + (l2 * cc + ch2)")   #unique ID 
-        del l1
-        del l2
-        del ch1
-        del ch2
-        un = numpy.unique(uid,True)[1]
-        del uid         
+        
+        dups = numpy.zeros((self.N,2),dtype = "int64",order = "C")
+        dups[:,0] = numpy.array(self.cuts1 , dtype = "int64") + self.chrms1 * self.fragIDmult 
+        dups[:,1] = numpy.array(self.cuts1 , dtype = "int64") + self.chrms1 * self.fragIDmult   
+        dups.shape = (self.N * 2)
+        strings = dups.view("|S16")
+        assert len(strings) == self.N
+        uids = numpy.unique(strings,return_index = True)[1]
+        del strings, dups 
         stay = self.SS.copy()
-        stay[un] = True
+        stay[uids] = True
         ds = self.DS.sum()
         print "     Number of DS reads changed - %d ---> %d" % (ds,ds - len(self.DS) + stay.sum()) 
-        del un
+        del uids
         self.maskFilter(stay)
         print
         
