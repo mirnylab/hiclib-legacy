@@ -5,6 +5,7 @@ The base class "HiCdataset" can load, save and merge Hi-C datasets, perform cert
 Additional class HiCStatistics contains methods to analyze HiC data on a fragment level. 
 This includes read statistics, scalings, etc.
 """
+
 import warnings
 from mirnylab import systemutils
 systemutils.setExceptionHook() 
@@ -23,7 +24,6 @@ from mirnylab.plotting import mat_img,removeAxes
 
 from mirnylab import numutils  
 from mirnylab.numutils import arrayInArray,  sumByArray, correct, ultracorrect
- 
 
 r_ = numpy.r_
 
@@ -40,7 +40,9 @@ class HiCdataset(object):
     Thus, to preserve the data, loading datasets is advised. """
     
     def __init__(self, filename , genome , maximumMoleculeLength = 500 , override = True , autoFlush = True):
-        """
+        """        
+        __init__ method 
+        
         Initializes empty dataset by default. 
         If "override" is False, works with existing dataset.   
         

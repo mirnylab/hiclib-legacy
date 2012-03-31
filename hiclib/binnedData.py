@@ -1,3 +1,58 @@
+"""
+Binned data - analysis of HiC, binned to resolution.
+
+Concepts
+--------
+
+class Binned Data allows low-level manipulation of  multiple HiC datasets, 
+binned to the same resolution from the same genome. 
+
+When working with multiple datasets, all the filters will be synchronized,
+so only bins present in all datasets will be considered for the analysis. 
+Removal of bins from one dataset will remove them from the others. 
+E.g. removing 1% of bins with lowest # of count might remove more than 1% of total bins, 
+when working with 2 or more datasets.  
+
+Class has limited knowledge of the current state of the system, and it is user's responsibility 
+to apply filters in the proper order. 
+Sometimes certain filters will issue a warning, but one can't rely on this. 
+
+We provide example scripts that show ideal protocols for certain types of the analysis, 
+but they don't cover the realm of all possible manipulations that can be performed with this class.
+
+Input data
+----------
+
+method :py:func:'SimpleLoad <binnedData.simpleLoad>' may be used to load the data. 
+It automatically checks for possible genome length mismatch. 
+
+This method works best with h5dict files, created by fragmentHiC.
+In this case you just need to supply the filename.  
+
+It can also accept any dictionary-like object with the following keys, 
+where all but "heatmap" is optional.  
+
+* ["heatmap"] : all-by-all heatmap
+
+* ["singles"] : vector of SS reads, optional 
+
+* ["frags"] : number of rsites per bin, optional
+
+* ["resolution"] : resolution 
+
+
+Variables
+---------
+
+self.dataDict - dictionary with heatmaps; keys are provided when loading the data.
+
+self.singlesDict - dictionary with SS read vectors. Keys are the same. 
+
+self.trackDict - dictionary with genomic tracks, such as GC content. 
+Custom tracks may be also added to this dictionary.
+ 
+"""
+
 from mirnylab import systemutils,numutils
 systemutils.setExceptionHook()
 from mirnylab.plotting import  removeBorder 
@@ -13,11 +68,18 @@ import matplotlib.pyplot as plt
 
     
 class binnedData(object):
-    "base class to work with binned data"
+    """Base class to work with binned data, the most documented and robust part of the code. 
+    Further classes for other analysis are inherited from this class. 
+    """
     
     def __init__(self, resolution,genome):
         """
-        Sets up the Genome object and resolution. 
+        
+        self.__init__ - initializes an empty dataset. 
+        
+        This method sets up a Genome object and resolution. 
+        
+        Genome object specifies genome version and inclusion/exclusion of sex chromosomes.
         
         Parameters
         ----------
@@ -37,15 +99,15 @@ class binnedData(object):
         self.chromosomes = self.genome.chrmLens
         self.resolution = resolution                    
         self.genome.setResolution(self.resolution)                        
-        self.initChromosomes()        
+        self._initChromosomes()        
         self.dataDict = {}
         self.biasDict = {}
         self.trackDict = {}
         self.singlesDict = {}
         self.fragsDict = {}
         
-    def initChromosomes(self):
-        "loads mappings from the genome class based on resolution"        
+    def _initChromosomes(self):
+        "internal: loads mappings from the genome class based on resolution"        
         self.chromosomeStarts = self.genome.chrmStartsBinCont
         self.centromerePositions = self.genome.cntrMidsBinCont
         self.chromosomeEnds = self.genome.chrmEndsBinCont
@@ -57,25 +119,29 @@ class binnedData(object):
         self.armIndex = self.chromosomeIndex * 2 + numpy.array(self.positionIndex > self.genome.cntrMids[self.chromosomeIndex],int)
                 
     
-    def simpleLoad(self,filename,name,checkGenomes = True):
-        "load standard type data"
+    def simpleLoad(self,filename,name):
+        """Load data from h5dict file or dict-like object
+        
+        """
         alldata = h5dict(filename,mode = "r")        
         self.dataDict[name] = alldata["heatmap"]        
-        self.singlesDict[name] = alldata["singles"]
-        self.fragsDict[name] = alldata["frags"]
-        if self.genome.numBins != alldata["genomeBinNum"]: 
-            if checkGenomes == True: 
-                print "Genome length mismatch!!!"
-                print "source genome",alldata["genomeBinNum"]
-                print "our genome",self.genome.numBins
-                self.exit()
+        try: self.singlesDict[name] = alldata["singles"]
+        except: print "No SS reads found"
+        try: self.fragsDict[name] = alldata["frags"]
+        except:pass 
+        
+        if self.genome.numBins != len(alldata["heatmap"]):              
+            print "Genome length mismatch!!!"
+            print "source genome",len(alldata["heatmap"])
+            print "our genome",self.genome.numBins
+            self.exit()
         try: self.resolution
         except: self.resolution = alldata["resolution"]
         if self.resolution != alldata["resolution"]:
             print "resolution mismatch!!!"
             print "--------------> Bye <-------------"
             raw_input("Press any key to continue... ") 
-            exit()  
+            self.exit()  
         
         
     def loadGC(self):        
@@ -486,6 +552,9 @@ class binnedData(object):
 
 
 class binnedDataAnalysis(binnedData):
+    """
+    Class containing experimental features and data analysis scripts
+    """
     
     def plotScaling(self,name,label = "BLA", color = None):
         "plots scaling of a heatmap,treating arms separately"
