@@ -4,6 +4,8 @@ The base class "HiCdataset" can load, save and merge Hi-C datasets, perform cert
 
 Additional class HiCStatistics contains methods to analyze HiC data on a fragment level. 
 This includes read statistics, scalings, etc.
+
+
 """
 
 import warnings

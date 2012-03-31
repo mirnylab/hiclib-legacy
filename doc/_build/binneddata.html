@@ -1,0 +1,514 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Analysis of binned data &mdash; HiC pipeline for iterative correction v0.4 documentation</title>
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.4',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="HiC pipeline for iterative correction v0.4 documentation" href="index.html" />
+    <link rel="prev" title="Fragment-level HiC correction" href="fragment.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="fragment.html" title="Fragment-level HiC correction"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">HiC pipeline for iterative correction v0.4 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-binnedData">
+<span id="analysis-of-binned-data"></span><h1>Analysis of binned data<a class="headerlink" href="#module-binnedData" title="Permalink to this headline">¶</a></h1>
+<p>Binned data - analysis of HiC, binned to resolution.</p>
+<div class="section" id="concepts">
+<h2>Concepts<a class="headerlink" href="#concepts" title="Permalink to this headline">¶</a></h2>
+<p>class Binned Data allows low-level manipulation of  multiple HiC datasets, 
+binned to the same resolution from the same genome.</p>
+<p>When working with multiple datasets, all the filters will be synchronized,
+so only bins present in all datasets will be considered for the analysis. 
+Removal of bins from one dataset will remove them from the others. 
+E.g. removing 1% of bins with lowest # of count might remove more than 1% of total bins, 
+when working with 2 or more datasets.</p>
+<p>Class has limited knowledge of the current state of the system, and it is user&#8217;s responsibility 
+to apply filters in the proper order. 
+Sometimes certain filters will issue a warning, but one can&#8217;t rely on this.</p>
+<p>We provide example scripts that show ideal protocols for certain types of the analysis, 
+but they don&#8217;t cover the realm of all possible manipulations that can be performed with this class.</p>
+</div>
+<div class="section" id="input-data">
+<h2>Input data<a class="headerlink" href="#input-data" title="Permalink to this headline">¶</a></h2>
+<p>method :py:func:&#8217;SimpleLoad &lt;binnedData.simpleLoad&gt;&#8217; may be used to load the data. 
+It automatically checks for possible genome length mismatch.</p>
+<p>This method works best with h5dict files, created by fragmentHiC.
+In this case you just need to supply the filename.</p>
+<p>It can also accept any dictionary-like object with the following keys, 
+where all but &#8220;heatmap&#8221; is optional.</p>
+<ul class="simple">
+<li>[&#8220;heatmap&#8221;] : all-by-all heatmap</li>
+<li>[&#8220;singles&#8221;] : vector of SS reads, optional</li>
+<li>[&#8220;frags&#8221;] : number of rsites per bin, optional</li>
+<li>[&#8220;resolution&#8221;] : resolution</li>
+</ul>
+</div>
+<div class="section" id="variables">
+<h2>Variables<a class="headerlink" href="#variables" title="Permalink to this headline">¶</a></h2>
+<p>self.dataDict - dictionary with heatmaps; keys are provided when loading the data.</p>
+<p>self.singlesDict - dictionary with SS read vectors. Keys are the same.</p>
+<p>self.trackDict - dictionary with genomic tracks, such as GC content. 
+Custom tracks may be also added to this dictionary.</p>
+<dl class="class">
+<dt id="binnedData.binnedData">
+<em class="property">class </em><tt class="descclassname">binnedData.</tt><tt class="descname">binnedData</tt><big>(</big><em>resolution</em>, <em>genome</em><big>)</big><a class="headerlink" href="#binnedData.binnedData" title="Permalink to this definition">¶</a></dt>
+<dd><p>Base class to work with binned data, the most documented and robust part of the code. 
+Further classes for other analysis are inherited from this class.</p>
+<p class="rubric">Methods</p>
+<p>self.__init__ - initializes an empty dataset.</p>
+<p>This method sets up a Genome object and resolution.</p>
+<p>Genome object specifies genome version and inclusion/exclusion of sex chromosomes.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>resolution</strong> : int</p>
+<blockquote>
+<p>Resolution of all datasets</p>
+</blockquote>
+<p class="last"><strong>genome</strong> : genome Folder or Genome object</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods</p>
+<dl class="method">
+<dt id="binnedData.binnedData.simpleLoad">
+<tt class="descname">simpleLoad</tt><big>(</big><em>in_data</em>, <em>name</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.simpleLoad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads data from h5dict file or dict-like object</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>in_data</strong> : str or dict-like</p>
+<blockquote>
+<p>h5dict filename or dictionary-like object with input data</p>
+</blockquote>
+<p><strong>name</strong> : str</p>
+<blockquote class="last">
+<p>Key of the dataset in self.dataDict</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.loadGC">
+<tt class="descname">loadGC</tt><big>(</big><big>)</big><a class="headerlink" href="#binnedData.binnedData.loadGC" title="Permalink to this definition">¶</a></dt>
+<dd><p>loads GC content at given resolution</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.removeDiagonal">
+<tt class="descname">removeDiagonal</tt><big>(</big><em>m</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.removeDiagonal" title="Permalink to this definition">¶</a></dt>
+<dd><p>does what it says from all datasets</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.giveMask">
+<tt class="descname">giveMask</tt><big>(</big><big>)</big><a class="headerlink" href="#binnedData.binnedData.giveMask" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns index of all bins with non-zero read counts</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.giveMask2D">
+<tt class="descname">giveMask2D</tt><big>(</big><big>)</big><a class="headerlink" href="#binnedData.binnedData.giveMask2D" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns outer product of giveMask with itself, i.e. bins with possibly non-zero counts</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.removeStandalone">
+<tt class="descname">removeStandalone</tt><big>(</big><em>offset=3</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.removeStandalone" title="Permalink to this definition">¶</a></dt>
+<dd><p>removes standalone bins (groups of less-than-offset bins)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>offset</strong> : int</p>
+<blockquote class="last">
+<p>Maximum length of group of bins to be removed</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.removePoorRegions">
+<tt class="descname">removePoorRegions</tt><big>(</big><em>names=None</em>, <em>cutoff=2</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.removePoorRegions" title="Permalink to this definition">¶</a></dt>
+<dd><p>removes cutoff persent of bins with least counts</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>names</strong> : list of str</p>
+<blockquote>
+<p>List of datasets to perform the filter. All by default.</p>
+</blockquote>
+<p><strong>cutoff</strong> : int, 0&lt;cutoff&lt;100</p>
+<blockquote class="last">
+<p>Percent of lowest-counts bins to be removed</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.trunkTrans">
+<tt class="descname">trunkTrans</tt><big>(</big><em>high=0.0005</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.trunkTrans" title="Permalink to this definition">¶</a></dt>
+<dd><p>trunkates trans contacts to remove blowouts</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.removeCis">
+<tt class="descname">removeCis</tt><big>(</big><big>)</big><a class="headerlink" href="#binnedData.binnedData.removeCis" title="Permalink to this definition">¶</a></dt>
+<dd><p>sets to zero all cis contacts</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.fakeCisOnce">
+<tt class="descname">fakeCisOnce</tt><big>(</big><em>extraMask=None</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.fakeCisOnce" title="Permalink to this definition">¶</a></dt>
+<dd><p>Used to fake cis counts.
+If extra mask is supplied, it also fakes stuff in the extra mask</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.fakeCis">
+<tt class="descname">fakeCis</tt><big>(</big><big>)</big><a class="headerlink" href="#binnedData.binnedData.fakeCis" title="Permalink to this definition">¶</a></dt>
+<dd><p>fakes cis contacts in an interative way</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.emulateCis">
+<tt class="descname">emulateCis</tt><big>(</big><big>)</big><a class="headerlink" href="#binnedData.binnedData.emulateCis" title="Permalink to this definition">¶</a></dt>
+<dd><p>if you want to have fun creating syntetic data, this emulates cis contacts. 
+adjust cis/trans ratio in the C code</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.fakeMissing">
+<tt class="descname">fakeMissing</tt><big>(</big><big>)</big><a class="headerlink" href="#binnedData.binnedData.fakeMissing" title="Permalink to this definition">¶</a></dt>
+<dd><p>fakes megabases that have no reads. For cis reads fakes with cis reads at the same distance. For trans fakes with random trans read at the same diagonal.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.correct">
+<tt class="descname">correct</tt><big>(</big><em>names=None</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.correct" title="Permalink to this definition">¶</a></dt>
+<dd><p>performs single correction without SS</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>names</strong> : list of str or None</p>
+<blockquote class="last">
+<p>Keys of datasets to be corrected. If none, all are corrected.</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.iterativeCorrectWithoutSS">
+<tt class="descname">iterativeCorrectWithoutSS</tt><big>(</big><em>names=None</em>, <em>M=50</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.iterativeCorrectWithoutSS" title="Permalink to this definition">¶</a></dt>
+<dd><p>performs iterative correction without SS</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>names</strong> : list of str or None, optional</p>
+<blockquote>
+<p>Keys of datasets to be corrected. By default, all are corrected.</p>
+</blockquote>
+<p><strong>M</strong> : int, optional</p>
+<blockquote class="last">
+<p>Number of iterations to perform.</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.iterativeCorrectWithSS">
+<tt class="descname">iterativeCorrectWithSS</tt><big>(</big><em>names=None</em>, <em>M=55</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.iterativeCorrectWithSS" title="Permalink to this definition">¶</a></dt>
+<dd><p>performs iterative correction with SS</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>names</strong> : list of str or None, optional</p>
+<blockquote>
+<p>Keys of datasets to be corrected. By default, all are corrected.</p>
+</blockquote>
+<p><strong>M</strong> : int, optional</p>
+<blockquote class="last">
+<p>Number of iterations to perform.</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.iterativeCorrectByTrans">
+<tt class="descname">iterativeCorrectByTrans</tt><big>(</big><em>names=None</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.iterativeCorrectByTrans" title="Permalink to this definition">¶</a></dt>
+<dd><p>performs iterative correction by trans data only, corrects cis also</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>names</strong> : list of str or None, optional</p>
+<blockquote class="last">
+<p>Keys of datasets to be corrected. By default, all are corrected.</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.removeZeros">
+<tt class="descname">removeZeros</tt><big>(</big><big>)</big><a class="headerlink" href="#binnedData.binnedData.removeZeros" title="Permalink to this definition">¶</a></dt>
+<dd><p>removes bins with zero counts
+keeps chromosome starts, ends, etc. consistent</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.restoreZeros">
+<tt class="descname">restoreZeros</tt><big>(</big><em>value=nan</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.restoreZeros" title="Permalink to this definition">¶</a></dt>
+<dd><p>Restores zeros that were removed by removeZeros command.</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">You can restore zeros only if you used removeZeros once.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>value</strong> : number-like, optional.</p>
+<blockquote class="last">
+<p>Value to fill in missing regions. By default, NAN.</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.doPCA">
+<tt class="descname">doPCA</tt><big>(</big><big>)</big><a class="headerlink" href="#binnedData.binnedData.doPCA" title="Permalink to this definition">¶</a></dt>
+<dd><p>performs PCA on the data
+creates dictionary self.PCADict with results</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Returns :</th><td class="field-body"><strong>Dictionary of principal component matrices for different datasets</strong> :</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.doEig">
+<tt class="descname">doEig</tt><big>(</big><big>)</big><a class="headerlink" href="#binnedData.binnedData.doEig" title="Permalink to this definition">¶</a></dt>
+<dd><p>performs eigenvector expansion on the data
+creates dictionary self.EigDict with results</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Returns :</th><td class="field-body"><strong>Dictionary of principal component matrices for different datasets</strong> :</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedData.cisToTrans">
+<tt class="descname">cisToTrans</tt><big>(</big><em>mode='All'</em>, <em>filename='GM-all'</em><big>)</big><a class="headerlink" href="#binnedData.binnedData.cisToTrans" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates cis-to-trans ratio.
+&#8220;All&#8221; - treating SS as trans reads
+&#8220;Dummy&#8221; - fake SS reads proportional to cis reads with the same total sum
+&#8220;Matrix&#8221; - use heatmap only</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="binnedData.binnedDataAnalysis">
+<em class="property">class </em><tt class="descclassname">binnedData.</tt><tt class="descname">binnedDataAnalysis</tt><big>(</big><em>resolution</em>, <em>genome</em><big>)</big><a class="headerlink" href="#binnedData.binnedDataAnalysis" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class containing experimental features and data analysis scripts</p>
+<p class="rubric">Methods</p>
+<p>self.__init__ - initializes an empty dataset.</p>
+<p>This method sets up a Genome object and resolution.</p>
+<p>Genome object specifies genome version and inclusion/exclusion of sex chromosomes.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>resolution</strong> : int</p>
+<blockquote>
+<p>Resolution of all datasets</p>
+</blockquote>
+<p class="last"><strong>genome</strong> : genome Folder or Genome object</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods</p>
+<dl class="method">
+<dt id="binnedData.binnedDataAnalysis.plotScaling">
+<tt class="descname">plotScaling</tt><big>(</big><em>name</em>, <em>label='BLA'</em>, <em>color=None</em><big>)</big><a class="headerlink" href="#binnedData.binnedDataAnalysis.plotScaling" title="Permalink to this definition">¶</a></dt>
+<dd><p>plots scaling of a heatmap,treating arms separately</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedDataAnalysis.averageTransMap">
+<tt class="descname">averageTransMap</tt><big>(</big><em>name='GM-all'</em>, <em>mycmap='hot_r'</em>, <em>chromMax=22</em>, <em>vmin=None</em>, <em>vmax=None</em><big>)</big><a class="headerlink" href="#binnedData.binnedDataAnalysis.averageTransMap" title="Permalink to this definition">¶</a></dt>
+<dd><p>plots and returns average inter-chromosomal inter-arm map</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedDataAnalysis.perArmCorrelation">
+<tt class="descname">perArmCorrelation</tt><big>(</big><em>data1</em>, <em>data2</em>, <em>doByArms=</em><span class="optional">[</span><span class="optional">]</span><big>)</big><a class="headerlink" href="#binnedData.binnedDataAnalysis.perArmCorrelation" title="Permalink to this definition">¶</a></dt>
+<dd><p>does inter-chromosomal spearman correlation 
+of two vectors for each chromosomes separately.
+Averages over chromosomes with weight of chromosomal length
+For chromosomes in &#8220;doByArms&#8221; treats arms as separatre chromosomes
+returns average Spearman r correlation</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedDataAnalysis.divideOutAveragesPerChromosome">
+<tt class="descname">divideOutAveragesPerChromosome</tt><big>(</big><big>)</big><a class="headerlink" href="#binnedData.binnedDataAnalysis.divideOutAveragesPerChromosome" title="Permalink to this definition">¶</a></dt>
+<dd><p>divides each interchromosomal map by it&#8217;s mean value</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="binnedData.binnedDataAnalysis.interchromosomalValues">
+<tt class="descname">interchromosomalValues</tt><big>(</big><em>filename='GM-all'</em>, <em>returnAll=False</em><big>)</big><a class="headerlink" href="#binnedData.binnedDataAnalysis.interchromosomalValues" title="Permalink to this definition">¶</a></dt>
+<dd><p>returns average inter-chromosome-interaction values, ordered always the same way</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Analysis of binned data</a><ul>
+<li><a class="reference internal" href="#concepts">Concepts</a></li>
+<li><a class="reference internal" href="#input-data">Input data</a></li>
+<li><a class="reference internal" href="#variables">Variables</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="fragment.html"
+                        title="previous chapter">Fragment-level HiC correction</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/binneddata.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="fragment.html" title="Fragment-level HiC correction"
+             >previous</a> |</li>
+        <li><a href="index.html">HiC pipeline for iterative correction v0.4 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Maxim Imakaev, Anton Goloborodko, Geoffrey Fudenberg, Leonid Mirny.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.1.
+    </div>
+  </body>
+</html>

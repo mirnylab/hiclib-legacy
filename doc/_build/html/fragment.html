@@ -1,0 +1,594 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Fragment-level HiC correction &mdash; HiC pipeline for iterative correction v0.4 documentation</title>
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.4',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="HiC pipeline for iterative correction v0.4 documentation" href="index.html" />
+    <link rel="next" title="Analysis of binned data" href="binneddata.html" />
+    <link rel="prev" title="Welcome to openmm-lib’s documentation!" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="binneddata.html" title="Analysis of binned data"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to openmm-lib’s documentation!"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">HiC pipeline for iterative correction v0.4 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-fragmentHiC">
+<span id="fragment-level-hic-correction"></span><h1>Fragment-level HiC correction<a class="headerlink" href="#module-fragmentHiC" title="Permalink to this headline">¶</a></h1>
+<p>This is a module class for fragment-level Hi-C data analysis.
+The base class &#8220;HiCdataset&#8221; can load, save and merge Hi-C datasets, perform certain filters, and save binned heatmaps.</p>
+<p>Additional class HiCStatistics contains methods to analyze HiC data on a fragment level. 
+This includes read statistics, scalings, etc.</p>
+<dl class="class">
+<dt id="fragmentHiC.HiCdataset">
+<em class="property">class </em><tt class="descclassname">fragmentHiC.</tt><tt class="descname">HiCdataset</tt><big>(</big><em>filename</em>, <em>genome</em>, <em>maximumMoleculeLength=500</em>, <em>override=True</em>, <em>autoFlush=True</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Base class to operate on HiC dataset.</p>
+<p>This class stores all information about HiC reads on a hard drive. 
+Whenever a variable corresponding to any record is used, it is loaded/saved from/to the HDD.</p>
+<p>If you apply any filters to a dataset, it will actually modify the content of the current working file.  
+Thus, to preserve the data, loading datasets is advised.</p>
+<p class="rubric">Methods</p>
+<p>Initializes empty dataset by default. 
+If &#8220;override&#8221; is False, works with existing dataset.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>filename</strong> : string</p>
+<blockquote>
+<p>A filename to store HiC dataset in an HDF5 file.</p>
+</blockquote>
+<p><strong>genome</strong> : folder with genome, or Genome object</p>
+<blockquote>
+<p>A folder with fastq files of the genome and gap table from Genome browser.
+Alternatively, mirnylab.genome.Genome object.</p>
+</blockquote>
+<p><strong>maximumMoleculeLength</strong> : int, optional</p>
+<blockquote>
+<p>Maximum length of molecules in the HiC library, used as a cutoff for dangling ends filter</p>
+</blockquote>
+<p><strong>override</strong> : bool, optional</p>
+<blockquote>
+<p>Use specified dataset, do not remove it&#8217;s contents. 
+By default, if filename exists, it is deleted upon initialization.</p>
+</blockquote>
+<p><strong>autoFlush</strong> : bool, optional</p>
+<blockquote class="last">
+<p>Set to True to disable autoflush - possibly speeds up read/write operations. 
+Don&#8217;t forget to run flush then!</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods</p>
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.flush">
+<tt class="descname">flush</tt><big>(</big><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.flush" title="Permalink to this definition">¶</a></dt>
+<dd><p>Flushes h5dict if used in autoFlush = False mode</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.merge">
+<tt class="descname">merge</tt><big>(</big><em>filenames</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.merge" title="Permalink to this definition">¶</a></dt>
+<dd><p>combines data from multiple datasets</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>folders</strong> : list of strings</p>
+<blockquote class="last">
+<p>List of folders to merge to current working folder</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.parseInputData">
+<tt class="descname">parseInputData</tt><big>(</big><em>dictLike</em>, <em>zeroBaseChrom=True</em>, <em>enzymeToFillRsites=None</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.parseInputData" title="Permalink to this definition">¶</a></dt>
+<dd><p>Inputs data from a dictionary-like object, containing coordinates of the reads. 
+Performs filtering of the reads.</p>
+<p>A good example of a dict-like object is a numpy.savez</p>
+<p>..warning::  Restriction fragments MUST be specified exactly as in the Genome class.</p>
+<p>..warning:: Strand information is needed for proper scaling calculations, but will be imitated if not provided</p>
+<p>..note:</p>
+<div class="highlight-python"><pre>:Parameters:</pre>
+</div>
+<blockquote>
+<p><strong>dictLike[&#8220;chrms1,2&#8221;]</strong> : Chromosomes of 2 sides of the read</p>
+<p><strong>dictLike[&#8220;cuts1,2&#8221;]</strong> : Exact position of cuts</p>
+<p><strong>dictLike[&#8220;strands1,2&#8221;], essential</strong> : Direction of the read</p>
+<p><strong>dictLike[&#8220;rsites1,2&#8221;], optional</strong> : Position of rsite to which the read is pointing</p>
+<p><strong>dictLike[&#8220;uprsites1,2&#8221;] , optional</strong> : rsite upstream (larger genomic coordinate) of the cut position</p>
+<p><strong>dictLike[&#8220;downrsites1,2&#8221;] , optional</strong> : rsite downstream (smaller genomic coordinate) of the cut position</p>
+<p><strong>zeroBaseChrom</strong> : bool , optional</p>
+<blockquote>
+Use zero-base chromosome counting if True, one-base if False</blockquote>
+<p><strong>enzymeToFillRsites = None or str, optional if rsites are specified</strong> :</p>
+<blockquote>
+Enzyme name to use with Bio.restriction</blockquote>
+</blockquote>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.saveFragments">
+<tt class="descname">saveFragments</tt><big>(</big><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.saveFragments" title="Permalink to this definition">¶</a></dt>
+<dd><p>saves fragment data to make correct expected estimates after applying a heavy mask</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.originalFragments">
+<tt class="descname">originalFragments</tt><big>(</big><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.originalFragments" title="Permalink to this definition">¶</a></dt>
+<dd><p>loads original fragments</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.calculateWeights">
+<tt class="descname">calculateWeights</tt><big>(</big><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.calculateWeights" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates weights for reads based on fragment length correction similar to Tanay&#8217;s;
+may be used for scalings or creating heatmaps</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.buildHeatmap">
+<tt class="descname">buildHeatmap</tt><big>(</big><em>chromosome=14</em>, <em>chromosome2=None</em>, <em>resolution=1000000</em>, <em>show=False</em>, <em>useRsiteDensity=True</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.buildHeatmap" title="Permalink to this definition">¶</a></dt>
+<dd><p>Builds heatmaps between any two chromosomes at a given resolution</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>chromosome1</strong> : int</p>
+<blockquote>
+<p>First chromosome</p>
+</blockquote>
+<p><strong>chromosome2</strong> : int, optional</p>
+<blockquote>
+<p>Second chromosome, if the map is trans.</p>
+</blockquote>
+<p><strong>resolution</strong> : int</p>
+<blockquote>
+<p>Resolution of a heatmap. Default is 1M</p>
+</blockquote>
+<p><strong>show</strong> : bool , optional</p>
+<blockquote>
+<p>Show heatmap, or just output it?</p>
+</blockquote>
+<p><strong>useRsiteDensity</strong> : bool, optional</p>
+<blockquote class="last">
+<p>Correct map by density of rsites.</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.buildAllHeatmap">
+<tt class="descname">buildAllHeatmap</tt><big>(</big><em>resolution</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.buildAllHeatmap" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates an all-by-all heatmap in accordance with mapping provided by &#8216;genome&#8217; class</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>Resolution</strong> : int</p>
+<blockquote class="last">
+<p>Resolution of a heatmap</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.buildSinglesCoverage">
+<tt class="descname">buildSinglesCoverage</tt><big>(</big><em>resolution</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.buildSinglesCoverage" title="Permalink to this definition">¶</a></dt>
+<dd><p>creates an SS coverage vector heatmap in accordance with the output of the &#8216;genome&#8217; class</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.buildFragmetCoverage">
+<tt class="descname">buildFragmetCoverage</tt><big>(</big><em>resolution</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.buildFragmetCoverage" title="Permalink to this definition">¶</a></dt>
+<dd><p>creates restriction site density vector (visible sites only) in accordance with the &#8216;genome&#8217; class</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.fragmentFilter">
+<tt class="descname">fragmentFilter</tt><big>(</big><em>fragments</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.fragmentFilter" title="Permalink to this definition">¶</a></dt>
+<dd><p>keeps only reads that originate from fragments in &#8216;fragments&#8217; variable, for DS - on both sides
+Parameters 
+&#8212;&#8212;&#8212;-
+fragments : np.array of fragment IDs or bools</p>
+<blockquote>
+List of fragments to keep, or their indexes in self.ufragments</blockquote>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.maskFilter">
+<tt class="descname">maskFilter</tt><big>(</big><em>mask</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.maskFilter" title="Permalink to this definition">¶</a></dt>
+<dd><p>keeps only reads designated by mask
+Parameters
+&#8212;&#8212;&#8212;-
+mask : array of bools</p>
+<blockquote>
+Indexes of reads to keep</blockquote>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.rebuildFragments">
+<tt class="descname">rebuildFragments</tt><big>(</big><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.rebuildFragments" title="Permalink to this definition">¶</a></dt>
+<dd><p>recreates a set of fragments - runs when read have changed</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.filterExtreme">
+<tt class="descname">filterExtreme</tt><big>(</big><em>cutH=0.005</em>, <em>cutL=0</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.filterExtreme" title="Permalink to this definition">¶</a></dt>
+<dd><p>removes fragments with most and/or least # counts</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>cutH</strong> : float, 0&lt;=cutH &lt; 1, optional</p>
+<blockquote>
+<p>Fraction of the most-counts fragments to be removed</p>
+</blockquote>
+<p><strong>cutL: float, 0&lt;=cutL&lt;1, optional</strong> :</p>
+<blockquote class="last">
+<p>Fraction of the least-counts fragments to be removed</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.filterLarge">
+<tt class="descname">filterLarge</tt><big>(</big><em>cutlarge=100000</em>, <em>cutsmall=100</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.filterLarge" title="Permalink to this definition">¶</a></dt>
+<dd><p>removes very large and small fragments</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>cutlarge</strong> : int</p>
+<blockquote>
+<p>remove fragments larger than it</p>
+</blockquote>
+<p><strong>cutsmall</strong> : int</p>
+<blockquote class="last">
+<p>remove fragments smaller than it</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.filterRsiteStart">
+<tt class="descname">filterRsiteStart</tt><big>(</big><em>offset=5</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.filterRsiteStart" title="Permalink to this definition">¶</a></dt>
+<dd><p>removes reads that start within x bp near rsite</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>offset</strong> : int</p>
+<blockquote class="last">
+<p>Number of bp to exclude next to rsite, not including offset</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.filterDuplicates">
+<tt class="descname">filterDuplicates</tt><big>(</big><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.filterDuplicates" title="Permalink to this definition">¶</a></dt>
+<dd><p>removes duplicate molecules in DS reads</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.fragmentSum">
+<tt class="descname">fragmentSum</tt><big>(</big><em>fragments=None</em>, <em>strands='both'</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.fragmentSum" title="Permalink to this definition">¶</a></dt>
+<dd><p>returns sum of all counts for a set or subset of fragments
+Parameters
+&#8212;&#8212;&#8212;- 
+fragments : list of fragment IDs, optional</p>
+<blockquote>
+Use only this fragments. By default all fragments are used</blockquote>
+<dl class="docutils">
+<dt>strands <span class="classifier-delimiter">:</span> <span class="classifier">1,2 or &#8220;both&#8221; (default) </span></dt>
+<dd>Use only first or second side of the read (first has SS, second - doesn&#8217;t)</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.save">
+<tt class="descname">save</tt><big>(</big><em>filename</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.save" title="Permalink to this definition">¶</a></dt>
+<dd><p>Saves dataset to filename, does not change the working file.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.load">
+<tt class="descname">load</tt><big>(</big><em>filename</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.load" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads dataset from file to working file; check for inconsistency</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCdataset.saveHeatmap">
+<tt class="descname">saveHeatmap</tt><big>(</big><em>filename</em>, <em>resolution=1000000</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCdataset.saveHeatmap" title="Permalink to this definition">¶</a></dt>
+<dd><p>Saves heatmap to filename at given resolution.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">More than one file may be used to store the data, as joblib creates extra files</p>
+</div>
+<p>to store huge numpy arrays. All files will start with filename, but some may end with _01.npy.z</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>filename</strong> : str</p>
+<p class="last"><strong>resolution</strong> : int</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="fragmentHiC.HiCStatistics">
+<em class="property">class </em><tt class="descclassname">fragmentHiC.</tt><tt class="descname">HiCStatistics</tt><big>(</big><em>filename</em>, <em>genome</em>, <em>maximumMoleculeLength=500</em>, <em>override=True</em>, <em>autoFlush=True</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCStatistics" title="Permalink to this definition">¶</a></dt>
+<dd><p>a sub-class of a &#8216;HiCdataset&#8217; class used to do statistics on Hi-C reads</p>
+<p class="rubric">Methods</p>
+<p>Initializes empty dataset by default. 
+If &#8220;override&#8221; is False, works with existing dataset.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>filename</strong> : string</p>
+<blockquote>
+<p>A filename to store HiC dataset in an HDF5 file.</p>
+</blockquote>
+<p><strong>genome</strong> : folder with genome, or Genome object</p>
+<blockquote>
+<p>A folder with fastq files of the genome and gap table from Genome browser.
+Alternatively, mirnylab.genome.Genome object.</p>
+</blockquote>
+<p><strong>maximumMoleculeLength</strong> : int, optional</p>
+<blockquote>
+<p>Maximum length of molecules in the HiC library, used as a cutoff for dangling ends filter</p>
+</blockquote>
+<p><strong>override</strong> : bool, optional</p>
+<blockquote>
+<p>Use specified dataset, do not remove it&#8217;s contents. 
+By default, if filename exists, it is deleted upon initialization.</p>
+</blockquote>
+<p><strong>autoFlush</strong> : bool, optional</p>
+<blockquote class="last">
+<p>Set to True to disable autoflush - possibly speeds up read/write operations. 
+Don&#8217;t forget to run flush then!</p>
+</blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods</p>
+<dl class="method">
+<dt id="fragmentHiC.HiCStatistics.multiplyForTesting">
+<tt class="descname">multiplyForTesting</tt><big>(</big><em>N=100</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCStatistics.multiplyForTesting" title="Permalink to this definition">¶</a></dt>
+<dd><p>used for heavy load testing only</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCStatistics.buildLengthDependencePlot">
+<tt class="descname">buildLengthDependencePlot</tt><big>(</big><em>label='plot'</em>, <em>strands='both'</em>, <em>color=None</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCStatistics.buildLengthDependencePlot" title="Permalink to this definition">¶</a></dt>
+<dd><p>plots dependence of counts on fragment length. May do based on one strands only</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fragmentHiC.HiCStatistics.plotScaling">
+<tt class="descname">plotScaling</tt><big>(</big><em>fragids1=None</em>, <em>fragids2=None</em>, <em>useWeights=False</em>, <em>excludeNeighbors=None</em>, <em>enzyme=None</em>, <em>normalize=True</em>, <em>withinArms=True</em>, <em>mindist=10000</em>, <em>maxdist=None</em>, <em>regions=None</em>, <em>appendReadCount=True</em>, <em>**kwargs</em><big>)</big><a class="headerlink" href="#fragmentHiC.HiCStatistics.plotScaling" title="Permalink to this definition">¶</a></dt>
+<dd><p>plots scaling over, possibly uses subset of fragmetns, or weigts, possibly normalizes after plotting</p>
+<p>Plan of scaling calculation:</p>
+<ol class="arabic">
+<li><p class="first">Subdivide all genome into regions.</p>
+<blockquote>
+<ol class="loweralpha">
+<li><p class="first">Different chromosomes</p>
+</li>
+<li><p class="first">Different arms</p>
+</li>
+<li><p class="first">User defined squares/rectangles on a contact map</p>
+<p>-(chromosome, start,end) square around the diagonal</p>
+<p>-(chr1, start1, end1, start2, end2) rectangle</p>
+</li>
+</ol>
+</blockquote>
+</li>
+<li><p class="first">Use either all fragments, or only interactions between two groups of fragments</p>
+<blockquote>
+<p>e.g. you can calculate how scaling for small fragments is different from that for large</p>
+<p>It can be possibly used for testing Hi-C protocol issues.</p>
+<p>One can see effect of weights by doing this</p>
+</blockquote>
+</li>
+<li><p class="first">(optional) Calculate correction associated with fragment length dependence</p>
+</li>
+<li><p class="first">Subdivide all possible genomic separation into log-spaced bins</p>
+</li>
+<li><p class="first">Calculate expected number of fragment pairs within each bin (possibly with weights from step 3).</p>
+<blockquote>
+<p>If exclusion of neighbors is specificed, expected number of fragments knows about this</p>
+</blockquote>
+</li>
+</ol>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>fragids1, fragids2</strong> : numpy.array of fragment IDs, optional</p>
+<blockquote>
+<p>Scaling is calculated only for interactions between fragids1 and fragids2
+If omitted, all fragments are used
+If boolean array is supplied, it serves as a mask for fragments.</p>
+</blockquote>
+<p><strong>useWeights</strong> : bool, optional</p>
+<blockquote>
+<p>Use weights calculated from fragment length</p>
+</blockquote>
+<p><strong>excludeNeighbors</strong> : int or None, optional</p>
+<blockquote>
+<p>If None, all fragment pairs are considered. 
+If integer, only fragment pairs separated by this rsites are considered.</p>
+</blockquote>
+<p><strong>enzyme</strong> : string (&#8220;HindIII&#8221;,&#8221;NcoI&#8221;)</p>
+<blockquote>
+<p>If excludeNeighbors is used, you have to specify restriction enzyme</p>
+</blockquote>
+<p><strong>normalize</strong> : bool, optional</p>
+<blockquote>
+<p>Do an overall normalization of the answer, by default True.</p>
+</blockquote>
+<p><strong>withinArms</strong> : bool, optional</p>
+<blockquote>
+<p>Set to false to use whole chromosomes instead of arms</p>
+</blockquote>
+<p><strong>mindist, maxdist</strong> : int, optional</p>
+<blockquote>
+<p>Use lengthes from mindist to maxdist</p>
+</blockquote>
+<p><strong>regions</strong> : list of (chrom, start,end), optional</p>
+<blockquote>
+<p>Restrict scaling calculation to only certain squares of the map</p>
+</blockquote>
+<p><strong>appendReadCount</strong> : bool, optional</p>
+<blockquote>
+<p>Append read count to the plot label</p>
+</blockquote>
+<p><strong>kwargs</strong> : dict, optional</p>
+<blockquote>
+<p>Dictionary of kw args to be passed to plt.plot</p>
+</blockquote>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns :</th><td class="field-body"><p class="first last"><strong>(bins,probabilities) - values to plot on the scaling plot</strong> :</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">Welcome to openmm-lib&#8217;s documentation!</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="binneddata.html"
+                        title="next chapter">Analysis of binned data</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/fragment.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="binneddata.html" title="Analysis of binned data"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to openmm-lib’s documentation!"
+             >previous</a> |</li>
+        <li><a href="index.html">HiC pipeline for iterative correction v0.4 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2012, Maxim Imakaev, Anton Goloborodko, Geoffrey Fudenberg, Leonid Mirny.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.1.
+    </div>
+  </body>
+</html>

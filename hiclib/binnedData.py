@@ -119,11 +119,24 @@ class binnedData(object):
         self.armIndex = self.chromosomeIndex * 2 + numpy.array(self.positionIndex > self.genome.cntrMids[self.chromosomeIndex],int)
                 
     
-    def simpleLoad(self,filename,name):
-        """Load data from h5dict file or dict-like object
+    def simpleLoad(self,in_data,name):
+        """Loads data from h5dict file or dict-like object
         
-        """
-        alldata = h5dict(filename,mode = "r")        
+        Parameters
+        ----------
+        
+        in_data : str or dict-like
+            h5dict filename or dictionary-like object with input data
+            
+        name : str
+            Key of the dataset in self.dataDict
+        
+        """        
+        if type(in_data) == str: 
+            alldata = h5dict(in_data,mode = "r")
+        else:
+            alldata = in_data
+                             
         self.dataDict[name] = alldata["heatmap"]        
         try: self.singlesDict[name] = alldata["singles"]
         except: print "No SS reads found"
@@ -179,6 +192,7 @@ class binnedData(object):
             #mat_img(data) 
             
     def giveMask(self):
+        "Returns index of all bins with non-zero read counts"
         self.mask = numpy.ones(len(self.dataDict.values()[0]),numpy.bool)
         for data in self.dataDict.values():
             datasum = numpy.sum(data,axis = 0)
@@ -187,6 +201,7 @@ class binnedData(object):
         return self.mask
     
     def giveMask2D(self):
+        "Returns outer product of giveMask with itself, i.e. bins with possibly non-zero counts"
         self.giveMask()
         self.mask2D = self.mask[:,None] * self.mask[None,:]
         return self.mask2D   
@@ -194,7 +209,7 @@ class binnedData(object):
         
     
     def removeStandalone(self,offset = 3):
-        """removes standalone bins (groups of less-than-offset-long bins)
+        """removes standalone bins (groups of less-than-offset bins)
         
         Parameters
         ----------
@@ -214,7 +229,15 @@ class binnedData(object):
         for i in self.dataDict.values(): i[mask2D == False] = 0
         
     def removePoorRegions(self,names = None, cutoff = 2):
-        "removes cutoff persent of bins with least counts"
+        """removes cutoff persent of bins with least counts
+        
+        Parameters
+        ----------
+        names : list of str
+            List of datasets to perform the filter. All by default. 
+        cutoff : int, 0<cutoff<100
+            Percent of lowest-counts bins to be removed         
+        """
         statmask = numpy.zeros(len(self.dataDict.values()[0]),numpy.bool)
         mask = numpy.ones(len(self.dataDict.values()[0]),numpy.bool)
         if names == None: names =self.dataDict.keys()  
@@ -251,8 +274,9 @@ class binnedData(object):
         
             
     def fakeCisOnce(self,extraMask = None):
-        """used to fake cis counts.
-        If extra mask is supplied, it also fakes stuff in the extra mask 
+        """Used to fake cis counts.
+        If extra mask is supplied, it also fakes stuff in the extra mask
+         
         """
         for i in self.dataDict.keys():
             data = self.dataDict[i] * 1. 
@@ -326,7 +350,7 @@ class binnedData(object):
 
     def emulateCis(self):
         """if you want to have fun creating syntetic data, this emulates cis contacts. 
-        adjust cis/trans ratio in the code"""
+        adjust cis/trans ratio in the C code"""
         transmap = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]
         len(transmap)
         for i in self.dataDict.keys():
@@ -357,8 +381,9 @@ class binnedData(object):
         self.fakedCis = False 
 
 
-    def fakeMissing(self, stay = False):
-        "fakes missing megabases"
+    def fakeMissing(self):
+        """fakes megabases that have no reads. For cis reads fakes with cis reads at the same distance. For trans fakes with random trans read at the same diagonal. 
+        """
         for i in self.dataDict.keys():
             data = self.dataDict[i] * 1.
             sm = numpy.sum(data,axis = 0) > 0  
@@ -399,25 +424,46 @@ class binnedData(object):
                 s #to remove warning
                 weave.inline(code, ['transmask','mask','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
                 #mat_img(numpy.log(data+1),trunk = True)
-                data = correct(data)
-            if stay == False: data[mask == 0] = 0  
+                data = correct(data)              
             self.dataDict[i] = data
             #mat_img(self.dataDict[i]>0) 
 
 
     def correct(self,names=None):
-        "performs single correction without SS"
-        self.ultracorrect(names,M=1)
+        """performs single correction without SS
+        
+        Parameters
+        ----------
+        names : list of str or None
+            Keys of datasets to be corrected. If none, all are corrected. 
+        """
+        self.iterativeCorrectWithoutSS(names, M=1)
         
     def iterativeCorrectWithoutSS(self, names = None,M=50):
-        "performs iterative correction wihtout SS"
+        """performs iterative correction without SS
+        
+        Parameters
+        ----------
+        names : list of str or None, optional
+            Keys of datasets to be corrected. By default, all are corrected.
+        M : int, optional
+            Number of iterations to perform. 
+        """
         if names == None: names = self.dataDict.keys()
         
         for i in names:
             self.dataDict[i] = ultracorrectSymmetricWithVector(self.dataDict[i],M=M)[0]
 
     def iterativeCorrectWithSS(self,names = None,M = 55):
-        "performs iterative correction with SS"
+        """performs iterative correction with SS
+        
+        Parameters
+        ----------
+        names : list of str or None, optional
+            Keys of datasets to be corrected. By default, all are corrected.
+        M : int, optional
+            Number of iterations to perform. 
+        """
         if names == None: names = self.dataDict.keys()
         for i in names:
             data = self.dataDict[i]
@@ -427,8 +473,15 @@ class binnedData(object):
             self.singlesDict[i] = nvec
             self.biasDict[i] = (vec / nvec)
             
-    def iterativeCorrectByTrans(self,names = None):
-        "performs iterative correction by trans data only, corrects cis also"
+    def iterativeCorrectByTrans(self,names = None):        
+        """performs iterative correction by trans data only, corrects cis also
+        
+        Parameters
+        ----------
+        names : list of str or None, optional
+            Keys of datasets to be corrected. By default, all are corrected.
+        """
+
         if names == None: names = self.dataDict.keys()        
         self.transmap = self.chromosomeIndex[:,None] != self.chromosomeIndex[None,:]
         #mat_img(self.transmap)
@@ -476,14 +529,19 @@ class binnedData(object):
     def restoreZeros(self, value = numpy.NAN):
         """Restores zeros that were removed by removeZeros command. 
         
-        .. warning:: You can restore zeros only if you used removeZeros once.   
+        .. warning:: You can restore zeros only if you used removeZeros once.
+        
+        Parameters
+        ----------
+        value : number-like, optional. 
+            Value to fill in missing regions. By default, NAN. 
         """        
         s = self.removeZerosMask
         N = len(s)
 
         for i in self.dataDict.keys():
             a = self.dataDict[i]
-            self.dataDict[i] = numpy.zeros((N,N),dtype = a.dtype)
+            self.dataDict[i] = numpy.zeros((N,N),dtype = a.dtype) * value 
             tmp = numpy.zeros((N,len(a)),dtype = a.dtype)
             tmp[s,:] = a
             self.dataDict[i][:,s] = tmp             
@@ -491,7 +549,7 @@ class binnedData(object):
         for mydict in dicts:
             for key in mydict.keys():
                 a = mydict[key]
-                mydict[key] = numpy.zeros(N,dtype = a.dtype)
+                mydict[key] = numpy.zeros(N,dtype = a.dtype) * value 
                 mydict[key][s] = a
                         
         self.initChromosomes()               
@@ -500,7 +558,12 @@ class binnedData(object):
             
     def doPCA(self):
         """performs PCA on the data
-        creates dictionary self.PCA with results"""
+        creates dictionary self.PCADict with results
+        
+        Returns
+        -------
+        Dictionary of principal component matrices for different datasets
+        """
         if (self.removedCis == False) or (self.fakedCis == False): 
             print "Cis contacts have not been removed and/or faked."
             print 'Are you sure you want to continue???'
@@ -512,7 +575,12 @@ class binnedData(object):
             
     def doEig(self):
         """performs eigenvector expansion on the data
-        creates dictionary self.EIG with results"""
+        creates dictionary self.EigDict with results
+        
+        Returns
+        -------
+        Dictionary of principal component matrices for different datasets
+        """
         if (self.removedCis == False) or (self.fakedCis == False): 
             print "Cis contacts have not been removed and/or faked."
             print 'Are you sure you want to continue???'
@@ -529,7 +597,7 @@ class binnedData(object):
         Calculates cis-to-trans ratio.
         "All" - treating SS as trans reads
         "Dummy" - fake SS reads proportional to cis reads with the same total sum
-        "Matrix" - use heatmap only
+        "Matrix" - use heatmap only        
         """
         data = self.dataDict[filename]
         cismap = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]        
