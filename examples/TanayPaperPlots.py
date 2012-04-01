@@ -1,3 +1,6 @@
+print "This file is still very raw and has no working examples!!!" 
+exit() 
+
 import mirnylab.systemutils 
 mirnylab.systemutils.setExceptionHook()
 #Eclipse warning damper 
