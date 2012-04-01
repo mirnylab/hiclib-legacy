@@ -1,9 +1,13 @@
-import base
-base #Eclipse warning damper 
+import mirnylab.systemutils 
+mirnylab.systemutils.setExceptionHook()
+#Eclipse warning damper 
 
-import plotting 
-import dnaUtils 
-import numutils  
+import mirnylab.plotting
+plotting = mirnylab.plotting 
+import hiclib.dnaUtils
+ 
+import mirnylab.numutils
+numutils = mirnylab.numutils  
 import numpy 
 na = numpy.array 
 from numpy import r_ 
@@ -14,8 +18,8 @@ import cPickle
 from math import exp
 
 
-from binnedData  import binnedData
-from expression import strangeGradientDescent
+from hicutils.binnedData import binnedData 
+from hiclib.domainSearch import gradientDescentDomains 
 #os.chdir("/old/home/magus/HiC2011")
 
 
@@ -209,7 +213,7 @@ def doDomains(filename):
     mymap = data["data"]
 
     mymap = numpy.array(mymap,dtype = "int64",order = "C")         
-    GD = strangeGradientDescent(mymap)
+    GD = gradientDescentDomains(mymap)
     GD.doSearch()
     return GD.vec
  

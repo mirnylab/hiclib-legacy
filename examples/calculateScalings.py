@@ -30,14 +30,15 @@ def plotScalingsByChromosome():
     (it would be taken care of anyways, it's just faster this way)"""
     TR.maskFilter((TR.strands1 == TR.strands2) * (TR.chrms1 == TR.chrms2))
     
-    TR.plotScaling( color = "black", linewidth = 2,excludeNeighbors=3,enzyme = "HindIII",mindist = 20000)
+    
      
     for chromosome in xrange(TR.genome.chrmCount):
         regions = [(chromosome,0,TR.genome.cntrMids[chromosome]),
                    (chromosome,TR.genome.cntrMids[chromosome], TR.genome.chrmLens[chromosome])]
         TR.plotScaling(regions = regions,excludeNeighbors=3,enzyme = "HindIII",
                        color = (plt.cm.get_cmap("jet")(0.3 + (0.5 * chromosome ) / TR.genome.chrmCount)),mindist = 20000)
-         
+    
+    TR.plotScaling( color = "black", linewidth = 2,excludeNeighbors=3,enzyme = "HindIII",mindist = 20000)     
     
     plt.xlabel("Genomic distance (bp)")
     plt.ylabel("Normalized Pc")        
