@@ -5,6 +5,11 @@
 
 Welcome to openmm-lib's documentation!
 ======================================
+
+Installation
+------------
+
+
  
 Contents:
 

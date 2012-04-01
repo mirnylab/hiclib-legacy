@@ -1,20 +1,22 @@
-from fragmentHiC import HiCdataset,HiCStatistics
-import binnedData
+from hiclib.fragmentHiC import HiCdataset,HiCStatistics
+import hiclib.binnedData
 import mirnylab.numutils 
-import domainSearch 
+import hiclib.domainSearch 
 import numpy
 import matplotlib.pyplot as plt   
 import os
-import plotting 
+import mirnylab.plotting 
 import scipy.stats
 
-dataDir = ".."   #base folder with project data
+dataDir = "../.."   #base folder with project data
 
 
 
-genomeFolder = "../data/hg19"
-dataFolder = "hg19/GM-HindIII-hg19_refined.frag"
-dataFolder2 = "hg19/GM-NcoI-hg19_refined.frag"
+genomeFolder = "../../data/hg19"
+dataFile = "../../ErezPaperData/hg19/GM-HindIII-hg19_refined.frag"
+dataFile2 = "hg19/GM-NcoI-hg19_refined.frag"
+
+if os.path.exists("working") == False: os.mkdir("working")
 
 def plotScalingsByChromosome():
     """ An example script that plots scalings for different chromosomes with different color.
@@ -23,7 +25,7 @@ def plotScalingsByChromosome():
     This method is absolutely transparent and can be used with any genome/any data
     """
     TR = HiCStatistics("working/working.frag",genome = genomeFolder, maximumMoleculeLength=500,override = True )    
-    TR.load(dataFolder)
+    TR.load(dataFile)
     """Filter cis reads from the same strand to reduce # reads 
     (it would be taken care of anyways, it's just faster this way)"""
     TR.maskFilter((TR.strands1 == TR.strands2) * (TR.chrms1 == TR.chrms2))
@@ -36,30 +38,29 @@ def plotScalingsByChromosome():
         TR.plotScaling(regions = regions,excludeNeighbors=3,enzyme = "HindIII",
                        color = (plt.cm.get_cmap("jet")(0.3 + (0.5 * chromosome ) / TR.genome.chrmCount)),mindist = 20000)
          
-        allRegions += regions 
     
     plt.xlabel("Genomic distance (bp)")
     plt.ylabel("Normalized Pc")        
     plt.show()
         
-#plotScalingsByChromosome()
-#exit()        
+plotScalingsByChromosome()
+exit()        
 
 def compareWeightsNoWeights():
     TR = HiCStatistics("working/working.frag",genome = genomeFolder, maximumMoleculeLength=500)
-    TR.load(dataFolder)
+    TR.load(dataFile)
     TR.maskFilter((TR.strands1 == TR.strands2) * (TR.chrms1 == TR.chrms2))    
     TR.plotScaling( excludeNeighbors=3,enzyme = "HindIII", mindist = 100,label = "No weights, Hind")
     TR.plotScaling( useWeights= True, excludeNeighbors=3,enzyme = "HindIII", mindist = 100,label = "weights, Hind")
 
     TR = HiCStatistics("working/working.frag",genome = genomeFolder, maximumMoleculeLength=500)
-    TR.load(dataFolder2)
+    TR.load(dataFile2)
     TR.maskFilter((TR.strands1 == TR.strands2) * (TR.chrms1 == TR.chrms2))    
     TR.plotScaling( excludeNeighbors=3,enzyme = "NcoI", mindist = 100 ,label = "No weights, NcoI")
     TR.plotScaling( useWeights= True, excludeNeighbors=3,enzyme = "NcoI", mindist = 100 ,label = "weights, NcoI")
-    plotting.niceShow()
+    mirnylab.plotting.niceShow()
     
-compareWeightsNoWeights()
+#compareWeightsNoWeights()
            
 def plotScalingsByDomains(build = True):
     """An example script that shows calculation of domains, and then plotting inter-domain and intra-domain scaling. 
@@ -70,10 +71,10 @@ def plotScalingsByDomains(build = True):
     
  
     TR = HiCStatistics("working/working.frag",genomeFolder = genomeFolder, maximumMoleculeLength=500)
-    TR.load(dataFolder)
+    TR.load(dataFile)
     TR.saveHeatmap("working/workingHeatmap", resolution = resolution)   #Simply load corrected dataset and save it as a heatmap
     
-    HM = binnedData.binnedDataAnalysis(resolution = resolution, genomeFolder = genomeFolder)  #load heatmap 
+    HM = hiclib.binnedData.binnedDataAnalysis(resolution = resolution, genomeFolder = genomeFolder)  #load heatmap 
     #Following standart protocol of obtaining domains with advanced statistical model 
     HM.simpleLoad("working/workingHeatmap", "GM")    
     HM.removePoorRegions(cutoff = 5)
@@ -84,7 +85,7 @@ def plotScalingsByDomains(build = True):
     HM.removeZeros()
     data = HM.dataDict["GM"]
     #plotting.mat_img(data)              #check that we're feeding what we want to domain finder 
-    domains = domainSearch.exponentialDomains(data)   #most advanced domain finder
+    domains = hiclib.domainSearch.exponentialDomains(data)   #most advanced domain finder
     
     cr = scipy.stats.spearmanr(domains,HM.trackDict["GC"])   #be sure that positive domains are always open
     print "correlation with GC is %lf" % cr[0]
@@ -121,7 +122,7 @@ def plotScalingsByDomains(build = True):
     plt.xlabel("genomic separation")
     plt.ylabel("Pc")    
     
-    plotting.niceShow()
+    mirnylab.plotting.niceShow()
     raise 
     
 plotScalingsByDomains()  
