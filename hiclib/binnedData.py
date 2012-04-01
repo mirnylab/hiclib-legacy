@@ -23,7 +23,7 @@ but they don't cover the realm of all possible manipulations that can be perform
 Input data
 ----------
 
-method :py:func:'SimpleLoad <binnedData.simpleLoad>' may be used to load the data. 
+method :py:func:`SimpleLoad <binnedData.simpleLoad>` may be used to load the data. 
 It automatically checks for possible genome length mismatch. 
 
 This method works best with h5dict files, created by fragmentHiC.
@@ -126,8 +126,7 @@ class binnedData(object):
         ----------
         
         in_data : str or dict-like
-            h5dict filename or dictionary-like object with input data
-            
+            h5dict filename or dictionary-like object with input data            
         name : str
             Key of the dataset in self.dataDict
         

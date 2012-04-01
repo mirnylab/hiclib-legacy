@@ -27,7 +27,7 @@ import sys, os
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 sys.path.append("exts")
 sys.path.append("../hiclib")
-extensions = ['sphinx.ext.autodoc', 'numpydoc']
+extensions = ['sphinx.ext.autodoc', 'numpydoc','sphinx.ext.viewcode']
 autodoc_member_order = "bysource"
 autoclass_content  = "both"
 # Add any paths that contain templates here, relative to this directory.
