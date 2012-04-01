@@ -56,7 +56,7 @@ class gradientDescentDomains:
         print -s
         if numpy.isfinite(s) == False:
             self.infCount += 1
-            if self.infCount == 3:
+            if self.infCount == 10:
                 raise ArithmeticError
         return -s
      

@@ -17,6 +17,39 @@ dataFile = "../../ErezPaperData/hg19/GM-HindIII-hg19_refined.frag"
 dataFile2 = "../../ErezPaperData/hg19/GM-NcoI-hg19_refined.frag"
 
 
+from multiprocessing import Process, Array
+import scipy
+import numpy
+
+def f(a):
+    a[0] = -a[0]
+
+if __name__ == '__main__':
+    # Create the array
+    N = int(10)
+    unshared_arr = scipy.rand(N)
+    a = Array('d', unshared_arr)
+    print "Originally, the first two elements of arr = %s"%(a[:2])
+
+    # Create, start, and finish the child process
+    p = Process(target=f, args=(a,))
+    p.start()
+    p.join()
+
+    # Print out the changed values
+    print "Now, the first two elements of arr = %s"%a[:2]
+
+    b = numpy.frombuffer(a.get_obj())
+
+    b[0] = 10.0
+    print a[0]
+
+
+
+
+exit()
+
+
 if os.path.exists("working") == False: os.mkdir("working")
 
 def plotScalingsByChromosome():
