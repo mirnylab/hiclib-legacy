@@ -159,11 +159,7 @@ class binnedData(object):
         
     def loadGC(self):        
         "loads GC content at given resolution"
-        data = self.genome.GCBin
-        eigenvector = numpy.zeros(self.trackLength,float)        
-        for chrom in range(1,self.chromosomeCount + 1):
-            eigenvector[self.chromosomeStarts[chrom-1]:self.chromosomeStarts[chrom-1] + len(data[chrom-1])] = data[chrom-1]
-        self.trackDict["GC"] = eigenvector
+        self.trackDict["GC"] = numpy.concatenate(self.genome.GCBin)
   
     
     def removeDiagonal(self,m):
