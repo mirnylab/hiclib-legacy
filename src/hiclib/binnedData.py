@@ -559,6 +559,7 @@ class binnedData(object):
     def doPCA(self):
         """performs PCA on the data
         creates dictionary self.PCADict with results
+        Last column of PC matrix is first PC, second to last - second, etc. 
         
         Returns
         -------
@@ -576,10 +577,11 @@ class binnedData(object):
     def doEig(self):
         """performs eigenvector expansion on the data
         creates dictionary self.EigDict with results
+        Last row of the eigenvector matrix is the largest eigenvector, etc. 
         
         Returns
         -------
-        Dictionary of principal component matrices for different datasets
+        Dictionary of eigenvector matrices for different datasets
         """
         if (self.removedCis == False) or (self.fakedCis == False): 
             print "Cis contacts have not been removed and/or faked."
