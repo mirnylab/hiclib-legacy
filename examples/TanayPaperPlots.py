@@ -1,5 +1,4 @@
-print "This file is still very raw and has no working examples!!!" 
-exit() 
+
 
 import mirnylab.systemutils 
 mirnylab.systemutils.setExceptionHook()
@@ -7,8 +6,7 @@ mirnylab.systemutils.setExceptionHook()
 
 import mirnylab.plotting
 plotting = mirnylab.plotting 
-import hiclib.dnaUtils
- 
+
 import mirnylab.numutils
 numutils = mirnylab.numutils  
 import numpy 
@@ -21,7 +19,7 @@ import cPickle
 from math import exp
 
 
-from hicutils.binnedData import binnedData 
+from hiclib.binnedData import binnedData 
 from hiclib.domainSearch import gradientDescentDomains 
 #os.chdir("/old/home/magus/HiC2011")
 
@@ -63,88 +61,10 @@ def oneScaling(datas,centromeres, mode = "within" ,label = "label",color = "r"):
         print expected 
         values = observed/(expected + 0.00001)
         bins = na(bins,float)
-        bins2 = 0.5 * (bins[:-1] + bins[1:])
-
-        
-
+        bins2 = 0.5 * (bins[:-1] + bins[1:])        
     plt.plot(bins2,values,color, linewidth = 2)
         
 
-#
-#TR = binnedData(200000,"HG18")
-#chroms = numpy.array(TR.chromosomeStarts)
-#numpy.savetxt("ChromosmeStartPositions-hg18-200k",chroms)
-#TR = binnedData(1000000,"HG18")
-#chroms = numpy.array(TR.chromosomeStarts)
-#numpy.savetxt("ChromosmeStartPositions-hg18-1M",chroms)
-#exitProgram()
-
-#TR = binnedData(200000,"HG18")
-#TR.simpleLoad("GM-all-hg18-200k-raw.npz","GM-all")
-#numpy.savetxt("GM-raw-HindIII-200k-hg18-SS",TR.singlesDict["GM-all"])
-#
-#TR = binnedData(200000,"HG18")
-#TR.simpleLoad("GM-NcoI-hg18-200k-raw.npz","GM-all")
-#numpy.savetxt("GM-raw-NcoI-200k-hg18-SS",TR.singlesDict["GM-all"])
-#
-#TR = binnedData(1000000,"HG18")
-#TR.simpleLoad("GM-all-hg18-1M-raw.npz","GM-all")
-#numpy.savetxt("GM-raw-HindIII-1M-hg18-SS",TR.singlesDict["GM-all"])
-#
-#TR = binnedData(1000000,"HG18")
-#TR.simpleLoad("GM-NcoI-hg18-1M-raw.npz","GM-all")
-#numpy.savetxt("GM-raw-NcoI-1M-hg18-SS",TR.singlesDict["GM-all"])
-#
-#
-#
-TR = binnedData(1000000,"HG18")
-#TR.simpleLoad("GM-all-hg18-200k.npz","GM-all")
-#
-#
-
-TR.simpleLoad("GM-NcoI-hg18-1M.npz","GM-all")
-TR.removePoorRegions()
-#numpy.savetxt("GM-original-HindIII-1M-hg18-SS",TR.singlesDict["GM-all"])
-mapping = TR.removeZeros()
-TR.fancyFakeCis()
-TR.doEig()
-EIG = TR.EIG["GM-all"]
-E1 = EIG[:,0]
-E2 = EIG[:,1]
-E1new = numpy.zeros(len(mapping),float) * numpy.NAN
-E2new = numpy.zeros(len(mapping),float) * numpy.NAN
-E1new[mapping] = E1
-E2new[mapping] = E2
-numpy.savetxt("GM-NcoI-Eig1-1M",E1new)
-numpy.savetxt("GM-NcoI-Eig2-1M",E2new)
-exit()
-
-numpy.savetxt("GM-HindIII-1M-Eig1")
-numpy.savetxt("GM-corrected-HindIII-1M-hg18-SS",TR.singlesDict["GM-all"])
-chroms = numpy.array(TR.chromosomeStarts)
-numpy.savetxt("GM-HindIII-chromosmeStartPositions-hg18",chroms)
-
-TR = binnedData(200000,"HG18")
-TR.simpleLoad("GM-NcoI-hg18-200k.npz","GM-all")
-TR.removePoorRegions()
-numpy.savetxt("GM-original-NcoI-200k-hg18-SS",TR.singlesDict["GM-all"])
-TR.ultracorrectAll()
-numpy.savetxt("GM-corrected-NcoI-200k-hg18-SS",TR.singlesDict["GM-all"])
-chroms = numpy.array(TR.chromosomeStarts)
-numpy.savetxt("GM-NcoI-chromosmeStartPositions-hg18",chroms)
-
-
-TR = binnedData(1000000,"HG18")
-TR.simpleLoad("GM-NcoI-hg18-1M.npz","GM-all")
-TR.removePoorRegions()
-numpy.savetxt("GM-original-NcoI-1M-hg18-SS",TR.singlesDict["GM-all"])
-TR.ultracorrectAll()
-numpy.savetxt("GM-corrected-NcoI-1M-hg18-SS",TR.singlesDict["GM-all"])
-chroms = numpy.array(TR.chromosomeStarts)
-numpy.savetxt("GM-NcoI-chromosmeStartPositions-hg18",chroms)
-
-
-exit()
 
 def drawToyModel(M = 14):
     "draws cartoon of iterative correction of size M"    
@@ -192,39 +112,6 @@ def drawToyModel(M = 14):
     
     plt.show()
 
-def saveDataForDomains():
-    TR = binnedData(genomeType="HG19",resolution = 200000)
-    TR.simpleLoad("GM-all-hg19-200k.npz","GM-all")
-    TR.simpleLoad("GM-NcoI-hg19-200k.npz","GM-NcoI")
-    TR.removePoorRegions()
-    TR.removeStandalone(5)
-    mapping = TR.removeZeros()
-    TR.fancyFakeCisOld()
-    numpy.savez_compressed("200k_analyze",**{"mapping":mapping,"data":TR.dataDict["GM-all"]})
-    numpy.savez_compressed("200k_analyze_NcoI",**{"mapping":mapping,"data":TR.dataDict["GM-NcoI"]})
-
-#saveDataForDomains()
-    
-#numpy.savez_compressed("map1",mymap)
-
-#mymap = numpy.load("map1.npz")["arr_0"]
-
-  
-
-def doDomains(filename):
-    data = dict(numpy.load(filename))
-    mymap = data["data"]
-
-    mymap = numpy.array(mymap,dtype = "int64",order = "C")         
-    GD = gradientDescentDomains(mymap)
-    GD.doSearch()
-    return GD.vec
- 
-#dom = doDomains("200k_analyze_NcoI.npz")
-#cPickle.dump(dom,open("200kDomNcoI",'wb'))
-
-#dom = doDomains("200k_analyze.npz")
-#cPickle.dump(dom,open("200kDom",'wb'))
 
 
 def analyzeEigenvector():
@@ -252,7 +139,7 @@ def analyzeEigenvector():
     #------------------
     allGenome2 = TR.trackDict["GC"] 
     #-----------------    
-    HG19 = dnaUtils.Genome("HG19")
+    HG19 = mirnylab.genome.Genome("HG19")
     HG19.createMapping(200000)
     ch17 = allGenome[HG19.chromosomeStarts[16]:HG19.chromosomeEnds[16]]
     ch17gc = allGenome2[HG19.chromosomeStarts[16]:HG19.chromosomeEnds[16]]    

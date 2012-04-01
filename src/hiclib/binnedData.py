@@ -106,6 +106,8 @@ class binnedData(object):
         self.trackDict = {}
         self.singlesDict = {}
         self.fragsDict = {}
+        self.PCDict = {}
+        self.EigDict = {}
         
     def _initChromosomes(self):
         "internal: loads mappings from the genome class based on resolution"        
@@ -338,11 +340,11 @@ class binnedData(object):
     def fakeCis(self):
         "fakes cis contacts in an interative way"
         self.removeCis()
-        self.ultracorrect(M=5)
+        self.iterativeCorrectWithoutSS(M=5)
         self.fakeCisOnce()
-        self.ultracorrect( M = 5)
+        self.iterativeCorrectWithoutSS(M=5)
         self.fakeCisOnce()
-        self.ultracorrect(M = 10) 
+        self.iterativeCorrectWithoutSS(M=10) 
 
     def emulateCis(self):
         """if you want to have fun creating syntetic data, this emulates cis contacts. 
@@ -422,6 +424,8 @@ class binnedData(object):
                 #mat_img(numpy.log(data+1),trunk = True)
                 data = correct(data)              
             self.dataDict[i] = data
+             
+            
             #mat_img(self.dataDict[i]>0) 
 
 
@@ -512,6 +516,14 @@ class binnedData(object):
         for mydict in dicts:
             for key in mydict.keys():
                 mydict[key] = mydict[key][s]
+
+        eigDicts = [self.PCDict, self.EigDict]
+        for mydict in eigDicts:
+            for key in mydict.keys():
+                
+                mydict[key] = mydict[key][:,s]  
+                 
+
                 
         
         self.chromosomeIndex = self.chromosomeIndex[s]
@@ -547,8 +559,16 @@ class binnedData(object):
                 a = mydict[key]
                 mydict[key] = numpy.zeros(N,dtype = a.dtype) * value 
                 mydict[key][s] = a
+                
+        eigDicts = [self.PCDict, self.EigDict]
+        for mydict in eigDicts:
+            for key in mydict.keys():
+                a = mydict[key]
+                mydict[key] = numpy.zeros((len(a),N),dtype = a.dtype) * value 
+                mydict[key][:,s] = a
+
                         
-        self.initChromosomes()               
+        self._initChromosomes()               
         
     
             
@@ -565,7 +585,7 @@ class binnedData(object):
             print "Cis contacts have not been removed and/or faked."
             print 'Are you sure you want to continue???'
             raw_input("press any button to continue... <-----")            
-        self.PCDict = {}
+        
         for i in self.dataDict.keys():
             self.PCDict[i] = PCA(self.dataDict[i])
         return self.PCDict
@@ -584,9 +604,8 @@ class binnedData(object):
             print 'Are you sure you want to continue???'
             raw_input("press any button to continue... <-----")
 
-        self.EigDict = {}
         for i in self.dataDict.keys():
-            self.EigDict[i] = EIG(self.dataDict[i])
+            self.EigDict[i] = EIG(self.dataDict[i])             
         return self.EigDict
     
     

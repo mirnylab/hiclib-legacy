@@ -14,7 +14,8 @@ dataDir = "../.."   #base folder with project data
 
 genomeFolder = "../../data/hg19"
 dataFile = "../../ErezPaperData/hg19/GM-HindIII-hg19_refined.frag"
-dataFile2 = "hg19/GM-NcoI-hg19_refined.frag"
+dataFile2 = "../../ErezPaperData/hg19/GM-NcoI-hg19_refined.frag"
+
 
 if os.path.exists("working") == False: os.mkdir("working")
 
@@ -146,38 +147,3 @@ plotScalingsByDomains()
     
      
     
-
-
-TR.calculateWeights()
-TR.plotScaling(useWeights = False, excludeNeighbors = 3, label = "NcoI - no weights", enzyme = "NcoI",mindist = 500)
-TR.plotScaling(useWeights = True, excludeNeighbors = 3, label = "NcoI - weights", enzyme = "NcoI",mindist = 500)
-
-TR = HiCStatistics("working2",genomeFolder = genomeFolder(workingGenome), maximumMoleculeLength=500,override = True)
-TR.load("hg19/GM-NcoI-hg19_refined")
-TR.maskFilter((TR.strands1 == TR.strands2) * (TR.chrms1 == TR.chrms2))
-TR.calculateWeights()
-TR.maskFilter(TR.chrms1 == TR.chrms2)
-TR.plotScaling(useWeights = False, excludeNeighbors = 3, label = "HindIII - no weights", enzyme = "HindIII",mindist = 500)
-TR.plotScaling(useWeights = True, excludeNeighbors = 3, label = "HindIII - weights", enzyme = "HindIII",mindist = 500)
-plotting.niceShow()
-
-
-
-TR.plotScaling(useWeights = True, excludeNeighbors = 0, label = "None", enzyme = "NcoI",mindist = 100)
-TR.plotScaling(useWeights = True, excludeNeighbors = 1, label = "1", enzyme = "NcoI",mindist = 100)
-
-TR.plotScaling(useWeights = True, excludeNeighbors = 4, label = "4", enzyme = "NcoI",mindist = 100)
-TR.plotScaling(useWeights = True, excludeNeighbors = 6, label = "6", enzyme = "NcoI",mindist = 100)
-plt.show()
-
-exit()
-plt.show()
-f1 = TR.fragids1
-f2 = TR.fragids2
-
-#f1mod, f2mod = TR.genome.getPairsLessThanDistance(f1,f2,cutoffDistance = 3,enzymeName = "HindIII")
-raise  
-dists = TR.genome.getFragmentDistance(f1, f2,"HindIII")
-mask = dists < 1000
-plt.scatter((f1-f2)[mask],dists[mask])
-plt.show()
