@@ -1,5 +1,5 @@
 Analysis of binned data
 =======================
-
-.. automodule:: binnedData 
+  
+.. automodule:: hiclib.binnedData 
     :members:

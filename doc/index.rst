@@ -8,6 +8,19 @@ Welcome to openmm-lib's documentation!
 
 Installation
 ------------
+This library will work only on Linux. 
+To install it please run install_linux.py in the hiclib/src/hiclib directory. 
+You can then import functions as "import hiclib.binnedData". 
+
+Requirements
+------------
+
+You will need mirnylab library to use this library. That library is installed in a similar way.  
+
+Python2.6 compatibility should hold for most parts of the pipeline, though things were not extensively tested yet (mapping wasn't tested) 
+
+Other libraries required are: joblib, h5py, pysam, numpy, scipy, matplotlib, numexpr, biopython
+
 
 
  

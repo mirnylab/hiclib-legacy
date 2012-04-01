@@ -1,5 +1,5 @@
 Fragment-level HiC correction
 =============================
-
-.. automodule:: fragmentHiC
+  
+.. automodule:: hiclib.fragmentHiC
     :members:

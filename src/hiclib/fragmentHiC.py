@@ -48,6 +48,7 @@ However, one can easily construct another filter as presented in multiple one-li
     >>> Dset.maskFilter((Dset.chrms1 !=14) + (Dset.chrms2 !=14))  #Exclude all reads from chromosome 14
     >>> Dset.maskFilter(Dset.dist1 + Dset.dist2 > 500)  #Keep only random breaks, if 500 is maximum molecule length
 
+
 -------------------------------------------------------------------------------
 
 """
@@ -535,7 +536,7 @@ class HiCdataset(object):
         self.rebuildFragments()
         
     def rebuildFragments(self):
-        "recreates a set of fragments - runs when read have changed"
+        "recreates a set of fragments - runs when reads have changed"
         try: 
             past = len(self.ufragments)        
         except:
@@ -563,7 +564,7 @@ class HiCdataset(object):
         ----------
         cutH : float, 0<=cutH < 1, optional
             Fraction of the most-counts fragments to be removed
-        cutL: float, 0<=cutL<1, optional 
+        cutL : float, 0<=cutL<1, optional 
             Fraction of the least-counts fragments to be removed
         """
         print "----->Extreme fragments filter: remove top %lf, bottom %lf fragments" % (cutH, cutL)
@@ -601,13 +602,6 @@ class HiCdataset(object):
             Number of bp to exclude next to rsite, not including offset
         """
         print "----->Semi-dangling end filter: remove guys who start %d bp near the rsite" % offset
-#        d1 = self.dist1
-#        l1 = self.fraglens1        
-#        d2 = self.dist2
-#        l2 = self.fraglens2
-#        ds = self.DS
-#        ss = self.SS
-#        mask = numexpr.evaluate("(abs(d1 - l1) >= offset) and (((abs(d2 - l2) >= offset) and ds)  or  ss)")   #is buggy        
                 
         mask = (numpy.abs(self.dists1 - self.fraglens1) >=offset) * ((numpy.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)    
         self.maskFilter(mask)
@@ -621,7 +615,7 @@ class HiCdataset(object):
         dups[:,0] = numpy.array(self.cuts1 , dtype = "int64") + self.chrms1 * self.fragIDmult 
         dups[:,1] = numpy.array(self.cuts1 , dtype = "int64") + self.chrms1 * self.fragIDmult   
         dups.shape = (self.N * 2)
-        strings = dups.view("|S16")
+        strings = dups.view("|S16")   #Converting two indices to a single string to run unique
         assert len(strings) == self.N
         uids = numpy.unique(strings,return_index = True)[1]
         del strings, dups 
@@ -636,6 +630,7 @@ class HiCdataset(object):
 
     def fragmentSum(self,fragments = None, strands = "both"):
         """returns sum of all counts for a set or subset of fragments
+
         Parameters
         ---------- 
         fragments : list of fragment IDs, optional
@@ -778,7 +773,7 @@ class HiCStatistics(HiCdataset):
             b. Different arms \n            
             c. User defined squares/rectangles on a contact map \n            
                -(chromosome, start,end) square around the diagonal \n                
-               -(chr1, start1, end1, start2, end2) rectangle \n
+               -(chr, st1, end1, st2, end2) rectangle \n
                        
         2. Use either all fragments, or only interactions between two groups of fragments \n         
             e.g. you can calculate how scaling for small fragments is different from that for large \n            
@@ -812,7 +807,7 @@ class HiCStatistics(HiCdataset):
             Set to false to use whole chromosomes instead of arms
         mindist, maxdist : int, optional
             Use lengthes from mindist to maxdist
-        regions : list of (chrom, start,end), optional
+        regions : list of (chrom, start,end) or (ch,st1,end1,st2,end2), optional
             Restrict scaling calculation to only certain squares of the map
         appendReadCount : bool, optional 
             Append read count to the plot label
@@ -1047,25 +1042,6 @@ class experimentalFeatures(HiCdataset):
         f2 [self.strands1 == 1] += 1
         self.rebuildFragments()
     
-    def calculateWeights(self):
-        "calculates weights for reads based on fragment length correction similar to Tanay's, may be used for scalings or creating heatmaps"        
-        fragmentLength = self.ufragmentlen
-        pls = numpy.sort(fragmentLength)
-        pls = numpy.r_[pls,pls[-1]+1]
-        N = len(fragmentLength)    
-        mysum = numpy.array(self.fragmentSum(),float)
-        self.weights = numpy.ones(N,float)
-        meanSum = numpy.mean(numpy.array(mysum,float))
-        #watch = numpy.zeros(len(mysum),int)
-        for i in numpy.arange(0,0.991,0.01):
-            b1,b2 = pls[i*N],pls[(i+0.01)*N]
-            p = (b1 <= fragmentLength)* (b2 > fragmentLength)
-            #watch[p] += 1                        
-            value = numpy.mean(mysum[p])      
-            if p.sum() > 0:
-                self.weights[p] =  value / meanSum
-            else:
-                print "no weights",i,b1,b2
 
 
 

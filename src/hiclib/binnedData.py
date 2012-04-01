@@ -50,7 +50,8 @@ self.singlesDict - dictionary with SS read vectors. Keys are the same.
 
 self.trackDict - dictionary with genomic tracks, such as GC content. 
 Custom tracks may be also added to this dictionary.
- 
+
+--------------------------------------------------------------- 
 """
 
 from mirnylab import systemutils,numutils
