@@ -1,19 +1,49 @@
 import numpy,numexpr 
-
+import mirnylab.numutils
 
     
 
 
 class gradientDescentDomains:
-    "rewrite using numexpr module for a much faster operation!" 
+    """
+    A strange class to find domains by finning exponential model. 
+    Domains are fitted to the formula O(bserved) = Poisson(B1 * B2 * exp(D1 * D2)),
+    where B1 and B2 are biases, D1 and D2 are domain vectors. 
+    
+    
+    """ 
     def __init__(self,data):
         self.O = data
         self.N = len(data)
-        self.infCount = 0  
-
-    def gradientPoissonModel(self,vec):
-        
-        N = self.N 
+        self.infCount = 0
+        self.wrapPower = 1/3.
+    
+    def wrap(self,x):        
+        """
+        "Wrapping" function that "compresses" the input vector so that when we take exp(B1*B2) we don't really overshoot
+        """
+        return numpy.sign(x) * ((numpy.abs(x)+1.)**(self.wrapPower)  - 1 ) 
+    
+    
+    def unwrap(self,x):
+        """
+        "Unwrapping" function that reverts wrapping
+        """        
+        return numpy.sign(x) * ((numpy.abs(x)+1.)**(1. / self.wrapPower)  - 1)
+    
+    def diffWrap(self,x):
+        """
+        Wrapping modifies the derivative
+        """        
+        return self.wrapPower *( (numpy.abs(x) + 1) ** (self.wrapPower - 1) )
+    
+     
+      
+    def gradientPoissonModel(self,vec):        
+        N = self.N         
+        wrapDerivative = self.diffWrap(vec)
+        vec = self.wrap(vec) 
+                
         B = vec[:N]
         D = vec[N:]
         O = self.O
@@ -24,20 +54,19 @@ class gradientDescentDomains:
         
         MOE = numexpr.evaluate("exp(B1 + B2 + D1 * D2)")
         B1,B2,D1,D2,O,MOE  #Eclipse warning remover         
-        gb = 2 * numexpr.evaluate("sum(O - MOE,axis = 1)")                        
-        #print gb1.asarray()
-        #print gb
-        gc =  2 * (numexpr.evaluate("sum(O * D2 -  MOE * D2,axis = 1)"))        
-        #gc =  gc1.asarray().reshape(N) 
-        #gb = gb1.asarray().reshape(N)
-        t = numpy.r_[gb,gc]
-        #cm.shutdown()          
-        #print t.shape         
+        gb = 2 * numexpr.evaluate("sum(O - MOE,axis = 1)")   #Gradient for biases                         
+        gc =  2 * (numexpr.evaluate("sum(O * D2 -  MOE * D2,axis = 1)"))   #Gradient for domains         
+        
+        t = numpy.r_[gb,gc]        
+        t *= wrapDerivative   #Gradient changed becaue of wrapping                
         return -t
 
 
         
     def functionPoissonModel(self,vec):
+        
+        vec = self.wrap(vec)         
+        
         self.vec = vec 
         N = self.N 
         B = vec[:N]
@@ -51,7 +80,7 @@ class gradientDescentDomains:
         O,B1,B2,D1,D2,M0 #Eclipse warning removal     
         #M0 = B[:,None] + B[None,:] + D[:,None] * D[None,:]        
         M1 = numexpr.evaluate("O * M0 - exp(M0)")        
-        s =  M1.sum()
+        s =  mirnylab.numutils.openmpSum(M1)
         
         print -s
         if numpy.isfinite(s) == False:
@@ -80,11 +109,37 @@ class gradientDescentDomains:
         #g = scipy.optimize.fmin_cg(self.funGeoffOld, numpy.random.random(2 * self.N)+0.5,self.gradientGeoffOld, gtol=5,maxiter = 500 )
         self.B = self.vec[:self.N]
         self.D = self.vec[self.N:]
-        return self.vec
+        return self.unwrap(self.vec)
     
     def test(self):
-        self.funGeoffOld(numpy.r_[(numpy.random.random( self.N) + 0.5),numpy.random.random( self.N) * 0.2 -0.1])
-        self.gradientGeoffOld(numpy.r_[(numpy.random.random( self.N) + 0.5),numpy.random.random( self.N) * 0.2 -0.1])
+        
+        init = numpy.r_[(numpy.random.random( self.N) + 0.5),numpy.random.random( self.N) * 0.2 -0.1]
+        funValue = self.functionPoissonModel(init)
+        gradValue = self.gradientPoissonModel(init)
+        
+        init[0] += 0.001
+        newFunValue = self.functionPoissonModel(init)
+        
+        print newFunValue - funValue, "difference in functions"
+        print gradValue[0] * 0.001, "According to the gradient"
+        d1 = newFunValue - funValue
+        d2 = gradValue[0] * 0.001
+        assert (abs(d1 - d2) / abs(d1) < 0.05)
+        
+        funValue = newFunValue
+        
+        init[-1] += 0.001
+        newFunValue = self.functionPoissonModel(init)
+        
+        print newFunValue - funValue, "difference in functions"
+        print gradValue[-1] * 0.001, "According to the gradient"
+        d1 = newFunValue - funValue
+        d2 = gradValue[-1] * 0.001
+        assert (abs(d1 - d2) / abs(d1) < 0.05)
+        
+                        
+                   
+        
 
 def exponentialDomains(heatmap,returnBiases = False ):
     """Calculates domains using gradient descent algorithm
@@ -101,9 +156,11 @@ def exponentialDomains(heatmap,returnBiases = False ):
     A vector of domains, or a tuple (domains, biases). 
     
     """
-    vec = 0 
+    vec = 0
+     
     for _ in xrange(3): 
         dom = gradientDescentDomains(heatmap)
+        dom.test() 
         dom.energyFunction = dom.functionPoissonModel
         dom.gradientFunction = dom.gradientPoissonModel
         try: 

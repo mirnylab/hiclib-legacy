@@ -145,18 +145,18 @@ class binnedData(object):
         try: self.fragsDict[name] = alldata["frags"]
         except:pass 
         
+        if self.resolution != alldata["resolution"]:
+            print "resolution mismatch!!!"
+            print "--------------> Bye <-------------"
+            raise StandardError("Resolution mismatch! ") 
+        
         if self.genome.numBins != len(alldata["heatmap"]):              
             print "Genome length mismatch!!!"
             print "source genome",len(alldata["heatmap"])
             print "our genome",self.genome.numBins
-            self.exit()
-        try: self.resolution
-        except: self.resolution = alldata["resolution"]
-        if self.resolution != alldata["resolution"]:
-            print "resolution mismatch!!!"
-            print "--------------> Bye <-------------"
-            raw_input("Press any key to continue... ") 
-            self.exit()  
+            raise StandardError("Genome size mismatch! ")
+
+              
         
         
     def loadGC(self):        

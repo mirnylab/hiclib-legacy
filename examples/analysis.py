@@ -209,7 +209,7 @@ def plotScalingsByDomains(build = True):
     plt.ylabel("Pc")    
     
     mirnylab.plotting.niceShow()
-    raise 
+
     
     
 plotScalingsByDomains()

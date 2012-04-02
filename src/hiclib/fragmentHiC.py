@@ -194,7 +194,7 @@ class HiCdataset(object):
                 List of folders to merge to current working folder                
         """
         if self.filename in filenames:
-            self.exitProgram("----> Cannot merge folder into itself! Create a new folder")
+            raise StandardError("----> Cannot merge folder into itself! Create a new folder")
         h5dicts = [h5dict(i,mode = 'r') for i in filenames]        
         for name in self.vectors.keys():
             res = []
@@ -202,6 +202,7 @@ class HiCdataset(object):
                 res.append(mydict[name])
             res = numpy.concatenate(res)
             self._setData(name,res)
+        self.rebuildFragments()
 
     
     def parseInputData(self,dictLike,zeroBaseChrom = True ,enzymeToFillRsites = None):        
@@ -572,8 +573,9 @@ class HiCdataset(object):
         ss = numpy.sort(s)
         print "     #Top fragments are: ",ss[-10:]                 
         N = len(ss)
-        print "     # Cutoff for low # counts is (counts): ",ss[int(cutL * N)],"; cutoff for large # counts is: ",ss[int((1-cutH)*N)]         
-        news = (s >= ss[int(cutL * N)]) * (s <= ss[int((1-cutH)*N)])        
+        valueL, valueH = numpy.percentile(ss, [100. * cutL, 100 * (1. - cutH)])
+        print "     # Cutoff for low # counts is (counts): ",valueL ,"; cutoff for large # counts is: ",valueH         
+        news = (s >= valueL ) * (s <= valueH)        
         self.fragmentFilter(self.ufragments[news])
         print
         
@@ -638,6 +640,8 @@ class HiCdataset(object):
         strands : 1,2 or "both" (default) 
             Use only first or second side of the read (first has SS, second - doesn't) 
         """
+        try: self.ufragments
+        except: self.rebuildFragments()        
         if fragments == None: fragments = self.ufragments                
         if strands == "both":  
             return sumByArray(self.fragids1,fragments) + sumByArray(self.fragids2[self.DS],fragments) 
@@ -658,7 +662,7 @@ class HiCdataset(object):
         
     def save(self,filename):
         "Saves dataset to filename, does not change the working file."
-        if self.filename == filename: self.exitProgram("Cannot save to the working file")
+        if self.filename == filename: raise StandardError("Cannot save to the working file")
         newh5dict = h5dict(filename,mode = 'w')
         for name in self.vectors.keys(): newh5dict[name] = self.h5dict[name]
         print "----> Data saved to file %s" % (filename,)
@@ -679,6 +683,7 @@ class HiCdataset(object):
                     
             self._setData(name,data) 
         print "---->Loaded data from file %s, contains %d reads" % (filename, length)
+        self.rebuildFragments()
             
 
         
