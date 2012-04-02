@@ -63,7 +63,7 @@ import  numpy
 from math import exp
 from mirnylab.h5dict import h5dict  
 from scipy import weave
-
+import warnings 
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt 
 
@@ -108,6 +108,7 @@ class binnedData(object):
         self.fragsDict = {}
         self.PCDict = {}
         self.EigDict = {}
+        self.appliedOperations = {}
         
     def _initChromosomes(self):
         "internal: loads mappings from the genome class based on resolution"        
@@ -120,6 +121,21 @@ class binnedData(object):
         self.chromosomeIndex = self.genome.chrmIdxBinCont
         self.positionIndex = self.genome.posBinCont        
         self.armIndex = self.chromosomeIndex * 2 + numpy.array(self.positionIndex > self.genome.cntrMids[self.chromosomeIndex],int)
+
+    def _giveMask(self):
+        "Returns index of all bins with non-zero read counts"
+        self.mask = numpy.ones(len(self.dataDict.values()[0]),numpy.bool)
+        for data in self.dataDict.values():
+            datasum = numpy.sum(data,axis = 0)
+            datamask = datasum > 0
+            self.mask *= datamask
+        return self.mask
+    
+    def _giveMask2D(self):
+        "Returns outer product of _giveMask with itself, i.e. bins with possibly non-zero counts"
+        self._giveMask()
+        self.mask2D = self.mask[:,None] * self.mask[None,:]
+        return self.mask2D   
                 
     
     def simpleLoad(self,in_data,name):
@@ -164,13 +180,19 @@ class binnedData(object):
         self.trackDict["GC"] = numpy.concatenate(self.genome.GCBin)
   
     
-    def removeDiagonal(self,m):
-        "does what it says from all datasets"
+    def removeDiagonal(self,m=1):
+        """Removes all bins on a diagonal, and bins that are up to m away from the diagonal, including m. 
+        By default, removes all bins touching the diagonal.
+        
+        Parameters
+        ----------
+        m : int, optional 
+            Number of bins to remove
+        """
         for i in self.dataDict.keys():
-            data = self.dataDict[i] * 1. 
-            #mask = na(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)
+            data = self.dataDict[i] * 1.             
             N = len(data)
-            N
+            N   #Eclipse warning remover 
             code = r"""
             #line 841 "binary_search.py"
             using namespace std; 
@@ -187,23 +209,8 @@ class binnedData(object):
             """
             weave.inline(code, ['m','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
             self.dataDict[i] = data
-            #mat_img(data) 
-            
-    def giveMask(self):
-        "Returns index of all bins with non-zero read counts"
-        self.mask = numpy.ones(len(self.dataDict.values()[0]),numpy.bool)
-        for data in self.dataDict.values():
-            datasum = numpy.sum(data,axis = 0)
-            datamask = datasum > 0
-            self.mask *= datamask
-        return self.mask
-    
-    def giveMask2D(self):
-        "Returns outer product of giveMask with itself, i.e. bins with possibly non-zero counts"
-        self.giveMask()
-        self.mask2D = self.mask[:,None] * self.mask[None,:]
-        return self.mask2D   
-         
+        self.appliedOperations["RemovedDiagonal"] = True        
+        
         
     
     def removeStandalone(self,offset = 3):
@@ -214,17 +221,18 @@ class binnedData(object):
         offset : int 
             Maximum length of group of bins to be removed
         """                
-        diffs = numpy.diff(numpy.array(numpy.r_[False, self.giveMask(), False],int))
+        diffs = numpy.diff(numpy.array(numpy.r_[False, self._giveMask(), False],int))
         begins = numpy.nonzero(diffs == 1)[0] 
         ends = numpy.nonzero(diffs == -1)[0]
         beginsmask = (ends - begins) <= offset
         newbegins = begins[beginsmask]
         newends = ends[beginsmask]        
         print "removing %d standalone bins"% numpy.sum(newends - newbegins)
-        mask = self.giveMask()
+        mask = self._giveMask()
         for i in xrange(len(newbegins)): mask[newbegins[i]:newends[i]] = False
         mask2D = mask[:,None] * mask[None,:]        
         for i in self.dataDict.values(): i[mask2D == False] = 0
+        self.appliedOperations["RemovedStandalone"] = True
         
     def removePoorRegions(self,names = None, cutoff = 2):
         """removes cutoff persent of bins with least counts
@@ -249,45 +257,63 @@ class binnedData(object):
             newmask = countsum >= numpy.percentile(countsum[datamask],cutoff)
             mask *= newmask  
             statmask [(newmask == False) * (datamask == True)] = True
-        print "removed %d poor megabases", statmask.sum() 
+        print "removed %d poor bins", statmask.sum() 
         mask2D = mask[:,None] * mask[None,:]
         for i in self.dataDict.values(): i[mask2D == False] = 0
+        self.appliedOperations["RemovedPoor"] = True
               
-    def trunkTrans(self,high = 0.0005):
-        "trunkates trans contacts to remove blowouts"
+    def truncTrans(self,high = 0.0005):
+        """Truncates trans contacts to remove blowouts
+        
+        Parameters
+        ----------
+        high : float, 0<high<1, optional 
+            Fraction of top trans interactions to be removed
+        """
         for i in self.dataDict.keys():
             data = self.dataDict[i]
             transmask = self.chromosomeIndex[:,None] != self.chromosomeIndex[None,:]
             lim = numpy.percentile(data[transmask],100*(1 - high))
             tdata = data[transmask]
             tdata[tdata > lim] = lim            
-            self.dataDict[i][transmask] = tdata                        
+            self.dataDict[i][transmask] = tdata
+        self.appliedOperations["TruncedTrans"] = True                        
         
     def removeCis(self):
         "sets to zero all cis contacts"
+        print("All cis counts set to zero")
         mask = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]         
         for i in self.dataDict.keys():                
             self.dataDict[i][mask] = 0   
-        self.removedCis = True           
+        self.appliedOperations["RemovedCis"] = True           
         
             
-    def fakeCisOnce(self,extraMask = None):
+    def fakeCisOnce(self,mask = "CisCounts", silent = False):
         """Used to fake cis counts.
-        If extra mask is supplied, it also fakes stuff in the extra mask
-         
+        If extra mask is supplied, it is used instead of cis counts. 
+        
+        Parameters
+        ----------
+        mask : NxN boolean array or "CisCounts" 
+            Mask of elements to be faked. 
+            If set to "CisCounts", cis counts will be faked
+        silent : bool
+            Do not print anything
+             
+        
         """
-        for i in self.dataDict.keys():
-            data = self.dataDict[i] * 1. 
-            data = numpy.array(data,order = "C")
-            mask = numpy.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)
-            if extraMask != None: mask[extraMask] = 1    
+        if silent == False: print("All cis counts are substituted with matching trans count")
+        for i in self.dataDict.keys():             
+            data = numpy.asarray(self.dataDict[i],order = "C",dtype = float)
+            if mask == "CisCounts": mask =  numpy.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)
+            else: assert mask.shape == self.dataDict.values()[0].shape  #check that mask has correct shape                              
             s = numpy.abs(numpy.sum(data,axis = 0)) <= 1e-20 
             mask[:,s]= 2
             mask[s,:] = 2              
             N = len(data)
             N
             code = r"""
-            #line 841 "binary_search.py"
+            #line 310 "binnedData.py"
             using namespace std; 
             for (int i = 0; i < N; i++)    
             {    
@@ -297,14 +323,12 @@ class binnedData(object):
                     {
                     while (true) 
                         {
-                        int r = rand() % 2;
-                         
+                        int r = rand() % 2;                         
                         if (r == 0)
                             {                            
                             int s = rand() % N;
                             if (mask[i * N + s] == 0)
-                                {
-                                
+                                {                                
                                 data[i * N + j] = data[i * N + s];
                                 data[j * N + i] = data[i * N + s];
                                 break;
@@ -319,10 +343,8 @@ class binnedData(object):
                                 data[i * N + j] = data[i * N + s];
                                 data[j * N + i] = data[i * N + s]; 
                                 break;
-                                }
-                            
-                            }
-                        
+                                }                            
+                            }                        
                         }
                     }
                 }
@@ -333,100 +355,22 @@ class binnedData(object):
             """
             weave.inline(code, ['mask','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
             self.dataDict[i] = data
-            self.removedCis = True 
-            self.fakedCis = True 
+            self.appliedOperations["RemovedCis"] = True 
+            self.appliedOperations["FakedCis"] = True 
             #mat_img(data)
 
     def fakeCis(self):
-        "fakes cis contacts in an interative way"
+        """This method fakes cis contacts in an interative way
+        It is done to achieve faking cis contacts that is independent of normalization of the data. 
+        """
+        print("All cis counts are substituted with faked counts")
+        print("Data is iteratively corrected as a part of faking cis counts")
         self.removeCis()
         self.iterativeCorrectWithoutSS(M=5)
-        self.fakeCisOnce()
+        self.fakeCisOnce(silent = True)
         self.iterativeCorrectWithoutSS(M=5)
-        self.fakeCisOnce()
+        self.fakeCisOnce(silent = True)
         self.iterativeCorrectWithoutSS(M=10) 
-
-    def emulateCis(self):
-        """if you want to have fun creating syntetic data, this emulates cis contacts. 
-        adjust cis/trans ratio in the C code"""
-        transmap = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]
-        len(transmap)
-        for i in self.dataDict.keys():
-            data = self.dataDict[i] * 1. 
-            #mask = na(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)
-            N = len(data)
-            N
-            code = r"""
-            #line 841 "binary_search.py"
-            using namespace std; 
-            for (int i = 0; i < N; i++)    
-            {                 
-                for (int j = 0; j<N; j++)
-                {
-                    if (transmap[N * i + j] == 1)
-                    {
-                        data[N * i + j] = data[N * i +j] * 300 /(abs(i-j) + 0.5);                     
-                    }
-                }
-            } 
-            """
-            support = """
-            #include <math.h>
-            """
-            weave.inline(code, ['transmap','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
-            self.dataDict[i] = data
-        self.removedCis = False 
-        self.fakedCis = False 
-
-
-    def fakeMissing(self):
-        """fakes megabases that have no reads. For cis reads fakes with cis reads at the same distance. For trans fakes with random trans read at the same diagonal. 
-        """
-        for i in self.dataDict.keys():
-            data = self.dataDict[i] * 1.
-            sm = numpy.sum(data,axis = 0) > 0  
-            mask = sm[:,None] * sm[None,:]
-            transmask = numpy.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)
-            #mat_img(transmask)
-            N = len(data)
-            N,transmask  #to remove warning
-            code = r"""
-            #line 841 "binary_search.py"
-            using namespace std; 
-            for (int i = 0; i < N; i++)    
-            {    
-                for (int j = i; j<N; j++)
-                {
-                    if ((mask[i* N + j] == 0) )                    
-                    {
-                    while (true) 
-                        {
-                        int k = 0;                            
-                        int s = rand() % (N - (j-i-1));
-                        if (j - i > 100)   k = rand() % 2;
-                        if ((mask[s * N + s + k + j - i] == 1) && (transmask[s * N + s + j - i] == transmask[i * N + j])) 
-                                {                                
-                                data[i * N + j] = data[s * N + s + j - i];
-                                data[j * N + i] = data[s * N + s + j - i];
-                                break;
-                                }
-                        }
-                    }
-                }
-            } 
-            """
-            support = """
-            #include <math.h>
-            """
-            for s in xrange(10):
-                s #to remove warning
-                weave.inline(code, ['transmask','mask','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
-                #mat_img(numpy.log(data+1),trunk = True)
-                data = correct(data)              
-            self.dataDict[i] = data
-             
-            
-            #mat_img(self.dataDict[i]>0) 
 
 
     def correct(self,names=None):
@@ -437,8 +381,11 @@ class binnedData(object):
         names : list of str or None
             Keys of datasets to be corrected. If none, all are corrected. 
         """
-        self.iterativeCorrectWithoutSS(names, M=1)
+        self.iterativeCorrectWithoutSS(names, M=1)         
+        if ("RemovedDiagonal") not in self.appliedOperations.keys():        
+            warnings.warn("Did you forget to remove diagonal?")
         
+        self.appliedOperations["Corrected"] = True
     def iterativeCorrectWithoutSS(self, names = None,M=50):
         """performs iterative correction without SS
         
@@ -452,9 +399,13 @@ class binnedData(object):
         if names == None: names = self.dataDict.keys()
         
         for i in names:
-            self.dataDict[i] = ultracorrectSymmetricWithVector(self.dataDict[i],M=M)[0]
+            self.dataDict[i] = ultracorrectSymmetricWithVector(self.dataDict[i],M=M)[0]         
+        if ("RemovedDiagonal") not in self.appliedOperations.keys():
+            warnings.warn("Did you forget to remove diagonal?")
+            
+        self.appliedOperations["Corrected"] = True
 
-    def iterativeCorrectWithSS(self,names = None,M = 55):
+    def iterativeCorrectWithSS(self,names = None,M = 55,force = False):
         """performs iterative correction with SS
         
         Parameters
@@ -463,7 +414,14 @@ class binnedData(object):
             Keys of datasets to be corrected. By default, all are corrected.
         M : int, optional
             Number of iterations to perform. 
+        force : bool, optional 
+            Force current operation 
         """
+        if ("Corrected" in self.appliedOperations.keys()) and (force == False):
+            raise StandardError("Cannot correct after previous correction was applied")
+        if ("RemovedCis" in self.appliedOperations.keys()) and (force == False):
+            raise StandardError("Cannot correct with SS if there are no cis reads")        
+        
         if names == None: names = self.dataDict.keys()
         for i in names:
             data = self.dataDict[i]
@@ -472,30 +430,17 @@ class binnedData(object):
             self.dataDict[i] = ndata
             self.singlesDict[i] = nvec
             self.biasDict[i] = (vec / nvec)
-            
-    def iterativeCorrectByTrans(self,names = None):        
-        """performs iterative correction by trans data only, corrects cis also
+        if ("RemovedDiagonal") not in self.appliedOperations.keys():
+            warnings.warn("Did you forget to remove diagonal?")
+        self.appliedOperations["Corrected"] = True
         
-        Parameters
-        ----------
-        names : list of str or None, optional
-            Keys of datasets to be corrected. By default, all are corrected.
-        """
-
-        if names == None: names = self.dataDict.keys()        
-        self.transmap = self.chromosomeIndex[:,None] != self.chromosomeIndex[None,:]
-        #mat_img(self.transmap)
-        for i in names:
-            data = self.dataDict[i]
-            self.dataDict[i],self.biasDict[i] = numutils.ultracorrectSymmetricByMask(data,self.transmap,50)
-            try: self.singlesDict[i] /= self.biasDict[i]
-            except: print "bla" 
+            
 
     def removeZeros(self):
         """removes bins with zero counts
         keeps chromosome starts, ends, etc. consistent"""
         
-        s = numpy.sum(self.giveMask2D(),axis = 0) > 0
+        s = numpy.sum(self._giveMask2D(),axis = 0) > 0
         for i in self.dataDict.values():
             s *= (numpy.sum(i,axis = 0) > 0)
         indices = numpy.zeros(len(s),int)
@@ -531,7 +476,10 @@ class binnedData(object):
         self.chromosomeEnds = indices[self.chromosomeEnds]
         self.chromosomeStarts = indices[self.chromosomeStarts]
         self.centromerePositions = indices[self.centromerePositions]
-        self.removeZerosMask = s 
+        self.removeZerosMask = s
+        if self.appliedOperations.get("RemovedZeros",False) == True:
+            warnings.warn("You're removing zeros twice. You can't restore zeros now!")
+        self.appliedOperations["RemovedZeros"] = True  
         return s 
 
     def restoreZeros(self, value = numpy.NAN):
@@ -543,7 +491,9 @@ class binnedData(object):
         ----------
         value : number-like, optional. 
             Value to fill in missing regions. By default, NAN. 
-        """        
+        """
+        if not hasattr(self,"removeZerosMask"): raise StandardError("Zeros have not been removed!")        
+        
         s = self.removeZerosMask
         N = len(s)
 
@@ -566,13 +516,13 @@ class binnedData(object):
                 a = mydict[key]
                 mydict[key] = numpy.zeros((len(a),N),dtype = a.dtype) * value 
                 mydict[key][:,s] = a
-
-                        
-        self._initChromosomes()               
+                                        
+        self._initChromosomes()     
+        self.appliedOperations["RemovedZeros"] = False           
         
     
             
-    def doPCA(self):
+    def doPCA(self,force = False):
         """performs PCA on the data
         creates dictionary self.PCADict with results
         Last column of PC matrix is first PC, second to last - second, etc. 
@@ -581,16 +531,24 @@ class binnedData(object):
         -------
         Dictionary of principal component matrices for different datasets
         """
-        if (self.removedCis == False) or (self.fakedCis == False): 
-            print "Cis contacts have not been removed and/or faked."
-            print 'Are you sure you want to continue???'
-            raw_input("press any button to continue... <-----")            
+        neededKeys = ["RemovedZeros","Corrected","FakedCis"]
+        advicedKeys = ["TruncedTrans","RemovedPoor"]
+        if (False in [i in self.appliedOperations for i in neededKeys]) and (force == False):
+            print "needed operations:",neededKeys
+            print "applied operations:", self.appliedOperations
+            print "use 'force = True' to override this message" 
+            raise StandardError("Critical filter not applied")
+        if (False in [i in self.appliedOperations for i in advicedKeys]) and (force == False):
+            print "Adviced operations:",neededKeys
+            print "Applied operations:", self.appliedOperations
+            warnings.warn("Not all adviced filters applied")                        
         
         for i in self.dataDict.keys():
             self.PCDict[i] = PCA(self.dataDict[i])
         return self.PCDict
+    
             
-    def doEig(self):
+    def doEig(self,force = True):
         """performs eigenvector expansion on the data
         creates dictionary self.EigDict with results
         Last row of the eigenvector matrix is the largest eigenvector, etc. 
@@ -599,11 +557,19 @@ class binnedData(object):
         -------
         Dictionary of eigenvector matrices for different datasets
         """
-        if (self.removedCis == False) or (self.fakedCis == False): 
-            print "Cis contacts have not been removed and/or faked."
-            print 'Are you sure you want to continue???'
-            raw_input("press any button to continue... <-----")
+        neededKeys = ["RemovedZeros","Corrected","FakedCis"]
+        advicedKeys = ["TruncedTrans","RemovedPoor"]
+        if (False in [i in self.appliedOperations for i in neededKeys]) and (force == False):
+            print "needed operations:",neededKeys
+            print "applied operations:", self.appliedOperations
+            print "use 'force = True' to override this message" 
+            raise StandardError("Critical filter not applied")
+        if (False in [i in self.appliedOperations for i in advicedKeys]) and (force == False):
+            print "Adviced operations:",neededKeys
+            print "Applied operations:", self.appliedOperations
+            warnings.warn("Not all adviced filters applied")                        
 
+        
         for i in self.dataDict.keys():
             self.EigDict[i] = EIG(self.dataDict[i])             
         return self.EigDict
@@ -675,8 +641,6 @@ class binnedDataAnalysis(binnedData):
             expected.append(exp)
         observed = numpy.array(observed,float)
         expected = numpy.array(expected,float)
-        print observed 
-        print expected 
         values = observed/expected
         bins = numpy.array(bins,float)
         bins2 = 0.5 * (bins[:-1] + bins[1:])
@@ -700,6 +664,7 @@ class binnedDataAnalysis(binnedData):
                 for k in [-1,1]:
                     for l in [-1,1]:
                         if i == j: continue 
+                                                
                         cenbeg1 = self.chromosomeStarts[i] + self.genome.cntrStarts[i] / self.resolution
                         cenbeg2 = self.chromosomeStarts[j] + self.genome.cntrStarts[j] / self.resolution
                         cenend1 = self.chromosomeStarts[i] + self.genome.cntrEnds[i] / self.resolution
@@ -711,7 +676,7 @@ class binnedDataAnalysis(binnedData):
                         end2 = self.chromosomeEnds[j]
                         if k == 1:
                             bx = cenbeg1-1
-                            ex = beg1+1
+                            ex = beg1
                             dx = -1
                         else:
                             bx = cenend1+1
@@ -719,7 +684,7 @@ class binnedDataAnalysis(binnedData):
                             dx = 1
                         if l ==1:
                             by = cenbeg2-1
-                            ey = beg2+1
+                            ey = beg2
                             dy = -1
                         else:
                             by = cenend2+1
@@ -784,7 +749,7 @@ class binnedDataAnalysis(binnedData):
  
     def divideOutAveragesPerChromosome(self):
         "divides each interchromosomal map by it's mean value"
-        mask2D = self.giveMask2D()
+        mask2D = self._giveMask2D()
         for chrom1 in xrange(self.chromosomeCount):
             for chrom2 in xrange(self.chromosomeCount):
                 for i in self.dataDict.keys():
@@ -816,4 +781,105 @@ class binnedDataAnalysis(binnedData):
 
 
     
+class experimentalBinnedData(binnedData):
+    "Contains some poorly-implemented new features"        
+    def emulateCis(self):
+        """if you want to have fun creating syntetic data, this emulates cis contacts. 
+        adjust cis/trans ratio in the C code"""
+        transmap = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]
+        len(transmap)
+        for i in self.dataDict.keys():
+            data = self.dataDict[i] * 1. 
+            #mask = na(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)
+            N = len(data)
+            N
+            code = r"""
+            #line 841 "binary_search.py"
+            using namespace std; 
+            for (int i = 0; i < N; i++)    
+            {                 
+                for (int j = 0; j<N; j++)
+                {
+                    if (transmap[N * i + j] == 1)
+                    {
+                        data[N * i + j] = data[N * i +j] * 300 /(abs(i-j) + 0.5);                     
+                    }
+                }
+            } 
+            """
+            support = """
+            #include <math.h>
+            """
+            weave.inline(code, ['transmap','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
+            self.dataDict[i] = data
+        self.removedCis = False 
+        self.fakedCis = False
+         
+
+
+    def fakeMissing(self):
+        """fakes megabases that have no reads. For cis reads fakes with cis reads at the same distance. For trans fakes with random trans read at the same diagonal. 
+        """
+        for i in self.dataDict.keys():
+            data = self.dataDict[i] * 1.
+            sm = numpy.sum(data,axis = 0) > 0  
+            mask = sm[:,None] * sm[None,:]
+            transmask = numpy.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)
+            #mat_img(transmask)
+            N = len(data)
+            N,transmask ,mask #to remove warning
+            code = r"""
+            #line 841 "binary_search.py"
+            using namespace std; 
+            for (int i = 0; i < N; i++)    
+            {    
+                for (int j = i; j<N; j++)
+                {
+                    if ((mask[i* N + j] == 0) )                    
+                    {
+                    while (true) 
+                        {
+                        int k = 0;                            
+                        int s = rand() % (N - (j-i-1));
+                        if (j - i > 100)   k = rand() % 2;
+                        if ((mask[s * N + s + k + j - i] == 1) && (transmask[s * N + s + j - i] == transmask[i * N + j])) 
+                                {                                
+                                data[i * N + j] = data[s * N + s + j - i];
+                                data[j * N + i] = data[s * N + s + j - i];
+                                break;
+                                }
+                        }
+                    }
+                }
+            } 
+            """
+            support = """
+            #include <math.h>
+            """
+            for s in xrange(10):
+                s #to remove warning
+                weave.inline(code, ['transmask','mask','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
+                #mat_img(numpy.log(data+1),trunk = True)
+                data = correct(data)              
+            self.dataDict[i] = data
+             
+            
+            #mat_img(self.dataDict[i]>0) 
+
+    def iterativeCorrectByTrans(self,names = None):        
+        """performs iterative correction by trans data only, corrects cis also
         
+        Parameters
+        ----------
+        names : list of str or None, optional
+            Keys of datasets to be corrected. By default, all are corrected.
+        """
+
+        if names == None: names = self.dataDict.keys()        
+        self.transmap = self.chromosomeIndex[:,None] != self.chromosomeIndex[None,:]
+        #mat_img(self.transmap)
+        for i in names:
+            data = self.dataDict[i]
+            self.dataDict[i],self.biasDict[i] = numutils.ultracorrectSymmetricByMask(data,self.transmap,50)
+            try: self.singlesDict[i] /= self.biasDict[i]
+            except: print "bla" 

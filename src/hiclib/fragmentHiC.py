@@ -571,13 +571,14 @@ class HiCdataset(object):
         print "----->Extreme fragments filter: remove top %lf, bottom %lf fragments" % (cutH, cutL)
         s  = self.fragmentSum()
         ss = numpy.sort(s)
-        print "     #Top fragments are: ",ss[-10:]                 
-        N = len(ss)
+                         
         valueL, valueH = numpy.percentile(ss, [100. * cutL, 100 * (1. - cutH)])
-        print "     # Cutoff for low # counts is (counts): ",valueL ,"; cutoff for large # counts is: ",valueH         
         news = (s >= valueL ) * (s <= valueH)        
         self.fragmentFilter(self.ufragments[news])
-        print
+        
+        print "     #Top fragments are: ",ss[-10:]
+        print "     # Cutoff for low # counts is (counts): ",valueL ,"; cutoff for large # counts is: ",valueH, "\n"         
+        
         
     def filterLarge(self,cutlarge = 100000,cutsmall = 100 ):
         """removes very large and small fragments
@@ -878,7 +879,6 @@ class HiCStatistics(HiCdataset):
                 fragRegions1[mask1] = regionNum
                 fragRegions2[mask2] = regionNum
         del chr1,chr2,pos1,pos2
-        print regions                         
 
                                         
         lens = numpy.array(numutils.logbins(mindist,maxdist,1.25),float)+0.1   #bins of lengths        
@@ -984,8 +984,6 @@ class HiCStatistics(HiCdataset):
             positions.append(sqrt(float(beg)*float(end)))
             values.append(mycounts/float(maxcounts))
             rawValues.append(mycounts)
-        print rawValues
-        print count
             
         positions = numpy.array(positions)
         values = numpy.array(values)
