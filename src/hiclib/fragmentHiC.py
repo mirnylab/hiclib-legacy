@@ -54,8 +54,7 @@ However, one can easily construct another filter as presented in multiple one-li
 """
 
 import warnings
-from mirnylab import systemutils
-systemutils.setExceptionHook() 
+from mirnylab import systemutils 
 import os,cPickle
 from mirnylab.genome import Genome 
 import mirnylab.hic.mapping 

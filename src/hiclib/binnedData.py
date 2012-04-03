@@ -55,7 +55,6 @@ Custom tracks may be also added to this dictionary.
 """
 
 from mirnylab import systemutils,numutils
-systemutils.setExceptionHook()
 from mirnylab.plotting import  removeBorder 
 from mirnylab.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
 from mirnylab.genome import Genome 

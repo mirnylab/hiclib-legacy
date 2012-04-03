@@ -1,6 +1,7 @@
 import os,sys
 sys.path.append(os.path.split(os.getcwd())[0])
 from hiclib.binnedData import binnedData, binnedDataAnalysis
+from hiclib.fragmentHiC import HiCdataset
 from mirnylab.numutils import EIG, coarsegrain, project
 import numpy
 from mirnylab.genome import Genome
@@ -31,6 +32,11 @@ GM1MNcoI = "../../ErezPaperData/hg19/GM-NcoI-hg19-1M.hm"
 GM200k = "../../ErezPaperData/hg19/GM-HindIII-hg19-200k.hm"
 GM200kBreaks = "../../ErezPaperData/hg19/GM-HindIII-hg19-200k-breaks.hm"
 GM200kNcoI = "../../ErezPaperData/hg19/GM-NcoI-hg19-200k.hm"
+GMFrag = "../../ErezPaperData/hg19/GM-NcoI-hg19_refined.frag"
+workingFile1 = "../../ErezPaperData/working1"
+workingFile2 = "../../ErezPaperData/working2"
+workingFile3 = "../../ErezPaperData/working3"
+
 
 def correctedScalingPlot():
     
@@ -152,46 +158,62 @@ def compareInterarmMaps():
     Tanay.simpleLoad(GM1M,"GM-all")
     Tanay.simpleLoad(GM1MNcoI,"GM-NcoI")    
     Tanay.removeDiagonal()
-    Tanay.removePoorRegions()
+    Tanay.removePoorRegions(cutoff = 1)
+    Tanay.removeStandalone(3)
     fs = 10
     vmin = None
     vmax = None
+
     plt.subplot(421)
     plt.title("GM, HindIII, raw", fontsize = fs)
     Tanay.averageTransMap("GM-all",vmin = vmin, vmax = vmax)
+    plt.colorbar()
     plt.subplot(422)
     plt.title("GM, NcoI, raw", fontsize = fs)
     Tanay.averageTransMap("GM-NcoI",vmin = vmin, vmax = vmax)
+    plt.colorbar()
     
     Tanay.iterativeCorrectWithSS()
     vmin = None
     vmax = None
+    
     plt.subplot(425)
+    
     plt.title("GM, HindIII, with SS reads", fontsize = fs)
     Tanay.averageTransMap("GM-all",vmin = vmin, vmax = vmax)
+    plt.colorbar()
     plt.subplot(426)
+    
     plt.title("GM, NcoI, with SS reads", fontsize = fs)
     Tanay.averageTransMap("GM-NcoI",vmin = vmin, vmax = vmax)
+    plt.colorbar()
     
     Tanay.iterativeCorrectWithoutSS()
     vmin = None
-    vmax = None    
-    plt.subplot(423)
+    vmax = None
+    plt.subplot(423)    
     plt.title("GM, HindIII, no SS reads", fontsize = fs)
     Tanay.averageTransMap("GM-all",vmin = vmin, vmax=vmax)
-    plt.subplot(424)
+    plt.colorbar()
+    
+    plt.subplot(424)    
     plt.title("GM, NcoI, no ss reads", fontsize = fs)
     Tanay.averageTransMap("GM-NcoI",vmin = vmin, vmax=vmax)
-    
+    plt.colorbar()
     Tanay.fakeCis()
     
+    vmin = None
+    vmax = None 
     plt.subplot(427)
+    
     plt.title("GM, HindIII, trans only", fontsize = fs)
     Tanay.averageTransMap("GM-all",vmin = vmin, vmax=vmax)
+    plt.colorbar()
     plt.subplot(428)
+    
     plt.title("GM, NcoI, trans only", fontsize = fs)
     Tanay.averageTransMap("GM-NcoI",vmin = vmin, vmax=vmax)
-    
+    plt.colorbar()
 
     plt.show()
 
@@ -264,10 +286,17 @@ def plotDiagonalCorrelation():
 #plotDiagonalCorrelation()
 
 
+
+
 def plotCrossValidation():
     "main figure subplot with corss-validation"
     matplotlib.rcParams['font.sans-serif']='Arial'
     plt.figure(figsize = (1,1))
+    FG = HiCdataset(workingFile1,myGenome)
+    FG.load(GMFrag)
+    mask = numpy.random.random()< 0.1 
+    
+    
     Tanay = binnedData(1000000)    
     Tanay.simpleLoad("GM-all-10p","GM-1")   #need to create these datasets using fragment-level analysis
     Tanay.simpleLoad("GM-all-90p","GM-9")
