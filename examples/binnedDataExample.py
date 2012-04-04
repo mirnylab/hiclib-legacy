@@ -24,15 +24,16 @@ import matplotlib
 #    mat_img(iterativeCorrectWithoutSS(expected))  #Factorized Tanay expected data
 #    
 #exampleOfTanayUsage()
+genomeVersion = "hg18"
 
-myGenome = Genome("../../data/hg19",  readChrms = ["#","X"])
+myGenome = Genome("../../data/%s" % genomeVersion,  readChrms = ["#","X"])
 
-GM1M = "../../ErezPaperData/hg19/GM-HindIII-hg19-1M.hm"
-GM1MNcoI = "../../ErezPaperData/hg19/GM-NcoI-hg19-1M.hm"
-GM200k = "../../ErezPaperData/hg19/GM-HindIII-hg19-200k.hm"
-GM200kBreaks = "../../ErezPaperData/hg19/GM-HindIII-hg19-200k-breaks.hm"
-GM200kNcoI = "../../ErezPaperData/hg19/GM-NcoI-hg19-200k.hm"
-GMFrag = "../../ErezPaperData/hg19/GM-NcoI-hg19_refined.frag"
+GM1M = "../../ErezPaperData/%s/GM-HindIII-%s-1M.hm"  % (genomeVersion, genomeVersion)
+GM1MNcoI = "../../ErezPaperData/%s/GM-NcoI-%s-1M.hm"  % (genomeVersion, genomeVersion)
+GM200k = "../../ErezPaperData/%s/GM-HindIII-%s-200k.hm"  % (genomeVersion, genomeVersion)
+GM200kBreaks = "../../ErezPaperData/%s/GM-HindIII-%s-200k-breaks.hm"  % (genomeVersion, genomeVersion)
+GM200kNcoI = "../../ErezPaperData/%s/GM-NcoI-%s-200k.hm"  % (genomeVersion, genomeVersion)
+GMFrag = "../../ErezPaperData/%s/GM-NcoI-%s_refined.frag"  % (genomeVersion, genomeVersion)
 workingFile1 = "../../ErezPaperData/working1"
 workingFile2 = "../../ErezPaperData/working2"
 workingFile3 = "../../ErezPaperData/working3"
@@ -158,8 +159,8 @@ def compareInterarmMaps():
     Tanay.simpleLoad(GM1M,"GM-all")
     Tanay.simpleLoad(GM1MNcoI,"GM-NcoI")    
     Tanay.removeDiagonal()
-    Tanay.removePoorRegions(cutoff = 1)
-    Tanay.removeStandalone(3)
+    Tanay.removePoorRegions(cutoff  = 2)
+    #Tanay.removeStandalone(3)
     fs = 10
     vmin = None
     vmax = None
@@ -176,7 +177,7 @@ def compareInterarmMaps():
     Tanay.iterativeCorrectWithSS()
     vmin = None
     vmax = None
-    
+        
     plt.subplot(425)
     
     plt.title("GM, HindIII, with SS reads", fontsize = fs)
@@ -217,7 +218,61 @@ def compareInterarmMaps():
 
     plt.show()
 
-#compareInterarmMaps()
+
+def checkLowResolutionIC():
+    T1 = binnedData(1000000,myGenome)
+    T1.simpleLoad(GM1M,"GM1")
+    T1.removeDiagonal()
+    T1.removePoorRegions()
+    T1.fakeCis()
+    T1.removeZeros()        
+    T1.doEig()
+    T1.restoreZeros()
+    E1 = T1.EigDict["GM1"][0]
+    print E1[::100] 
+    
+    T2 = binnedData(200000,myGenome)
+    T2.simpleLoad(GM200k,"GM1")
+    T2.removeDiagonal()
+    T2.removePoorRegions()
+    T2.fakeCis()
+    T2.removeZeros()
+    T2.doEig()
+    T2.restoreZeros()
+    E2 = T2.EigDict["GM1"][0]
+    
+    
+    mask1 = numpy.isnan(E1)
+    E1[mask1] = 0
+    
+    
+    mask2 = numpy.isnan(E2) == False
+    E2[mask2 == False] = 0
+    E3 = numpy.zeros(len(E1),dtype = float)
+    for i in xrange(T1.genome.chrmCount):
+        beg = T1.genome.chrmStartsBinCont[i]
+        end = T1.genome.chrmEndsBinCont[i]
+        eig = E2[beg:end]
+        mask = mask2[beg:end]
+        eig = coarsegrain(eig, 5,True )
+        mask = coarsegrain(mask,5,True)
+        
+        eig = eig / mask 
+        eig[mask==0] = 0
+        
+        E3[T2.genome.chrmStartsBinCont[i]:T2.genome.chrmEndsBinCont[i]] = eig 
+    
+    print scipy.stats.spearmanr(E1[mask1], E3[mask1])
+    
+    raise   
+          
+    
+    
+    
+checkLowResolutionIC()    
+    
+    
+
 
 
 def plotDiagonalCorrelation():

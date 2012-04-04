@@ -54,7 +54,9 @@ Custom tracks may be also added to this dictionary.
 --------------------------------------------------------------- 
 """
 
+import os 
 from mirnylab import systemutils,numutils
+import mirnylab.plotting
 from mirnylab.plotting import  removeBorder 
 from mirnylab.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
 from mirnylab.genome import Genome 
@@ -65,6 +67,7 @@ from scipy import weave
 import warnings 
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt 
+
 
     
 class binnedData(object):
@@ -107,6 +110,10 @@ class binnedData(object):
         self.fragsDict = {}
         self.PCDict = {}
         self.EigDict = {}
+        self.dicts = [self.trackDict, self.biasDict, self.singlesDict, self.fragsDict]
+        self.eigDicts = [self.PCDict, self.EigDict]
+        
+        
         self.appliedOperations = {}
         
     def _initChromosomes(self):
@@ -149,7 +156,8 @@ class binnedData(object):
             Key of the dataset in self.dataDict
         
         """        
-        if type(in_data) == str: 
+        if type(in_data) == str:
+            if os.path.exists(in_data) == False: raise IOError("HDF5 dict do not exist, %s" % in_data) 
             alldata = h5dict(in_data,mode = "r")
         else:
             alldata = in_data
@@ -433,7 +441,23 @@ class binnedData(object):
             warnings.warn("Did you forget to remove diagonal?")
         self.appliedOperations["Corrected"] = True
         
-            
+    def removeChromosome(self,chromNum):
+        "removes certain chromosome from all tracks and heatmaps, setting all values to zero "
+        beg = self.genome.chrmStartsBinCont[chromNum]
+        end = self.genome.chrmEndsBinCont[chromNum]
+        for i in self.dataDict.values():
+            i[beg:end] = 0
+            i[:,beg:end] = 0 
+        
+        for mydict in self.dicts:
+            for value in mydict.values():
+                value[beg:end] = 0 
+        
+        for mydict in self.eigDicts:
+            for value in mydict.values():
+                value[beg:end] = 0 
+                
+
 
     def removeZeros(self):
         """removes bins with zero counts
@@ -456,19 +480,16 @@ class binnedData(object):
             b = a[:,s]
             c = b[s,:]
             self.dataDict[i] = c            
-        dicts = [self.trackDict, self.biasDict, self.singlesDict, self.fragsDict]
-        for mydict in dicts:
+        
+        for mydict in self.dicts:
             for key in mydict.keys():
                 mydict[key] = mydict[key][s]
 
-        eigDicts = [self.PCDict, self.EigDict]
-        for mydict in eigDicts:
+        
+        for mydict in self.eigDicts:
             for key in mydict.keys():
                 
                 mydict[key] = mydict[key][:,s]  
-                 
-
-                
         
         self.chromosomeIndex = self.chromosomeIndex[s]
         self.armIndex = self.armIndex[s]
@@ -501,16 +522,14 @@ class binnedData(object):
             self.dataDict[i] = numpy.zeros((N,N),dtype = a.dtype) * value 
             tmp = numpy.zeros((N,len(a)),dtype = a.dtype)
             tmp[s,:] = a
-            self.dataDict[i][:,s] = tmp             
-        dicts = [self.trackDict, self.biasDict, self.singlesDict, self.fragsDict]
-        for mydict in dicts:
+            self.dataDict[i][:,s] = tmp                     
+        for mydict in self.dicts:
             for key in mydict.keys():
                 a = mydict[key]
                 mydict[key] = numpy.zeros(N,dtype = a.dtype) * value 
                 mydict[key][s] = a
-                
-        eigDicts = [self.PCDict, self.EigDict]
-        for mydict in eigDicts:
+                        
+        for mydict in self.eigDicts:
             for key in mydict.keys():
                 a = mydict[key]
                 mydict[key] = numpy.zeros((len(a),N),dtype = a.dtype) * value 
@@ -538,7 +557,7 @@ class binnedData(object):
             print "use 'force = True' to override this message" 
             raise StandardError("Critical filter not applied")
         if (False in [i in self.appliedOperations for i in advicedKeys]) and (force == False):
-            print "Adviced operations:",neededKeys
+            print "Adviced operations:",advicedKeys
             print "Applied operations:", self.appliedOperations
             warnings.warn("Not all adviced filters applied")                        
         
@@ -547,7 +566,7 @@ class binnedData(object):
         return self.PCDict
     
             
-    def doEig(self,force = True):
+    def doEig(self,force = False):
         """performs eigenvector expansion on the data
         creates dictionary self.EigDict with results
         Last row of the eigenvector matrix is the largest eigenvector, etc. 
@@ -558,13 +577,14 @@ class binnedData(object):
         """
         neededKeys = ["RemovedZeros","Corrected","FakedCis"]
         advicedKeys = ["TruncedTrans","RemovedPoor"]
-        if (False in [i in self.appliedOperations for i in neededKeys]) and (force == False):
+        if (False in [i in self.appliedOperations for i in neededKeys]) and (force == False):            
             print "needed operations:",neededKeys
             print "applied operations:", self.appliedOperations
             print "use 'force = True' to override this message" 
             raise StandardError("Critical filter not applied")
         if (False in [i in self.appliedOperations for i in advicedKeys]) and (force == False):
-            print "Adviced operations:",neededKeys
+            print "Not all adviced filters applied"
+            print "Adviced operations:",advicedKeys
             print "Applied operations:", self.appliedOperations
             warnings.warn("Not all adviced filters applied")                        
 
@@ -651,12 +671,14 @@ class binnedDataAnalysis(binnedData):
 
 
         
-    def averageTransMap(self,name = "GM-all", mycmap = "hot_r",chromMax = 22,vmin = None,vmax = None):
+    def averageTransMap(self,name , mycmap = "hot_r",vmin = None,vmax = None):
         "plots and returns average inter-chromosomal inter-arm map"
         data = self.dataDict[name]
         #data = trunk(data,low = 0,high = 0.0001)         
         avarms = numpy.zeros((80,80))
         avmasks = numpy.zeros((80,80))
+        discardCutoff = 20 
+        
         for i in xrange(self.chromosomeCount):
             print i 
             for j in xrange(self.chromosomeCount):
@@ -674,22 +696,31 @@ class binnedDataAnalysis(binnedData):
                         end1 = self.chromosomeEnds[i]
                         end2 = self.chromosomeEnds[j]
                         if k == 1:
-                            bx = cenbeg1-1
-                            ex = beg1
-                            dx = -1
+                            bx = cenbeg1
+                            ex = beg1-1
+                            dx = -1                            
                         else:
-                            bx = cenend1+1
-                            ex = end1-1
+                            bx = cenend1
+                            ex = end1
                             dx = 1
                         if l ==1:
-                            by = cenbeg2-1
-                            ey = beg2
+                            by = cenbeg2
+                            ey = beg2-1
                             dy = -1
                         else:
-                            by = cenend2+1
-                            ey = end2-1
-                            dy = 1                        
-                        arms = data[bx:ex:dx,by:ey:dy]
+                            by = cenend2
+                            ey = end2
+                            dy = 1
+                            
+                        
+                        if abs(bx - ex) < discardCutoff: continue
+                        if bx < 0: bx = None                          
+                        if abs(by - ey) < discardCutoff: continue
+                        if by < 0: by = None 
+                                                 
+                                                    
+                        arms = data[bx:ex:dx,by:ey:dy]                        
+                        assert max(arms.shape) <= self.genome.maxChrmArm / self.genome.resolution + 2
                                                 
                         mx = numpy.sum(arms, axis = 0)
                         my = numpy.sum(arms, axis = 1)
@@ -699,10 +730,13 @@ class binnedDataAnalysis(binnedData):
                         maskf = numpy.array(mask,float)
                         mlenx = (numpy.sum(mask, axis = 0) > 0 ).sum() 
                         mleny = (numpy.sum(mask, axis = 1) > 0 ).sum()
-                        if min(mlenx, mleny) < 20: continue
-                        #arms = trunk(arms,low = 0.01,high = 0.025)
-                        add = numutils.smartZoomOut(arms,avarms.shape)
-                        addmask = numutils.smartZoomOut(maskf,avarms.shape)
+                        
+                        if min(mlenx, mleny) < discardCutoff: continue
+                    
+                        add = numutils.zoomOut(arms,avarms.shape)
+                        assert numpy.abs((arms.sum() - add.sum()) / arms.sum()) < 0.01
+                                                                        
+                        addmask = numutils.zoomOut(maskf,avarms.shape)
                         avarms += add 
                         avmasks += addmask
                         #mat_img(addmask)  
