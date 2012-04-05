@@ -13,9 +13,12 @@ Removal of bins from one dataset will remove them from the others.
 E.g. removing 1% of bins with lowest # of count might remove more than 1% of total bins, 
 when working with 2 or more datasets.  
 
-Class has limited knowledge of the current state of the system, and it is user's responsibility 
-to apply filters in the proper order. 
-Sometimes certain filters will issue a warning, but one can't rely on this. 
+Class has significant knowledge about filters that have been applied. 
+If an essential filter was not applied, it will throw an exception; 
+if adviced filter is not applied, it will throw a warning. 
+Most of the methods have an optional "force" argument that will ignore dependensies.
+I
+  
 
 We provide example scripts that show ideal protocols for certain types of the analysis, 
 but they don't cover the realm of all possible manipulations that can be performed with this class.
@@ -459,13 +462,15 @@ class binnedData(object):
                 
 
 
-    def removeZeros(self):
+    def removeZeros(self,zerosMask = None):
         """removes bins with zero counts
         keeps chromosome starts, ends, etc. consistent"""
-        
-        s = numpy.sum(self._giveMask2D(),axis = 0) > 0
-        for i in self.dataDict.values():
-            s *= (numpy.sum(i,axis = 0) > 0)
+        if zerosMask != None:
+            s = zerosMask
+        else:          
+            s = numpy.sum(self._giveMask2D(),axis = 0) > 0
+            for i in self.dataDict.values():
+                s *= (numpy.sum(i,axis = 0) > 0)
         indices = numpy.zeros(len(s),int)
         count = 0 
         for i in xrange(len(indices)):
@@ -520,7 +525,7 @@ class binnedData(object):
         for i in self.dataDict.keys():
             a = self.dataDict[i]
             self.dataDict[i] = numpy.zeros((N,N),dtype = a.dtype) * value 
-            tmp = numpy.zeros((N,len(a)),dtype = a.dtype)
+            tmp = numpy.zeros((N,len(a)),dtype = a.dtype) * value 
             tmp[s,:] = a
             self.dataDict[i][:,s] = tmp                     
         for mydict in self.dicts:
@@ -850,7 +855,7 @@ class experimentalBinnedData(binnedData):
          
 
 
-    def fakeMissing(self):
+    def fakeMissing(self,iterative = True):
         """fakes megabases that have no reads. For cis reads fakes with cis reads at the same distance. For trans fakes with random trans read at the same diagonal. 
         """
         for i in self.dataDict.keys():
@@ -868,19 +873,21 @@ class experimentalBinnedData(binnedData):
             {    
                 for (int j = i; j<N; j++)
                 {
-                    if ((mask[i* N + j] == 0) )                    
+                    if ((MASK2(i,j) == 0) )                    
                     {
-                    while (true) 
+                    for (int ss = 0; ss < 401; ss++) 
                         {
                         int k = 0;                            
-                        int s = rand() % (N - (j-i-1));
-                        if (j - i > 100)   k = rand() % 2;
-                        if ((mask[s * N + s + k + j - i] == 1) && (transmask[s * N + s + j - i] == transmask[i * N + j])) 
+                        int s = rand() % (N - (j-i));                        
+                        if ((mask[s * N + s + j - i] == 1) && ((transmask[s * N + s + j - i] == transmask[i * N + j]) || (ss > 200)) )
                                 {                                
                                 data[i * N + j] = data[s * N + s + j - i];
                                 data[j * N + i] = data[s * N + s + j - i];
                                 break;
                                 }
+                        if (ss == 400) {printf("Cannot fake one point... skipping %d %d \n",i,j);}
+                            
+                            
                         }
                     }
                 }
@@ -889,7 +896,7 @@ class experimentalBinnedData(binnedData):
             support = """
             #include <math.h>
             """
-            for s in xrange(10):
+            for s in xrange(5):
                 s #to remove warning
                 weave.inline(code, ['transmask','mask','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
                 #mat_img(numpy.log(data+1),trunk = True)

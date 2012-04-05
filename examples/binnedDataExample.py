@@ -1,6 +1,7 @@
 import os,sys
 sys.path.append(os.path.split(os.getcwd())[0])
-from hiclib.binnedData import binnedData, binnedDataAnalysis
+from hiclib.binnedData import binnedData, binnedDataAnalysis,\
+    experimentalBinnedData
 from hiclib.fragmentHiC import HiCdataset
 from mirnylab.numutils import EIG, coarsegrain, project
 import numpy
@@ -26,7 +27,7 @@ import matplotlib
 #exampleOfTanayUsage()
 genomeVersion = "hg18"
 
-myGenome = Genome("../../data/%s" % genomeVersion,  readChrms = ["#","X"])
+myGenome = "../../data/%s"% genomeVersion
 
 GM1M = "../../ErezPaperData/%s/GM-HindIII-%s-1M.hm"  % (genomeVersion, genomeVersion)
 GM1MNcoI = "../../ErezPaperData/%s/GM-NcoI-%s-1M.hm"  % (genomeVersion, genomeVersion)
@@ -223,53 +224,66 @@ def checkLowResolutionIC():
     T1 = binnedData(1000000,myGenome)
     T1.simpleLoad(GM1M,"GM1")
     T1.removeDiagonal()
-    T1.removePoorRegions()
-    T1.fakeCis()
-    T1.removeZeros()        
-    T1.doEig()
-    T1.restoreZeros()
-    E1 = T1.EigDict["GM1"][0]
-    print E1[::100] 
+    T1.removePoorRegions()    
+    T1.removeZeros()
+    T1.iterativeCorrectWithSS( M = 5)            
+    T1.restoreZeros()    
+    data1 = T1.dataDict["GM1"]
+    
+    mask1 = numpy.isnan(data1[30])
+    print mask1
+    mirnylab.systemutils.setExceptionHook()
+
+    
     
     T2 = binnedData(200000,myGenome)
-    T2.simpleLoad(GM200k,"GM1")
+    T2.simpleLoad(GM200k,"GM2")
     T2.removeDiagonal()
-    T2.removePoorRegions()
-    T2.fakeCis()
+    T2.removePoorRegions()    
     T2.removeZeros()
-    T2.doEig()
+    T2.iterativeCorrectWithSS( M = 5)
     T2.restoreZeros()
-    E2 = T2.EigDict["GM1"][0]
     
     
-    mask1 = numpy.isnan(E1)
-    E1[mask1] = 0
+    
+    data2 = T2.dataDict["GM2"]    
+
     
     
-    mask2 = numpy.isnan(E2) == False
-    E2[mask2 == False] = 0
-    E3 = numpy.zeros(len(E1),dtype = float)
+    
+    data1[mask1,:] = 0
+    data1[:,mask1] = 0 
+    
+    
+    
+    mask2 = numpy.isnan(data2) == False
+    data2[mask2 == False] = 0
+    print data2 
+    mirnylab.systemutils.setExceptionHook()
+    E3 = numpy.zeros(data1.shape,dtype = float)
     for i in xrange(T1.genome.chrmCount):
-        beg = T1.genome.chrmStartsBinCont[i]
-        end = T1.genome.chrmEndsBinCont[i]
-        eig = E2[beg:end]
-        mask = mask2[beg:end]
-        eig = coarsegrain(eig, 5,True )
-        mask = coarsegrain(mask,5,True)
+        beg = T2.genome.chrmStartsBinCont[i]
+        end = T2.genome.chrmEndsBinCont[i]
+        chromMap = data2[beg:end,beg:end]
+        chrommask = mask2[beg:end,beg:end]
+        chromMap = coarsegrain(chromMap, 5,True )
+        mask = coarsegrain(chrommask,5,True)
         
-        eig = eig / mask 
-        eig[mask==0] = 0
         
-        E3[T2.genome.chrmStartsBinCont[i]:T2.genome.chrmEndsBinCont[i]] = eig 
+        chromMap = chromMap / mask 
+        chromMap[mask==0] = 0
+        beg2 = T1.genome.chrmStartsBinCont[i] 
+        end2 = T1.genome.chrmEndsBinCont[i] 
+        E3[beg2:end2,beg2:end2] = chromMap 
     
-    print scipy.stats.spearmanr(E1[mask1], E3[mask1])
+    print scipy.stats.spearmanr(data1[mask1], E3[mask1])
     
     raise   
           
     
     
     
-checkLowResolutionIC()    
+#checkLowResolutionIC()    
     
     
 
@@ -340,8 +354,80 @@ def plotDiagonalCorrelation():
      
 #plotDiagonalCorrelation()
 
+def plotDiagonalCorrelationWithFaking():
+    "main paper plot with correlations of diagonals"
+    S = 25
+    x = numpy.arange(2,S)
+    Tanay = experimentalBinnedData(200000,myGenome)
+    Tanay.simpleLoad(GM200k,"GM-all")
+    Tanay.simpleLoad(GM200kNcoI,"GM-NcoI")
+    Tanay.removeDiagonal(1)
+    Tanay.removePoorRegions()    
+    s = Tanay.removeZeros()
+    cors = []
+    for i in x:
+        cors.append(cr(
+                       numpy.diagonal(Tanay.dataDict["GM-all"],i),
+                       numpy.diagonal(Tanay.dataDict["GM-NcoI"],i)
+                       )[0])
+    
+    Tanay.iterativeCorrectWithSS(M = 10)
+    cors2 = []
+    for i in x:
+        cors2.append(cr(
+                       numpy.diagonal(Tanay.dataDict["GM-all"],i),
+                       numpy.diagonal(Tanay.dataDict["GM-NcoI"],i)
+                       )[0])
+    
+    Tanay.iterativeCorrectWithoutSS(M = 10 )
+    
+    #-----
+    #Tanay.restoreZeros(0)
+    #Tanay.fakeMissing()
+
+    #mat_img(numpy.log(Tanay.dataDict["GM-all"]+ 1))
+    #Tanay.removeZeros(s)
+    #-----
+    
+    
+    
+          
+    cors3 = []
+    for i in x:
+        cors3.append(cr(
+                       numpy.diagonal(Tanay.dataDict["GM-all"],i),
+                       numpy.diagonal(Tanay.dataDict["GM-NcoI"],i)
+                       )[0])
 
 
+    matplotlib.rcParams['font.sans-serif']='Arial'
+    
+
+    #plt.figure(figsize = (2.3,1.8))
+    plt.figure(figsize = (4,4))
+    ax = plt.gca()
+    fs = 8
+    for xlabel_i in ax.get_xticklabels(): xlabel_i.set_fontsize(fs)
+    for xlabel_i in ax.get_yticklabels(): xlabel_i.set_fontsize(fs)
+    print cors
+    print cors2
+    print cors3 
+    plt.plot(x/5.,cors3,color = "#E5A826",label = "Iterative")
+    plt.plot(x/5.,cors2,color = "#28459A",label = "Single")
+    plt.plot(x/5.,cors,color = "#E55726",label = "Raw")
+    plt.xlabel("Genomic Separation, MB",fontsize = 8)
+    plt.ylabel("Spearman correlation",fontsize = 8)
+    plt.legend()
+                    
+    legend = plt.legend(prop={"size":6},loc = 9,handlelength=2)
+    legend.draw_frame(False)
+    plt.ylim((0,0.6))
+    removeAxes(shift = 0)
+    
+    plt.show()     
+
+
+plotDiagonalCorrelationWithFaking()
 
 def plotCrossValidation():
     "main figure subplot with corss-validation"
