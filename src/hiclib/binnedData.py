@@ -904,7 +904,10 @@ class experimentalBinnedData(binnedData):
             self.dataDict[i] = data
              
             
-            #mat_img(self.dataDict[i]>0) 
+            #mat_img(self.dataDict[i]>0)
+            
+
+    
 
     def iterativeCorrectByTrans(self,names = None):        
         """performs iterative correction by trans data only, corrects cis also
@@ -922,4 +925,30 @@ class experimentalBinnedData(binnedData):
             data = self.dataDict[i]
             self.dataDict[i],self.biasDict[i] = numutils.ultracorrectSymmetricByMask(data,self.transmap,50)
             try: self.singlesDict[i] /= self.biasDict[i]
-            except: print "bla" 
+            except: print "bla"
+    def loadWigFile(self,filename,label):
+        data = self.genome.parseFixedStepWigAtKbResolution(filename)
+        if self.genome.resolution % 1000 != 0: raise("Cannot parse wig file at non-kb resolution")
+        vector = numpy.zeros(self.genome.numBins,float)
+        for chrom,value in enumerate(data):
+            value = numpy.array(value) 
+            value.resize(self.genome.chrmLensBin[chrom] * (self.resolution/1000))
+            value.shape = (-1,self.genome.resolution / 1000 )
+            if value.mean() == 0:
+                raise StandardError("Chromosome %s contains zero data in wig file %s" % (self.genome.idx2label[chrom],filename))
+            mask = value == 0 
+            value = numpy.log(value) 
+            value[mask] = 0 
+            av = numpy.sum(value,axis = 1) / numpy.sum(mask,axis = 1)
+            av[numpy.isnan(av)] = 0
+            vector[self.genome.chrmStartsBinCont[chrom]:self.genome.chrmEndsBinCont[chrom]] = av
+        self.trackDict[label] = vector
+            
+             
+            
+
+            
+            
+            
+            
+         

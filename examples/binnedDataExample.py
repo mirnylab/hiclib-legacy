@@ -427,7 +427,9 @@ def plotDiagonalCorrelationWithFaking():
     plt.show()     
 
 
-plotDiagonalCorrelationWithFaking()
+#plotDiagonalCorrelationWithFaking()
+
+ 
 
 def plotCrossValidation():
     "main figure subplot with corss-validation"
@@ -553,5 +555,19 @@ def doCartoonPlot():
     mat_img(s2)
     mat_img(signal - s1 - s2)  
 
- 
+
+def compareWithGenomicFeatures():
+    Tanay = experimentalBinnedData(1000000,myGenome)
+    Tanay.simpleLoad(GM1M,"GM-all")
+    Tanay.loadGC()
+    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k27ac.wig","h3k27")
+    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k4me1.wig","h3k4")
+    Tanay.loadWigFile("../../DNAse/hg18/wgEncodeDukeDNaseSeqSignalGm12878V2.wig","DNAse")
+    Tanay.removeZeros()
+    print cr(Tanay.trackDict["GC"],Tanay.trackDict["h3k27"])
+    print cr(Tanay.trackDict["GC"],Tanay.trackDict["h3k4"])
+    print cr(Tanay.trackDict["GC"],Tanay.trackDict["DNAse"])
+    
+    
+compareWithGenomicFeatures() 
 #doCartoonPlot()
