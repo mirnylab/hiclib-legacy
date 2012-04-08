@@ -2,6 +2,9 @@ import os,sys
 sys.path.append(os.path.split(os.getcwd())[0])
 from hiclib.binnedData import binnedData, binnedDataAnalysis,\
     experimentalBinnedData
+from mirnylab.hic.mapping import fill_rsites
+import mirnylab.systemutils
+mirnylab.systemutils
 from hiclib.fragmentHiC import HiCdataset
 from mirnylab.numutils import EIG, coarsegrain, project
 import numpy
@@ -557,16 +560,44 @@ def doCartoonPlot():
 
 
 def compareWithGenomicFeatures():
-    Tanay = experimentalBinnedData(1000000,myGenome)
-    Tanay.simpleLoad(GM1M,"GM-all")
+    mirnylab.systemutils.setExceptionHook()
+    Tanay = experimentalBinnedData(200000,myGenome)
+    Tanay.simpleLoad(GM200k,"GM-all")
+    Tanay.simpleLoad()
+    datasets = {"CTCF": "wgEncodeBroadChipSeqSignalGm12878Ctcf.wig" ,"H3K27me3":    "wgEncodeBroadChipSeqSignalGm12878H3k27me3.wig",
+                "H3K4me1" : "wgEncodeBroadChipSeqSignalGm12878H3k4me1.wig", "H3K4me3" : "wgEncodeBroadChipSeqSignalGm12878H3k4me3.wig",
+                "H4K20me1" :   "wgEncodeBroadChipSeqSignalGm12878H4k20me1.wig", "H3K27ac" : "wgEncodeBroadChipSeqSignalGm12878H3k27ac.wig",
+                "H3K36me3" : "wgEncodeBroadChipSeqSignalGm12878H3k36me3.wig", "H3K4me2" : "wgEncodeBroadChipSeqSignalGm12878H3k4me2.wig",
+                "H3K9ac" :   "wgEncodeBroadChipSeqSignalGm12878H3k9ac.wig"
+                }
+    for key in datasets.keys(): datasets[key] = os.path.join("../../histoneMarks/hg18",datasets[key])
+    datasets["DNAse"] =   "../../DNAse/hg18/wgEncodeDukeDNaseSeqSignalGm12878V2.wig" 
+        
+    keys = datasets.keys() 
+    
     Tanay.loadGC()
-    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k27ac.wig","h3k27")
-    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k4me1.wig","h3k4")
-    Tanay.loadWigFile("../../DNAse/hg18/wgEncodeDukeDNaseSeqSignalGm12878V2.wig","DNAse")
-    Tanay.removeZeros()
-    print cr(Tanay.trackDict["GC"],Tanay.trackDict["h3k27"])
-    print cr(Tanay.trackDict["GC"],Tanay.trackDict["h3k4"])
-    print cr(Tanay.trackDict["GC"],Tanay.trackDict["DNAse"])
+    for key in keys: 
+        Tanay.loadWigFile(datasets[key],key)
+    Tanay.removeDiagonal()
+    Tanay.removePoorRegions()
+    Tanay.fakeCis()
+    Tanay.truncTrans()
+    Tanay.removeZeros() 
+    Tanay.doEig()
+        
+    E1 = Tanay.EigDict["GM-all"][0]
+    
+    print "Eig-GC", scipy.stats.spearmanr(Tanay.trackDict["GC"],E1)
+    
+    for key in keys: 
+        print key, "-", "GC", ":", cr(Tanay.trackDict["GC"],Tanay.trackDict[key])
+        print key, "-", "Eig", ":", cr(E1,Tanay.trackDict[key])
+    print
+    for key in keys:
+        print key,"partial correlation is:",mirnylab.numutils.partialCorrelation(
+                                                    Tanay.trackDict[key], E1, Tanay.trackDict["GC"])
+    raise 
+         
     
     
 compareWithGenomicFeatures() 

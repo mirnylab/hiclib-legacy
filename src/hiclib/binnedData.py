@@ -59,6 +59,7 @@ Custom tracks may be also added to this dictionary.
 
 import os 
 from mirnylab import systemutils,numutils
+
 import mirnylab.plotting
 from mirnylab.plotting import  removeBorder 
 from mirnylab.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
@@ -291,12 +292,12 @@ class binnedData(object):
         
     def removeCis(self):
         "sets to zero all cis contacts"
-        print("All cis counts set to zero")
+        
         mask = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]         
         for i in self.dataDict.keys():                
             self.dataDict[i][mask] = 0   
         self.appliedOperations["RemovedCis"] = True           
-        
+        print("All cis counts set to zero")
             
     def fakeCisOnce(self,mask = "CisCounts", silent = False):
         """Used to fake cis counts.
@@ -373,14 +374,14 @@ class binnedData(object):
         """This method fakes cis contacts in an interative way
         It is done to achieve faking cis contacts that is independent of normalization of the data. 
         """
-        print("All cis counts are substituted with faked counts")
-        print("Data is iteratively corrected as a part of faking cis counts")
         self.removeCis()
         self.iterativeCorrectWithoutSS(M=5)
         self.fakeCisOnce(silent = True)
         self.iterativeCorrectWithoutSS(M=5)
         self.fakeCisOnce(silent = True)
         self.iterativeCorrectWithoutSS(M=10) 
+        print("All cis counts are substituted with faked counts")
+        print("Data is iteratively corrected as a part of faking cis counts")
 
 
     def correct(self,names=None):
@@ -926,22 +927,43 @@ class experimentalBinnedData(binnedData):
             self.dataDict[i],self.biasDict[i] = numutils.ultracorrectSymmetricByMask(data,self.transmap,50)
             try: self.singlesDict[i] /= self.biasDict[i]
             except: print "bla"
-    def loadWigFile(self,filename,label):
-        data = self.genome.parseFixedStepWigAtKbResolution(filename)
-        if self.genome.resolution % 1000 != 0: raise("Cannot parse wig file at non-kb resolution")
+    
+    def loadWigFile(self,filename,label,wigFileType = "Auto"):
+        filename = os.path.abspath(filename) 
+        if wigFileType == "Auto":
+            ext = os.path.splitext(filename)[1]
+            if ext == "":
+                raise StandardError("Wig file has no extension. Please specify it's type")
+            elif ext.lower()  == ".wig":
+                wigFileType = "wig"
+            elif ext.lower() == ".bigwig":
+                wigFileType = "bigwig"
+            else: raise StandardError("Unknown extension of wig file: %s" % ext)
+                         
+        if wigFileType.lower() == "wig": 
+            data = self.genome.parseFixedStepWigAtKbResolution(filename)
+        elif wigFileType.lower() == "bigwig": 
+            data = self.genome.parseBigWigFile(filename,resolution = 1000,divideByValidCounts = False)
+        else:
+            raise StandardError("Wrong type of wig file : %s" % wigFileType) 
+        
+        if self.genome.resolution % 1000 != 0: raise StandardError("Cannot parse wig file at non-kb resolution")
+                
         vector = numpy.zeros(self.genome.numBins,float)
         for chrom,value in enumerate(data):
-            value = numpy.array(value) 
-            value.resize(self.genome.chrmLensBin[chrom] * (self.resolution/1000))
+            value = numpy.array(value)             
+            value.resize(self.genome.chrmLensBin[chrom] * (self.resolution/1000))            
             value.shape = (-1,self.genome.resolution / 1000 )
             if value.mean() == 0:
                 raise StandardError("Chromosome %s contains zero data in wig file %s" % (self.genome.idx2label[chrom],filename))
-            mask = value == 0 
+            mask = value == 0
             value = numpy.log(value) 
             value[mask] = 0 
-            av = numpy.sum(value,axis = 1) / numpy.sum(mask,axis = 1)
-            av[numpy.isnan(av)] = 0
+            av = numpy.sum(value,axis = 1) / numpy.sum(mask == False,axis = 1)
+            av[numpy.isfinite(av) == False] = numpy.NAN
+            
             vector[self.genome.chrmStartsBinCont[chrom]:self.genome.chrmEndsBinCont[chrom]] = av
+        vector[numpy.isnan(vector)] = numpy.median(vector) 
         self.trackDict[label] = vector
             
              
