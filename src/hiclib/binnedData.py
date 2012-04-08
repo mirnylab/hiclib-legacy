@@ -941,19 +941,18 @@ class experimentalBinnedData(binnedData):
             else: raise StandardError("Unknown extension of wig file: %s" % ext)
                          
         if wigFileType.lower() == "wig": 
-            data = self.genome.parseFixedStepWigAtKbResolution(filename)
+            data = self.genome.parseFixedStepWigAt2KbResolution(filename)
         elif wigFileType.lower() == "bigwig": 
-            data = self.genome.parseBigWigFile(filename,resolution = 1000,divideByValidCounts = False)
+            data = self.genome.parseBigWigFile(filename,resolution = 2000,divideByValidCounts = False)
         else:
             raise StandardError("Wrong type of wig file : %s" % wigFileType) 
         
-        if self.genome.resolution % 1000 != 0: raise StandardError("Cannot parse wig file at non-kb resolution")
-                
+        if self.genome.resolution % 2000 != 0: raise StandardError("Cannot parse wig file at resolution that is not a multiply of 2 kb")         
         vector = numpy.zeros(self.genome.numBins,float)
-        for chrom,value in enumerate(data):
-            value = numpy.array(value)             
-            value.resize(self.genome.chrmLensBin[chrom] * (self.resolution/1000))            
-            value.shape = (-1,self.genome.resolution / 1000 )
+        for chrom,value in enumerate(data):            
+            value = numpy.array(value)                         
+            value.resize(self.genome.chrmLensBin[chrom] * (self.resolution/2000))            
+            value.shape = (-1,self.genome.resolution / 2000 )
             if value.mean() == 0:
                 raise StandardError("Chromosome %s contains zero data in wig file %s" % (self.genome.idx2label[chrom],filename))
             mask = value == 0
