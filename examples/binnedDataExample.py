@@ -2,13 +2,12 @@ import os,sys
 sys.path.append(os.path.split(os.getcwd())[0])
 from hiclib.binnedData import binnedData, binnedDataAnalysis,\
     experimentalBinnedData
-from mirnylab.hic.mapping import fill_rsites
+
 import mirnylab.systemutils
 mirnylab.systemutils
 from hiclib.fragmentHiC import HiCdataset
 from mirnylab.numutils import EIG, coarsegrain, project
 import numpy
-from mirnylab.genome import Genome
 import mirnylab.plotting              
 import scipy.stats
 cr = scipy.stats.spearmanr
@@ -38,6 +37,9 @@ GM200k = "../../ErezPaperData/%s/GM-HindIII-%s-200k.hm"  % (genomeVersion, genom
 GM200kBreaks = "../../ErezPaperData/%s/GM-HindIII-%s-200k-breaks.hm"  % (genomeVersion, genomeVersion)
 GM200kNcoI = "../../ErezPaperData/%s/GM-NcoI-%s-200k.hm"  % (genomeVersion, genomeVersion)
 GMFrag = "../../ErezPaperData/%s/GM-NcoI-%s_refined.frag"  % (genomeVersion, genomeVersion)
+
+tcc1M = "../../tcc/%s/tcc-HindIII-%s-1M.hm" % (genomeVersion, genomeVersion)
+tcc200k = "../../tcc/%s/tcc-HindIII-%s-200k.hm" % (genomeVersion, genomeVersion)
 workingFile1 = "../../ErezPaperData/working1"
 workingFile2 = "../../ErezPaperData/working2"
 workingFile3 = "../../ErezPaperData/working3"
@@ -92,7 +94,6 @@ def doArmPlot():
 def checkCorrelationBetweenInterchromosomal(): 
     resolution = 1000000                    
     Tanay = binnedDataAnalysis(resolution,genome = myGenome)     
-    Tanay.loadGC()
     Tanay.simpleLoad(GM1M,"GM-all")
     Tanay.simpleLoad(GM1MNcoI,"GM-NcoI")
     Tanay.removePoorRegions()
@@ -366,7 +367,7 @@ def plotDiagonalCorrelationWithFaking():
     Tanay.simpleLoad(GM200kNcoI,"GM-NcoI")
     Tanay.removeDiagonal(1)
     Tanay.removePoorRegions()    
-    s = Tanay.removeZeros()
+    Tanay.removeZeros()
     cors = []
     for i in x:
         cors.append(cr(
@@ -439,8 +440,7 @@ def plotCrossValidation():
     matplotlib.rcParams['font.sans-serif']='Arial'
     plt.figure(figsize = (1,1))
     FG = HiCdataset(workingFile1,myGenome)
-    FG.load(GMFrag)
-    mask = numpy.random.random()< 0.1 
+    FG.load(GMFrag) 
     
     
     Tanay = binnedData(1000000)    
@@ -477,7 +477,6 @@ def saddlePlot():
     plt.figure(figsize = (3,3))
     Tanay = binnedData(1000000)    
     Tanay.simpleLoad("../data/GM-all-hg18-1M","GM-all")
-    Tanay.loadGC()
     Tanay.removeDiagonal(1)
     Tanay.removePoorRegions()    
     Tanay.removeZeros()
@@ -561,23 +560,32 @@ def doCartoonPlot():
 
 def compareWithGenomicFeatures():
     mirnylab.systemutils.setExceptionHook()
-    Tanay = experimentalBinnedData(200000,myGenome)
-    Tanay.simpleLoad(GM200k,"GM-all")
-    Tanay.simpleLoad()
+    Tanay = experimentalBinnedData(1000000,myGenome)
+    Tanay.simpleLoad(GM1M,"GM-all")
+    Tanay.simpleLoad(tcc1M,"tcc")
+    
     datasets = {"CTCF": "wgEncodeBroadChipSeqSignalGm12878Ctcf.wig" ,"H3K27me3":    "wgEncodeBroadChipSeqSignalGm12878H3k27me3.wig",
                 "H3K4me1" : "wgEncodeBroadChipSeqSignalGm12878H3k4me1.wig", "H3K4me3" : "wgEncodeBroadChipSeqSignalGm12878H3k4me3.wig",
                 "H4K20me1" :   "wgEncodeBroadChipSeqSignalGm12878H4k20me1.wig", "H3K27ac" : "wgEncodeBroadChipSeqSignalGm12878H3k27ac.wig",
                 "H3K36me3" : "wgEncodeBroadChipSeqSignalGm12878H3k36me3.wig", "H3K4me2" : "wgEncodeBroadChipSeqSignalGm12878H3k4me2.wig",
                 "H3K9ac" :   "wgEncodeBroadChipSeqSignalGm12878H3k9ac.wig"
                 }
-    for key in datasets.keys(): datasets[key] = os.path.join("../../histoneMarks/hg18",datasets[key])
-    datasets["DNAse"] =   "../../DNAse/hg18/wgEncodeDukeDNaseSeqSignalGm12878V2.wig" 
-        
-    keys = datasets.keys() 
+    controlFile = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878Control.wig"
+
+    for key in datasets.keys(): 
+        datasets[key] = os.path.join("../../histoneMarks/hg18",datasets[key])
+        datasets[key] = (datasets[key],controlFile)
+    datasets["DNAse"] =   ("../../DNAse/hg18/wgEncodeDukeDNaseSeqSignalGm12878V2.wig",None)
     
-    Tanay.loadGC()
+     
+        
+    keys = datasets.keys()  
+    
+
+    Tanay.loadErezEigenvector1MB("../../ErezPaperData/eigenvectors")
     for key in keys: 
-        Tanay.loadWigFile(datasets[key],key)
+        Tanay.loadWigFile(datasets[key][0],key,control = datasets[key][1])
+        
     Tanay.removeDiagonal()
     Tanay.removePoorRegions()
     Tanay.fakeCis()
@@ -586,19 +594,73 @@ def compareWithGenomicFeatures():
     Tanay.doEig()
         
     E1 = Tanay.EigDict["GM-all"][0]
+    E2 = Tanay.EigDict["tcc"][0]
+    
+    if scipy.stats.spearmanr(Tanay.trackDict["GC"],E1)[0] < 0: E1 *= -1
+    if scipy.stats.spearmanr(Tanay.trackDict["GC"],E2)[0] < 0: E2 *= -1
     
     print "Eig-GC", scipy.stats.spearmanr(Tanay.trackDict["GC"],E1)
+    print "Eigtcc-GC", scipy.stats.spearmanr(Tanay.trackDict["GC"],E2)
     
+    Tanay.trackDict["Eig1GW_Lieberman"] = E1
+    Tanay.trackDict["Eig1GW_TCC"] = E2
+    Tanay.trackDict["EigLieberman2009"] = Tanay.trackDict["Erez"]
+    keys = keys + ["GC","EigLieberman2009","Eig1GW_Lieberman","Eig1GW_TCC"]
+    print "Key\t","key-GC\t","key-EigLieberman2009\t","key-EigGW_Lieberman\t","key-EigGW_TCC\t"
     for key in keys: 
-        print key, "-", "GC", ":", cr(Tanay.trackDict["GC"],Tanay.trackDict[key])
-        print key, "-", "Eig", ":", cr(E1,Tanay.trackDict[key])
+        c1 = cr(Tanay.trackDict["GC"],Tanay.trackDict[key])
+        c2 = cr(E1,Tanay.trackDict[key])
+        c3 = cr(E2,Tanay.trackDict[key])
+        c4 = cr(Tanay.trackDict["Erez"],Tanay.trackDict[key])
+        print key, "\t%lf\t" % c1[0] ,"%lf\t" % c4[0] ,"%lf\t" % c2[0] ,"%lf" % c3[0]
     print
-    for key in keys:
-        print key,"partial correlation is:",mirnylab.numutils.partialCorrelation(
-                                                    Tanay.trackDict[key], E1, Tanay.trackDict["GC"])
+    #for key in keys:
+    #    print key,"partial correlation is:",mirnylab.numutils.partialCorrelation(
+    #                                                Tanay.trackDict[key], E1, Tanay.trackDict["GC"])
     raise 
-         
+
+
+def plotTanayGenomicFeature():
+    Tanay = experimentalBinnedData(1000000,myGenome)
+    Tanay.simpleLoad(GM1M,"GM-all")        
+    Tanay.loadTanayDomains()
+    
+    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k4me3.wig", label = "feature", 
+                      control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878Control.wig")
+        
+    Tanay.removeDiagonal()
+    Tanay.removePoorRegions()
+    Tanay.removeZeros()
+    Tanay.fakeCis()
+    
+    Tanay.doEig()
+    E1 = Tanay.EigDict["GM-all"][0] 
+    E2 = Tanay.EigDict["GM-all"][1]
+    GC = Tanay.trackDict["GC"]
     
     
-compareWithGenomicFeatures() 
+    if scipy.stats.spearmanr(E1,GC)[0] < 0: E1 = -E1
+    if scipy.stats.spearmanr(E2,GC)[0] < 0: E2 = -E2
+    
+     
+    
+    TD = Tanay.trackDict["TanayDomains"]
+    print scipy.stats.spearmanr(Tanay.trackDict["feature"],E1)
+    
+    plt.scatter(Tanay.trackDict["feature"],E1,c = TD)
+    
+    plt.ylabel("Eig1GW")
+    plt.xlabel("H3k4me3 chip-seq")
+    plt.title("Color represents domain from Tanay paper")
+    plt.show()
+        
+        
+    
+    
+
+plotTanayGenomicFeature()
+    
+        
+    
+#compareWithGenomicFeatures() 
 #doCartoonPlot()

@@ -16,7 +16,7 @@ class gradientDescentDomains:
         self.O = data
         self.N = len(data)
         self.infCount = 0
-        self.wrapPower = 1/3.
+        self.wrapPower = 1/2.
     
     def wrap(self,x):        
         """
@@ -102,7 +102,7 @@ class gradientDescentDomains:
 #        raise
         energy = self.energyFunction
         gradient = self.gradientFunction 
-        scipy.optimize.fmin_cg(energy,   numpy.r_[(numpy.random.random( self.N) + 0.5),numpy.random.random( self.N) * 0.2 -0.1],gradient, gtol=10, maxiter = 400)
+        scipy.optimize.fmin_cg(energy,   numpy.r_[(numpy.random.random( self.N) + 0.5),numpy.random.random( self.N) * 0.2 -0.1],gradient, gtol=0.5, maxiter = 400)
          
         #g = scipy.optimize.fmin_cg(self.funExp, numpy.random.random(2 * self.N)+0.5,self.gradientExp, gtol=1)
         #g = scipy.optimize.fmin_cg(self.funGeoff, numpy.random.random(2 * self.N)+0.5,self.gradientGeoff, gtol=5,maxiter = 55 )

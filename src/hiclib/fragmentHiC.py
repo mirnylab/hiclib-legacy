@@ -233,6 +233,8 @@ class HiCdataset(object):
         """
         
         rsite_related = ["rsites1","rsites2","uprsites1","uprsites2","downrsites1","downrsites2"]
+        if type(dictLike) == str:
+            dictLike = h5dict(dictLike,'r') #attempting to open h5dict
         
         if False not in [i in dictLike.keys() for i in rsite_related]:
             noRsites = False            

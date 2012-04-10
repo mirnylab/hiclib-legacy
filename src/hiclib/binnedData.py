@@ -58,9 +58,8 @@ Custom tracks may be also added to this dictionary.
 """
 
 import os 
-from mirnylab import systemutils,numutils
+from mirnylab import numutils
 
-import mirnylab.plotting
 from mirnylab.plotting import  removeBorder 
 from mirnylab.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
 from mirnylab.genome import Genome 
@@ -116,8 +115,7 @@ class binnedData(object):
         self.EigDict = {}
         self.dicts = [self.trackDict, self.biasDict, self.singlesDict, self.fragsDict]
         self.eigDicts = [self.PCDict, self.EigDict]
-        
-        
+        self._loadGC() 
         self.appliedOperations = {}
         
     def _initChromosomes(self):
@@ -146,6 +144,10 @@ class binnedData(object):
         self._giveMask()
         self.mask2D = self.mask[:,None] * self.mask[None,:]
         return self.mask2D   
+
+    def _loadGC(self):        
+        "loads GC content at given resolution"
+        self.trackDict["GC"] = numpy.concatenate(self.genome.GCBin)
                 
     
     def simpleLoad(self,in_data,name):
@@ -186,9 +188,6 @@ class binnedData(object):
               
         
         
-    def loadGC(self):        
-        "loads GC content at given resolution"
-        self.trackDict["GC"] = numpy.concatenate(self.genome.GCBin)
   
     
     def removeDiagonal(self,m=1):
@@ -568,8 +567,12 @@ class binnedData(object):
             warnings.warn("Not all adviced filters applied")                        
         
         for i in self.dataDict.keys():
-            self.PCDict[i] = PCA(self.dataDict[i])
-        return self.PCDict
+            currentPCA = PCA(self.dataDict[i])
+            for i in xrange(len(currentPCA)):
+                if spearmanr(currentPCA[i],self.trackDict["GC"]) < 0:
+                    currentPCA[i] = -currentPCA[i]
+            self.PCDict[i] = currentPCA
+        return self.PCDict 
     
             
     def doEig(self,force = False):
@@ -596,7 +599,11 @@ class binnedData(object):
 
         
         for i in self.dataDict.keys():
-            self.EigDict[i] = EIG(self.dataDict[i])             
+            currentEIG = EIG(self.dataDict[i])
+            for i in xrange(len(currentEIG)):
+                if spearmanr(currentEIG[i],self.trackDict["GC"]) < 0:
+                    currentEIG[i] = -currentEIG[i]
+            self.EigDict[i] = currentEIG                                      
         return self.EigDict
     
     
@@ -928,47 +935,120 @@ class experimentalBinnedData(binnedData):
             try: self.singlesDict[i] /= self.biasDict[i]
             except: print "bla"
     
-    def loadWigFile(self,filename,label,wigFileType = "Auto"):
-        filename = os.path.abspath(filename) 
-        if wigFileType == "Auto":
-            ext = os.path.splitext(filename)[1]
-            if ext == "":
-                raise StandardError("Wig file has no extension. Please specify it's type")
-            elif ext.lower()  == ".wig":
-                wigFileType = "wig"
-            elif ext.lower() == ".bigwig":
-                wigFileType = "bigwig"
-            else: raise StandardError("Unknown extension of wig file: %s" % ext)
-                         
-        if wigFileType.lower() == "wig": 
-            data = self.genome.parseFixedStepWigAt2KbResolution(filename)
-        elif wigFileType.lower() == "bigwig": 
-            data = self.genome.parseBigWigFile(filename,resolution = 2000,divideByValidCounts = False)
-        else:
-            raise StandardError("Wrong type of wig file : %s" % wigFileType) 
+    def loadWigFile(self,filename,label,control = None,wigFileType = "Auto"):
+        filename = os.path.abspath(filename)
+         
+        def loadFile(name,wigFileType = wigFileType):            
+            if wigFileType == "Auto":
+                ext = os.path.splitext(name)[1]
+                if ext == "":
+                    raise StandardError("Wig file has no extension. Please specify it's type")
+                elif ext.lower()  == ".wig":
+                    wigFileType = "wig"
+                elif ext.lower() == ".bigwig":
+                    wigFileType = "bigwig"
+                else: raise StandardError("Unknown extension of wig file: %s" % ext)
+                             
+            if wigFileType.lower() == "wig": 
+                data = self.genome.parseFixedStepWigAtKbResolution(name,resolution = 5000)
+            elif wigFileType.lower() == "bigwig": 
+                data = self.genome.parseBigWigFile(name,resolution = 5000,divideByValidCounts = False)
+            else:
+                raise StandardError("Wrong type of wig file : %s" % wigFileType)
+            return data
         
-        if self.genome.resolution % 2000 != 0: raise StandardError("Cannot parse wig file at resolution that is not a multiply of 2 kb")         
+        data = loadFile(filename)
+        if control != None: 
+            controlData = loadFile(control) 
+        
+        if self.genome.resolution % 5000 != 0: raise StandardError("Cannot parse wig file at resolution that is not a multiply of 5 kb")         
         vector = numpy.zeros(self.genome.numBins,float)
         for chrom,value in enumerate(data):            
-            value = numpy.array(value)                         
-            value.resize(self.genome.chrmLensBin[chrom] * (self.resolution/2000))            
-            value.shape = (-1,self.genome.resolution / 2000 )
+            value = numpy.array(value)
+            if control != None: 
+                value /= controlData[chrom]
+                value[controlData == 0] = 0                          
+            value.resize(self.genome.chrmLensBin[chrom] * (self.resolution/5000))            
+            value.shape = (-1,self.genome.resolution / 5000 )
             if value.mean() == 0:
                 raise StandardError("Chromosome %s contains zero data in wig file %s" % (self.genome.idx2label[chrom],filename))
             mask = value == 0
             value = numpy.log(value) 
             value[mask] = 0 
             av = numpy.sum(value,axis = 1) / numpy.sum(mask == False,axis = 1)
-            av[numpy.isfinite(av) == False] = numpy.NAN
+            av[numpy.isfinite(av) == False] = numpy.median(av)
             
             vector[self.genome.chrmStartsBinCont[chrom]:self.genome.chrmEndsBinCont[chrom]] = av
-        vector[numpy.isnan(vector)] = numpy.median(vector) 
+        vector[numpy.isnan(vector)] = numpy.median(vector)
+        if len(vector) != self.genome.numBins: 
+            raise ValueError("Length mismatch. Length of vector: %d, length of genome:%d" % 
+                             (len(vector), self.genome.numBins)) 
         self.trackDict[label] = vector
             
              
-            
+    def loadErezEigenvector1MB(self,erezFolder):
+        "Loads Erez chromatin domain eigenvector for HindIII"
+        if self.resolution != 1000000: raise StandardError("Erez eigenvector is only at 1MB resolution")
+        if self.genome.folderName != "hg18": raise StandardError("Erez eigenvector is for hg18 only!")
+        folder = os.path.join(erezFolder,"GM-combined.ctgDATA1.ctgDATA1.1000000bp.hm.eigenvector.tab")
+        folder2 = os.path.join(erezFolder,"GM-combined.ctgDATA1.ctgDATA1.1000000bp.hm.eigenvector2.tab")
+        eigenvector = numpy.zeros(self.genome.numBins,float)
+        for chrom in range(1,24):
+            filename = folder.replace("DATA1",str(chrom))
+            if chrom in [4,5]: 
+                filename = folder2.replace("DATA1",str(chrom))
+            mydata = numpy.array([[float(j) for j in i.split()] for i in open(filename).readlines()])
+            eigenvector[self.genome.chrmStartsBinCont[chrom-1]+ numpy.array(mydata[:,1],int)] = mydata[:,2]
+        self.trackDict["Erez"] = eigenvector            
 
             
+    def loadTanayDomains(self):             
+        "domains, extracted from Tanay paper image"
+        if self.genome.folderName != "hg18":
+            raise StandardError("Tanay domains work only with hg18")
+        data = """0 - 17, 1 - 13.5, 2 - 6.5, 0 - 2, 2 - 2; x - 6.5, 0 - 6, 1 - 13.5, 0 - 1.5, 1 - 14.5 
+    1 - 8.5, 0 - 2.5, 1 - 14, 2 - 6; 0 - 1.5, 2 - 11.5, 1 - 35
+    1 - 14, 0-6, 2 - 11; 2 - 4.5, 1 - 5, 0 - 4, 1 -20.5, 0 - 2
+    0 - 3, 2 - 14; 2 - 5, 1 - 42
+    2 - 16; 2 - 7, 0 - 3, 1 - 18.5, 0 - 1, 1 - 13, 0 - 2.5 
+    0 - 2, 1 - 6.5, 0 - 7.5, 2 - 4; 2 - 6, 1 - 31
+    0 - 2, 1 - 11, 2 - 7; 2 - 7.5, 1 - 5, 0 - 3, 1 - 19 
+    2 - 9.5, 0 - 1, 2 - 5; 2 - 4, 1 - 27.5, 0 - 2.5
+    2 - 11.5, 0 - 2.5, x - 2.5; x - 5, 2 - 8, 0 - 3.5, 1 - 9, 0 - 6
+    2 - 13.5; 2 - 9, 0 - 3, 1 - 6, 0 - 3.5, 1 - 10.5
+    0 - 3.5, 2 - 15; 2 - 1, 0 - 7.5, 1 - 13, 0 - 1.5, 1 - 4
+    0 - 4, 2 - 8; 2 - 2, 0 - 5, 2 - 2.5, 1 - 13, 0 - 6.5, 1 - 3.5 
+    x - 5.5; 2 - 8.5, 0 - 1, 2 - 7, 1 - 16
+    x - 5.5; 2 - 14.5, 0 - 6, 2 - 3, 1 - 2.5, 2 - 1, 0 - 3
+    x - 5.5; 2 - 6, 0 - 3.5, 2 - 1.5, 0 - 11.5, 2 - 5.5
+    0 - 11, 2 - 1; x - 2.5, 2 - 6.5, 0 - 3, 2 - 2, 0 - 3.5 
+    0 - 4, 2 - 1.5, 0 - 1.5; 0 - 19
+    2 - 5; 2 - 20
+    0 - 9.5, x - 1.5; x - 1, 2 - 2, 0 - 8.5
+    0 - 2, 2 - 7; 0 - 8, 2 - 2, 0 - 1
+    x - 0.5; 2 - 8.5, 0 - 3
+    x - 4; 0 -12 
+    x - 1.5, 1 - 13, 2 - 5.5; 2 - 2, 1 - 29"""
+        chroms = [i.split(";") for i in data.split("\n")]
+        result = []     
+        for chrom in chroms:
+            result.append([])
+            cur = result[-1] 
+            for arm in chrom:
+                
+                for enrty in arm.split(","):
+                    spentry = enrty.split("-")
+                    if "x" in spentry[0]: value = -1 
+                    else: value = int(spentry[0])
+                    cur += ([value] * int(2 * float(spentry[1])))
+                cur += [-1] * 2
+        #lenses = [len(i) for i in result]
+            
+        domains = numpy.zeros(self.genome.numBins,int)
+        for i in xrange(self.genome.chrmCount):
+            for j in xrange((self.genome.chrmLens[i] / self.resolution)):
+                domains[self.genome.chrmStartsBinCont[i] + j] = result[i][(j * len(result[i])/ ((self.genome.chrmLens[i] /self.resolution))) ]
+        self.trackDict['TanayDomains'] = domains 
             
             
             
