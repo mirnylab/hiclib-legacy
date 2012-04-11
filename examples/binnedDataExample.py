@@ -35,6 +35,7 @@ GM1M = "../../ErezPaperData/%s/GM-HindIII-%s-1M.hm"  % (genomeVersion, genomeVer
 GM1MNcoI = "../../ErezPaperData/%s/GM-NcoI-%s-1M.hm"  % (genomeVersion, genomeVersion)
 GM200k = "../../ErezPaperData/%s/GM-HindIII-%s-200k.hm"  % (genomeVersion, genomeVersion)
 GM200kBreaks = "../../ErezPaperData/%s/GM-HindIII-%s-200k-breaks.hm"  % (genomeVersion, genomeVersion)
+GM1MBreaks = "../../ErezPaperData/%s/GM-HindIII-%s-1M-breaks.hm"  % (genomeVersion, genomeVersion)
 GM200kNcoI = "../../ErezPaperData/%s/GM-NcoI-%s-200k.hm"  % (genomeVersion, genomeVersion)
 GMFrag = "../../ErezPaperData/%s/GM-NcoI-%s_refined.frag"  % (genomeVersion, genomeVersion)
 
@@ -289,7 +290,12 @@ def checkLowResolutionIC():
     
 #checkLowResolutionIC()    
     
-    
+Tanay = binnedData(200000,myGenome)
+Tanay.simpleLoad(GM200k,"GM-all")
+Tanay.removePoorRegions(cutoff = 1)
+Tanay.iterativeCorrectWithSS(force = False) 
+
+exit()
 
 
 
@@ -575,7 +581,7 @@ def compareWithGenomicFeatures():
     for key in datasets.keys(): 
         datasets[key] = os.path.join("../../histoneMarks/hg18",datasets[key])
         datasets[key] = (datasets[key],controlFile)
-    datasets["DNAse"] =   ("../../DNAse/hg18/wgEncodeDukeDNaseSeqSignalGm12878V2.wig",None)
+    datasets["DNAse"] =   ("../../DNAse/hg18/wgEncodeUwDnaseSeqRawSignalRep1Gm06990.bigWig",None)
     
      
         
@@ -625,8 +631,8 @@ def plotTanayGenomicFeature():
     Tanay.simpleLoad(GM1M,"GM-all")        
     Tanay.loadTanayDomains()
     
-    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k4me3.wig", label = "feature", 
-                      control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878Control.wig")
+    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeUwDnaseSeqRawSignalRep1Gm06990.bigWig", label = "feature") 
+    #control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878Control.wig")
         
     Tanay.removeDiagonal()
     Tanay.removePoorRegions()
@@ -650,7 +656,7 @@ def plotTanayGenomicFeature():
     plt.scatter(Tanay.trackDict["feature"],E1,c = TD)
     
     plt.ylabel("Eig1GW")
-    plt.xlabel("H3k4me3 chip-seq")
+    plt.xlabel("UWashington DNAse")
     plt.title("Color represents domain from Tanay paper")
     plt.show()
         
@@ -658,7 +664,7 @@ def plotTanayGenomicFeature():
     
     
 
-plotTanayGenomicFeature()
+#plotTanayGenomicFeature()
     
         
     

@@ -59,15 +59,15 @@ Custom tracks may be also added to this dictionary.
 
 import os 
 from mirnylab import numutils
-
+import warnings
 from mirnylab.plotting import  removeBorder 
-from mirnylab.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector
+from mirnylab.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector,\
+    isInteger
 from mirnylab.genome import Genome 
 import  numpy
 from math import exp
 from mirnylab.h5dict import h5dict  
-from scipy import weave
-import warnings 
+from scipy import weave 
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt 
 
@@ -148,7 +148,54 @@ class binnedData(object):
     def _loadGC(self):        
         "loads GC content at given resolution"
         self.trackDict["GC"] = numpy.concatenate(self.genome.GCBin)
-                
+        
+    def _checkItertiveCorrectionError(self):
+        "internal method for checking if iterative correction might be bad to apply"
+        for value in self.dataDict.values():           
+             
+            if isInteger(value).all() == True:
+                s = numpy.sum(value,axis = 0)
+                sums = numpy.sort(s[s!=0])
+                if sums[0] < 100:
+                    error = int(100. / numpy.sqrt(sums[0]))
+                    message1 =  "Lowest 5 sums of an array rows are: " + str(sums[:5])                    
+                    warnings.warn("\n%s\nIterative correction will lead to about %d %% relative error for certain columns" % (message1,error))
+                    
+                    if sums[0] < 5: 
+                        raise StandardError("Iterative correction is very dangerous. Use force=true to override.") 
+                          
+            else:
+                s = numpy.sum(value>0,axis = 0)
+                sums = numpy.sort(s[s!=0])
+                if sums[0] < min(100,len(value)/2):
+                    error = int(100. / numpy.sqrt(sums[0]))
+                    print "Got floating-point array for correction. Rows with 5 least entrees are:",sums[:5]
+                    warnings.warn("\nIterative correction might lead to about %d %% relative error for certain columns" % error)
+                    if sums[0] < 4: 
+                        raise StandardError("Iterative correction is very dangerous. Use force=true to override.")
+                    
+    def _checkAppliedOperations(self,neededKeys=[],advicedKeys=[],excludedKeys=[]):
+        "Internal method to check if all needed operations were applied"
+        
+        if (True in [i in self.appliedOperations for i in excludedKeys]):
+            print "Operations that are not allowed:", excludedKeys
+            print "applied operations: ", self.appliedOperations
+            print "use 'force = True' to override this message" 
+            raise StandardError("Prohibited filter was applied")
+        
+        if (False in [i in self.appliedOperations for i in neededKeys]): 
+            print "needed operations:",neededKeys
+            print "applied operations:", self.appliedOperations
+            print "use 'force = True' to override this message" 
+            raise StandardError("Critical filter not applied")
+        
+        if (False in [i in self.appliedOperations for i in advicedKeys]):
+            print "Adviced operations:",advicedKeys
+            print "Applied operations:", self.appliedOperations
+            warnings.warn("\nNot all adviced filters applied")                        
+        
+        
+                        
     
     def simpleLoad(self,in_data,name):
         """Loads data from h5dict file or dict-like object
@@ -391,12 +438,9 @@ class binnedData(object):
         names : list of str or None
             Keys of datasets to be corrected. If none, all are corrected. 
         """
-        self.iterativeCorrectWithoutSS(names, M=1)         
-        if ("RemovedDiagonal") not in self.appliedOperations.keys():        
-            warnings.warn("Did you forget to remove diagonal?")
-        
-        self.appliedOperations["Corrected"] = True
-    def iterativeCorrectWithoutSS(self, names = None,M=50):
+        self.iterativeCorrectWithoutSS(names, M=1)                                          
+                
+    def iterativeCorrectWithoutSS(self, names = None,M=50,force = False):
         """performs iterative correction without SS
         
         Parameters
@@ -406,13 +450,18 @@ class binnedData(object):
         M : int, optional
             Number of iterations to perform. 
         """
-        if names == None: names = self.dataDict.keys()
         
+        
+        
+        
+        if force == False:
+            self._checkItertiveCorrectionError()             
+            self._checkAppliedOperations(advicedKeys = ["RemovedDiagonal","RemovedPoor"])        
+                    
+        if names == None: names = self.dataDict.keys()
         for i in names:
             self.dataDict[i] = ultracorrectSymmetricWithVector(self.dataDict[i],M=M)[0]         
-        if ("RemovedDiagonal") not in self.appliedOperations.keys():
-            warnings.warn("Did you forget to remove diagonal?")
-            
+          
         self.appliedOperations["Corrected"] = True
 
     def iterativeCorrectWithSS(self,names = None,M = 55,force = False):
@@ -427,11 +476,12 @@ class binnedData(object):
         force : bool, optional 
             Force current operation 
         """
-        if ("Corrected" in self.appliedOperations.keys()) and (force == False):
-            raise StandardError("Cannot correct after previous correction was applied")
-        if ("RemovedCis" in self.appliedOperations.keys()) and (force == False):
-            raise StandardError("Cannot correct with SS if there are no cis reads")        
         
+        if force == False: 
+            self._checkAppliedOperations(advicedKeys = ["RemovedDiagonal","RemovedPoor"], 
+                                        excludedKeys = ["Corrected","RemovedCis"])
+            self._checkItertiveCorrectionError()
+                
         if names == None: names = self.dataDict.keys()
         for i in names:
             data = self.dataDict[i]
@@ -439,9 +489,11 @@ class binnedData(object):
             ndata,nvec = ultracorrectSymmetricWithVector(data, vec,M=M)                         
             self.dataDict[i] = ndata
             self.singlesDict[i] = nvec
+            vec[nvec==0] = 1
+            nvec[nvec==0] = 1
             self.biasDict[i] = (vec / nvec)
-        if ("RemovedDiagonal") not in self.appliedOperations.keys():
-            warnings.warn("Did you forget to remove diagonal?")
+
+        
         self.appliedOperations["Corrected"] = True
         
     def removeChromosome(self,chromNum):
@@ -503,7 +555,7 @@ class binnedData(object):
         self.centromerePositions = indices[self.centromerePositions]
         self.removeZerosMask = s
         if self.appliedOperations.get("RemovedZeros",False) == True:
-            warnings.warn("You're removing zeros twice. You can't restore zeros now!")
+            warnings.warn("\nYou're removing zeros twice. You can't restore zeros now!")
         self.appliedOperations["RemovedZeros"] = True  
         return s 
 
@@ -554,23 +606,17 @@ class binnedData(object):
         -------
         Dictionary of principal component matrices for different datasets
         """
+        
+        
         neededKeys = ["RemovedZeros","Corrected","FakedCis"]
         advicedKeys = ["TruncedTrans","RemovedPoor"]
-        if (False in [i in self.appliedOperations for i in neededKeys]) and (force == False):
-            print "needed operations:",neededKeys
-            print "applied operations:", self.appliedOperations
-            print "use 'force = True' to override this message" 
-            raise StandardError("Critical filter not applied")
-        if (False in [i in self.appliedOperations for i in advicedKeys]) and (force == False):
-            print "Adviced operations:",advicedKeys
-            print "Applied operations:", self.appliedOperations
-            warnings.warn("Not all adviced filters applied")                        
+        if force == False: self._checkAppliedOperations(neededKeys, advicedKeys)
         
         for i in self.dataDict.keys():
             currentPCA = PCA(self.dataDict[i])
-            for i in xrange(len(currentPCA)):
-                if spearmanr(currentPCA[i],self.trackDict["GC"]) < 0:
-                    currentPCA[i] = -currentPCA[i]
+            for j in xrange(len(currentPCA)):
+                if spearmanr(currentPCA[j],self.trackDict["GC"]) < 0:
+                    currentPCA[j] = -currentPCA[j]
             self.PCDict[i] = currentPCA
         return self.PCDict 
     
@@ -586,23 +632,14 @@ class binnedData(object):
         """
         neededKeys = ["RemovedZeros","Corrected","FakedCis"]
         advicedKeys = ["TruncedTrans","RemovedPoor"]
-        if (False in [i in self.appliedOperations for i in neededKeys]) and (force == False):            
-            print "needed operations:",neededKeys
-            print "applied operations:", self.appliedOperations
-            print "use 'force = True' to override this message" 
-            raise StandardError("Critical filter not applied")
-        if (False in [i in self.appliedOperations for i in advicedKeys]) and (force == False):
-            print "Not all adviced filters applied"
-            print "Adviced operations:",advicedKeys
-            print "Applied operations:", self.appliedOperations
-            warnings.warn("Not all adviced filters applied")                        
+        if force == False: self._checkAppliedOperations(neededKeys, advicedKeys)
 
         
         for i in self.dataDict.keys():
             currentEIG = EIG(self.dataDict[i])
-            for i in xrange(len(currentEIG)):
-                if spearmanr(currentEIG[i],self.trackDict["GC"]) < 0:
-                    currentEIG[i] = -currentEIG[i]
+            for j in xrange(len(currentEIG)):
+                if spearmanr(currentEIG[j],self.trackDict["GC"]) < 0:
+                    currentEIG[j] = -currentEIG[j]
             self.EigDict[i] = currentEIG                                      
         return self.EigDict
     
@@ -686,8 +723,7 @@ class binnedDataAnalysis(binnedData):
         
     def averageTransMap(self,name , mycmap = "hot_r",vmin = None,vmax = None):
         "plots and returns average inter-chromosomal inter-arm map"
-        data = self.dataDict[name]
-        #data = trunk(data,low = 0,high = 0.0001)         
+        data = self.dataDict[name]                 
         avarms = numpy.zeros((80,80))
         avmasks = numpy.zeros((80,80))
         discardCutoff = 20 
@@ -757,9 +793,9 @@ class binnedDataAnalysis(binnedData):
         avarms /= numpy.mean(avarms)
         data = avarms / avmasks
         data /= numpy.mean(data) 
-        plt.imshow(numpy.log(numutils.trunk(data)),cmap = "jet",interpolation = "nearest",vmin = vmin, vmax = vmax)
+        plt.imshow(numpy.log(numutils.trunc(data)),cmap = "jet",interpolation = "nearest",vmin = vmin, vmax = vmax)
         removeBorder()
-        return numpy.log(numutils.trunk(data))
+        return numpy.log(numutils.trunc(data))
             
     def perArmCorrelation(self,data1,data2,doByArms = []):
         """does inter-chromosomal spearman correlation 
@@ -906,8 +942,7 @@ class experimentalBinnedData(binnedData):
             """
             for s in xrange(5):
                 s #to remove warning
-                weave.inline(code, ['transmask','mask','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
-                #mat_img(numpy.log(data+1),trunk = True)
+                weave.inline(code, ['transmask','mask','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )                
                 data = correct(data)              
             self.dataDict[i] = data
              
@@ -936,14 +971,37 @@ class experimentalBinnedData(binnedData):
             except: print "bla"
     
     def loadWigFile(self,filename,label,control = None,wigFileType = "Auto"):
+        """Currently only fixed-step wig files and bigWig files are supported!!!
+        Import from fixedStep wig files is very fast, however is not the most reliable. 
+        
+        for VariableStep files use wigToBigWig utility to convert them to bigWig format first. 
+        To use it you will also need to have fetchChromSizes script. 
+        
+        Then you just run 
+        $bash fetchChromSizes hg18 > hg18.chrom.sizes
+        $./wigToBigWig myWig.wig hg18.chrom.sizes myWig.bigWig
+        
+        And you enjoy your favourite bigWig. 
+        
+        BigWig import is implemented using bx-python module.
+        It is normally very fast; however, it has a bug at low resolutions. 
+        I have an ugly workaround for it (chopping the quiery into many smaller pieces), but I hope 
+        that they actually fix this bug. 
+        
+        Anyway, check their repo on BitBucket, maybe they've fixed my issue # 39 :) 
+        https://bitbucket.org/james_taylor/bx-python/overview
+        """
+        
         filename = os.path.abspath(filename)
-         
+        
         def loadFile(name,wigFileType = wigFileType):            
             if wigFileType == "Auto":
                 ext = os.path.splitext(name)[1]
                 if ext == "":
                     raise StandardError("Wig file has no extension. Please specify it's type")
                 elif ext.lower()  == ".wig":
+                    if open(filename).readline()[:2] != "fi":
+                        raise StandardError("Cannot read non fixed-step wig files! Please use wigToBigWig utility. See docstring of this method.")
                     wigFileType = "wig"
                 elif ext.lower() == ".bigwig":
                     wigFileType = "bigwig"

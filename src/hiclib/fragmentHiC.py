@@ -141,7 +141,13 @@ class HiCdataset(object):
                 print
             else:
                 os.remove(self.filename)
-        
+        if not os.path.exists(os.path.split(self.filename)[0]):
+            warnings.warn("Folder in which you want to create file do not exist: %s" % os.path.split(self.filename)[0])
+            try: 
+                os.mkdir(os.path.split(self.filename)[0])
+            except: 
+                raise IOError("Failed to create directory: %s" % os.path.split(self.filename)[0])
+            
         self.h5dict = h5dict(self.filename,autoflush = self.autoFlush )
 
     def _setData(self,name,data):
@@ -234,6 +240,7 @@ class HiCdataset(object):
         
         rsite_related = ["rsites1","rsites2","uprsites1","uprsites2","downrsites1","downrsites2"]
         if type(dictLike) == str:
+            if not os.path.exists(dictLike): raise IOError("File not found: %s" % dictLike)
             dictLike = h5dict(dictLike,'r') #attempting to open h5dict
         
         if False not in [i in dictLike.keys() for i in rsite_related]:
