@@ -495,7 +495,7 @@ class HiCdataset(object):
         except: self.rebuildFragments()
         chroms = self.ufragments / self.fragIDmult
         positions = self.ufragments % self.fragIDmult
-        label = self.genome.chrmStartsBinCont[chroms - 1] + positions / resolution
+        label = self.genome.chrmStartsBinCont[chroms ] + positions / resolution
         counts = sumByArray(label, numpy.arange(self.genome.numBins))
         return counts
         

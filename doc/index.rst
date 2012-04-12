@@ -1,10 +1,10 @@
-.. openmm-lib documentation master file, created by
+.. hic-lib documentation master file, created by
    sphinx-quickstart on Mon Mar 26 21:38:46 2012.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to openmm-lib's documentation!
-======================================
+Welcome to hic-lib's documentation!
+===================================
 
 Installation
 ------------
@@ -19,7 +19,7 @@ You will need mirnylab library to use this library. That library is installed in
 
 Python2.6 compatibility should hold for most parts of the pipeline, though things were not extensively tested yet (mapping wasn't tested) 
 
-Other libraries required are: joblib, h5py, pysam, numpy, scipy, matplotlib, numexpr, biopython
+Other libraries required are: joblib, h5py, pysam, numpy, scipy, matplotlib, numexpr, biopython, bx-python (preferably from bitbucket repo)
 
 
 

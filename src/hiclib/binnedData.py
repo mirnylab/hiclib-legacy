@@ -194,8 +194,6 @@ class binnedData(object):
             print "Applied operations:", self.appliedOperations
             warnings.warn("\nNot all adviced filters applied")                        
         
-        
-                        
     
     def simpleLoad(self,in_data,name):
         """Loads data from h5dict file or dict-like object
@@ -994,7 +992,9 @@ class experimentalBinnedData(binnedData):
         
         filename = os.path.abspath(filename)
         
-        def loadFile(name,wigFileType = wigFileType):            
+        def loadFile(name,wigFileType = wigFileType):
+            """Choosing right method to load wigfile"""
+                        
             if wigFileType == "Auto":
                 ext = os.path.splitext(name)[1]
                 if ext == "":
@@ -1015,28 +1015,42 @@ class experimentalBinnedData(binnedData):
                 raise StandardError("Wrong type of wig file : %s" % wigFileType)
             return data
         
+        "Loading the data files"
         data = loadFile(filename)
         if control != None: 
             controlData = loadFile(control) 
         
-        if self.genome.resolution % 5000 != 0: raise StandardError("Cannot parse wig file at resolution that is not a multiply of 5 kb")         
-        vector = numpy.zeros(self.genome.numBins,float)
+        if self.genome.resolution % 5000 != 0: raise StandardError("Cannot parse wig file at resolution that is not a multiply of 5 kb")
+                 
+        vector = numpy.zeros(self.genome.numBins,float)  #resulting array
         for chrom,value in enumerate(data):            
-            value = numpy.array(value)
+            value = numpy.array(value)            
             if control != None: 
-                value /= controlData[chrom]
-                value[controlData == 0] = 0                          
+                control = numpy.asarray(controlData[chrom])
+                vmask = value != 0 
+                cmask = control != 0
+                keepmask = vmask * cmask
+                vmasksum,cmasksum = vmask.sum(),cmask.sum()
+                if max(vmasksum,cmasksum) / (1. * min(vmasksum,cmasksum)) > 1.3:
+                    warnings.warn("\nBig deviation: number of non-zero data points: %s, control points:%s." % (vmasksum,cmasksum))    
+                value[-cmask] = 0 
+                value[keepmask] = value[keepmask] / control[keepmask]                    
+                                          
             value.resize(self.genome.chrmLensBin[chrom] * (self.resolution/5000))            
             value.shape = (-1,self.genome.resolution / 5000 )
             if value.mean() == 0:
                 raise StandardError("Chromosome %s contains zero data in wig file %s" % (self.genome.idx2label[chrom],filename))
             mask = value == 0
-            value = numpy.log(value) 
-            value[mask] = 0 
-            av = numpy.sum(value,axis = 1) / numpy.sum(mask == False,axis = 1)
-            av[numpy.isfinite(av) == False] = numpy.median(av)
-            
-            vector[self.genome.chrmStartsBinCont[chrom]:self.genome.chrmEndsBinCont[chrom]] = av
+            value[-mask] = numpy.log(value[-mask]) 
+              
+            valuesum = numpy.sum(value,axis = 1)
+            masksum = numpy.sum(mask == False,axis = 1)
+            valuesum[masksum==0] = 0 
+            vmask = valuesum != 0 
+            valuesum[vmask] /= masksum[vmask]
+            valuesum[-vmask] = numpy.median(valuesum[vmask])             
+                        
+            vector[self.genome.chrmStartsBinCont[chrom]:self.genome.chrmEndsBinCont[chrom]] = valuesum
         vector[numpy.isnan(vector)] = numpy.median(vector)
         if len(vector) != self.genome.numBins: 
             raise ValueError("Length mismatch. Length of vector: %d, length of genome:%d" % 

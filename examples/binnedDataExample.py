@@ -80,15 +80,15 @@ def doArmPlot():
     Tanay.removePoorRegions()
     Tanay.fakeCis()     
     Tanay.iterativeCorrectWithoutSS()
-    plt.figure(figsize = (3.6,3.6))
-    Tanay.averageTransMap()
+    plt.figure(figsize = (1.6,1.6))
+    Tanay.averageTransMap("GM-all")
 
     mirnylab.plotting.removeBorder()
     cb = plt.colorbar(orientation = "vertical")
     cb.set_ticks([-0.05,0.05,0.15])
     for xlabel_i in cb.ax.get_xticklabels(): xlabel_i.set_fontsize(6)    
     mirnylab.plotting.niceShow()    
-#doArmPlot()     
+doArmPlot()     
 
     
 
@@ -290,14 +290,6 @@ def checkLowResolutionIC():
     
 #checkLowResolutionIC()    
     
-Tanay = binnedData(200000,myGenome)
-Tanay.simpleLoad(GM200k,"GM-all")
-Tanay.removePoorRegions(cutoff = 1)
-Tanay.iterativeCorrectWithSS(force = False) 
-
-exit()
-
-
 
 def plotDiagonalCorrelation():
     "main paper plot with correlations of diagonals"
