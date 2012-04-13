@@ -184,6 +184,10 @@ class HiCdataset(object):
         else:
             return object.__setattr__(self,x,value)
         
+    def _buildFragments(self):
+        if not hasattr(self,"ufragments"):
+            self.rebuildFragments()
+        
     def flush(self):
         "Flushes h5dict if used in autoFlush = False mode"
         self.h5dict.flush()
@@ -199,6 +203,10 @@ class HiCdataset(object):
         """
         if self.filename in filenames:
             raise StandardError("----> Cannot merge folder into itself! Create a new folder")
+        for filename in filenames:
+            if not os.path.exists(filename):
+                raise IOError("\nCannot open file: %s" % filename)        
+            
         h5dicts = [h5dict(i,mode = 'r') for i in filenames]        
         for name in self.vectors.keys():
             res = []
@@ -395,7 +403,8 @@ class HiCdataset(object):
         useRsiteDensity : bool, optional
             Correct map by density of rsites.              
         
-        """        
+        """
+        self._buildFragments()        
         if chromosome2 == None: 
             chromosome2 = chromosome                        
             mask = (self.chrms1 == chromosome) * (self.chrms2 == chromosome)
@@ -490,9 +499,8 @@ class HiCdataset(object):
     
     def buildFragmetCoverage(self,resolution):
         "creates restriction site density vector (visible sites only) in accordance with the 'genome' class"         
+        self._buildFragments()
         self.genome.setResolution(resolution)
-        try: self.ufragments
-        except: self.rebuildFragments()
         chroms = self.ufragments / self.fragIDmult
         positions = self.ufragments % self.fragIDmult
         label = self.genome.chrmStartsBinCont[chroms ] + positions / resolution
@@ -510,8 +518,9 @@ class HiCdataset(object):
         ----------
         fragments : np.array of fragment IDs or bools        
             List of fragments to keep, or their indexes in self.ufragments        
-        """
+        """        
         if fragments.dtype == numpy.bool:
+            self._buildFragments()
             fragments = self.ufragments[fragments]        
         m1 = arrayInArray(self.fragids1,fragments)
         m2 = arrayInArray(self.fragids2,fragments) + self.SS
@@ -575,6 +584,7 @@ class HiCdataset(object):
         cutL : float, 0<=cutL<1, optional 
             Fraction of the least-counts fragments to be removed
         """
+        self._buildFragments()
         print "----->Extreme fragments filter: remove top %lf, bottom %lf fragments" % (cutH, cutL)
         s  = self.fragmentSum()
         ss = numpy.sort(s)
@@ -597,6 +607,7 @@ class HiCdataset(object):
         cutsmall : int
             remove fragments smaller than it
         """
+        self._buildFragments()
         print "----->Small/large fragments filter: keep strictly less than %d, strictly more than %d bp" % (cutlarge, cutsmall)                
         p = (self.ufragmentlen < (cutlarge ) ) * (self.ufragmentlen > cutsmall)                      
         self.fragmentFilter(self.ufragments[p])
@@ -611,6 +622,7 @@ class HiCdataset(object):
         offset : int 
             Number of bp to exclude next to rsite, not including offset
         """
+        
         print "----->Semi-dangling end filter: remove guys who start %d bp near the rsite" % offset
                 
         mask = (numpy.abs(self.dists1 - self.fraglens1) >=offset) * ((numpy.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)    
@@ -648,8 +660,7 @@ class HiCdataset(object):
         strands : 1,2 or "both" (default) 
             Use only first or second side of the read (first has SS, second - doesn't) 
         """
-        try: self.ufragments
-        except: self.rebuildFragments()        
+        self._buildFragments()
         if fragments == None: fragments = self.ufragments                
         if strands == "both":  
             return sumByArray(self.fragids1,fragments) + sumByArray(self.fragids2[self.DS],fragments) 
@@ -744,7 +755,8 @@ class HiCStatistics(HiCdataset):
     
     def buildLengthDependencePlot(self,label = "plot", strands = "both",color = None):
         "plots dependence of counts on fragment length. May do based on one strands only"
-        "please run  plt.legend & plt.show() after calling this for all datasets you want to consider"     
+        "please run  plt.legend & plt.show() after calling this for all datasets you want to consider"
+        self._buildFragments()     
         fragmentLength = self.ufragmentlen
         pls = numpy.sort(fragmentLength)
         N = len(fragmentLength)
@@ -832,6 +844,7 @@ class HiCStatistics(HiCdataset):
         (bins,probabilities) - values to plot on the scaling plot        
          
         """
+        self._buildFragments()
         if excludeNeighbors <= 0: excludeNeighbors = None   #Not excluding neighbors  
         #use all fragments if they're not specified 
         if fragids1 == None: fragids1 = self.ufragments

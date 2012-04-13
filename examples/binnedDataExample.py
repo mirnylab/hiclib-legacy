@@ -88,7 +88,7 @@ def doArmPlot():
     cb.set_ticks([-0.05,0.05,0.15])
     for xlabel_i in cb.ax.get_xticklabels(): xlabel_i.set_fontsize(6)    
     mirnylab.plotting.niceShow()    
-doArmPlot()     
+#doArmPlot()     
 
     
 
@@ -573,7 +573,7 @@ def compareWithGenomicFeatures():
     for key in datasets.keys(): 
         datasets[key] = os.path.join("../../histoneMarks/hg18",datasets[key])
         datasets[key] = (datasets[key],controlFile)
-    datasets["DNAse"] =   ("../../DNAse/hg18/wgEncodeUwDnaseSeqRawSignalRep1Gm06990.bigWig",None)
+    datasets["DNAse"] =   ("../../histoneMarks/hg18/wgEncodeUwDnaseSeqRawSignalRep1Gm06990.bigWig",None)
     
      
         
@@ -617,6 +617,7 @@ def compareWithGenomicFeatures():
     #                                                Tanay.trackDict[key], E1, Tanay.trackDict["GC"])
     raise 
 
+#compareWithGenomicFeatures()
 
 def plotTanayGenomicFeature():
     Tanay = experimentalBinnedData(1000000,myGenome)
@@ -652,7 +653,21 @@ def plotTanayGenomicFeature():
     plt.title("Color represents domain from Tanay paper")
     plt.show()
         
-        
+def plotIterativeCorrectionDifference():
+    Tanay = binnedDataAnalysis(1000000,myGenome)
+    Tanay.simpleLoad(GM1M,"GM-all")
+    Tanay.removeDiagonal()
+    Tanay.removePoorRegions()
+    Tanay.iterativeCorrectWithSS()
+    data1 = numpy.array(Tanay.dataDict["GM-all"])
+    Tanay.iterativeCorrectWithoutSS()
+    data2 = Tanay.dataDict["GM-all"]
+    Tanay.dataDict["SSReats"] = data2/data1
+    Tanay.averageTransMap("GM-all")
+    plt.show()
+    
+#plotIterativeCorrectionDifference()    
+                             
     
     
 

@@ -781,7 +781,7 @@ class binnedDataAnalysis(binnedData):
                         if min(mlenx, mleny) < discardCutoff: continue
                     
                         add = numutils.zoomOut(arms,avarms.shape)
-                        assert numpy.abs((arms.sum() - add.sum()) / arms.sum()) < 0.01
+                        assert numpy.abs((arms.sum() - add.sum()) / arms.sum()) < 0.02
                                                                         
                         addmask = numutils.zoomOut(maskf,avarms.shape)
                         avarms += add 
@@ -970,7 +970,9 @@ class experimentalBinnedData(binnedData):
     
     def loadWigFile(self,filename,label,control = None,wigFileType = "Auto"):
         """Currently only fixed-step wig files and bigWig files are supported!!!
-        Import from fixedStep wig files is very fast, however is not the most reliable. 
+        Import from fixedStep wig files is very fast, however is not the most reliable.
+        
+        TODO: rewrite parser to support any resolution.  
         
         for VariableStep files use wigToBigWig utility to convert them to bigWig format first. 
         To use it you will also need to have fetchChromSizes script. 
@@ -994,6 +996,9 @@ class experimentalBinnedData(binnedData):
         
         def loadFile(name,wigFileType = wigFileType):
             """Choosing right method to load wigfile"""
+            
+            if os.path.exists(name) == False:
+                raise IOError("\n Wig file not found : %s " % (os.path.abspath(name)))
                         
             if wigFileType == "Auto":
                 ext = os.path.splitext(name)[1]
@@ -1026,15 +1031,15 @@ class experimentalBinnedData(binnedData):
         for chrom,value in enumerate(data):            
             value = numpy.array(value)            
             if control != None: 
-                control = numpy.asarray(controlData[chrom])
+                chromControl = numpy.asarray(controlData[chrom])
                 vmask = value != 0 
-                cmask = control != 0
+                cmask = chromControl != 0
                 keepmask = vmask * cmask
                 vmasksum,cmasksum = vmask.sum(),cmask.sum()
                 if max(vmasksum,cmasksum) / (1. * min(vmasksum,cmasksum)) > 1.3:
                     warnings.warn("\nBig deviation: number of non-zero data points: %s, control points:%s." % (vmasksum,cmasksum))    
-                value[-cmask] = 0 
-                value[keepmask] = value[keepmask] / control[keepmask]                    
+                value[-keepmask] = 0 
+                value[keepmask] = value[keepmask] / chromControl[keepmask]                    
                                           
             value.resize(self.genome.chrmLensBin[chrom] * (self.resolution/5000))            
             value.shape = (-1,self.genome.resolution / 5000 )
@@ -1048,10 +1053,9 @@ class experimentalBinnedData(binnedData):
             valuesum[masksum==0] = 0 
             vmask = valuesum != 0 
             valuesum[vmask] /= masksum[vmask]
-            valuesum[-vmask] = numpy.median(valuesum[vmask])             
+            valuesum[-vmask] = numpy.median(valuesum[vmask])  #setting all unknown points to the median of known points             
                         
-            vector[self.genome.chrmStartsBinCont[chrom]:self.genome.chrmEndsBinCont[chrom]] = valuesum
-        vector[numpy.isnan(vector)] = numpy.median(vector)
+            vector[self.genome.chrmStartsBinCont[chrom]:self.genome.chrmEndsBinCont[chrom]] = valuesum        
         if len(vector) != self.genome.numBins: 
             raise ValueError("Length mismatch. Length of vector: %d, length of genome:%d" % 
                              (len(vector), self.genome.numBins)) 
