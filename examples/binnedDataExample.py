@@ -12,7 +12,7 @@ import mirnylab.plotting
 import scipy.stats
 cr = scipy.stats.spearmanr
 import cPickle
-from mirnylab.plotting import mat_img,removeAxes,removeBorder
+from mirnylab.plotting import mat_img,removeAxes,removeBorder, niceShow
 
 import matplotlib.pyplot as plt 
 import matplotlib
@@ -224,6 +224,7 @@ def compareInterarmMaps():
 
     plt.show()
 
+#compareInterarmMaps()
 
 def checkLowResolutionIC():
     T1 = binnedData(1000000,myGenome)
@@ -586,8 +587,8 @@ def compareWithGenomicFeatures():
         
     Tanay.removeDiagonal()
     Tanay.removePoorRegions()
-    Tanay.fakeCis()
     Tanay.truncTrans()
+    Tanay.fakeCis()    
     Tanay.removeZeros() 
     Tanay.doEig()
         
@@ -617,15 +618,19 @@ def compareWithGenomicFeatures():
     #                                                Tanay.trackDict[key], E1, Tanay.trackDict["GC"])
     raise 
 
-#compareWithGenomicFeatures()
+compareWithGenomicFeatures()
 
 def plotTanayGenomicFeature():
     Tanay = experimentalBinnedData(1000000,myGenome)
     Tanay.simpleLoad(GM1M,"GM-all")        
     Tanay.loadTanayDomains()
     
-    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeUwDnaseSeqRawSignalRep1Gm06990.bigWig", label = "feature") 
+    #Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeUwDnaseSeqRawSignalRep1Gm06990.bigWig", label = "feature") 
+    #Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k9ac.wig", label = "feature",
     #control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878Control.wig")
+    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k4me3.wig", label = "feature",
+    control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878Control.wig")
+
         
     Tanay.removeDiagonal()
     Tanay.removePoorRegions()
@@ -646,12 +651,20 @@ def plotTanayGenomicFeature():
     TD = Tanay.trackDict["TanayDomains"]
     print scipy.stats.spearmanr(Tanay.trackDict["feature"],E1)
     
-    plt.scatter(Tanay.trackDict["feature"],E1,c = TD)
+    plt.scatter(Tanay.trackDict["feature"],E1,c = TD,s=4,linewidth = 0)
+    cm = plt.cm.get_cmap("jet")
+    
+    plt.legend([matplotlib.lines.Line2D([0],[0],color = cm(i),marker = "o",markersize = 8,linewidth = 0) for i in [0.333,0.666,0.999]],
+               ["Active","Centromere proximal","Centromere distal"],loc = 2)
     
     plt.ylabel("Eig1GW")
-    plt.xlabel("UWashington DNAse")
-    plt.title("Color represents domain from Tanay paper")
-    plt.show()
+    #plt.xlabel("UWashington DNAse")
+    #plt.xlabel("H3K9ac ChIP-seq")
+    plt.xlabel("H3K4me3 ChIP-seq")
+    plt.title("Color represents domain from (Yaffe 2011)")
+    niceShow(subplotAdjust = (0.13,0.11,0.97,0.92))
+    
+#plotTanayGenomicFeature()
         
 def plotIterativeCorrectionDifference():
     Tanay = binnedDataAnalysis(1000000,myGenome)

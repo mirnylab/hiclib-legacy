@@ -17,8 +17,6 @@ Class has significant knowledge about filters that have been applied.
 If an essential filter was not applied, it will throw an exception; 
 if adviced filter is not applied, it will throw a warning. 
 Most of the methods have an optional "force" argument that will ignore dependensies.
-I
-  
 
 We provide example scripts that show ideal protocols for certain types of the analysis, 
 but they don't cover the realm of all possible manipulations that can be performed with this class.
@@ -43,16 +41,34 @@ where all but "heatmap" is optional.
 
 * ["resolution"] : resolution 
 
+All information about the genome, including GC content and restriction sites, can be obtained from the Genome class. 
+
+Genomic tracks can be loaded using an automated parser that accepts bigWig files and fixed step wiggle files. 
+See documentation for :py:func:`experimentalBinnedData.loadWigFile` that describes exactly how the data is averaged and parsed.    
+
 
 Variables
 ---------
 
 self.dataDict - dictionary with heatmaps; keys are provided when loading the data.
 
-self.singlesDict - dictionary with SS read vectors. Keys are the same. 
+self.singlesDict - dictionary with SS read vectors. Keys are the same.
 
-self.trackDict - dictionary with genomic tracks, such as GC content. 
-Custom tracks may be also added to this dictionary.
+self.fragsDict - dictionary with fragment density data  
+
+self.trackDict - dictionary with genomic tracks, such as GC content. Custom tracks should be added here. 
+
+self.biasDict - dictionary with biases as calculated by iterative correction (incomplete)  
+
+self.PCDict - dictionary with principal components of each datasets. Keys as in dataDict
+
+self.EigEict - dictionary with eigenvectors for each dataset. Keys as in datadict. 
+
+
+Hierarchy of filters
+--------------------
+
+hierarchy
 
 --------------------------------------------------------------- 
 """
@@ -60,7 +76,7 @@ Custom tracks may be also added to this dictionary.
 import os 
 from mirnylab import numutils
 import warnings
-from mirnylab.plotting import  removeBorder 
+from mirnylab.plotting import  removeBorder , mat_img
 from mirnylab.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector,\
     isInteger
 from mirnylab.genome import Genome 
@@ -70,6 +86,7 @@ from mirnylab.h5dict import h5dict
 from scipy import weave 
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt 
+from mirnylab.systemutils import setExceptionHook
 
 
     
@@ -99,8 +116,9 @@ class binnedData(object):
         else:
             self.genome = genome 
             
+            
         assert isinstance(self.genome, Genome)
-
+        
         if resolution != None: self.resolution = resolution
         self.chromosomes = self.genome.chrmLens
         self.resolution = resolution                    
@@ -113,6 +131,8 @@ class binnedData(object):
         self.fragsDict = {}
         self.PCDict = {}
         self.EigDict = {}
+        self.eigEigenvalueDict = {}
+        self.PCAEigenvalueDict = {}
         self.dicts = [self.trackDict, self.biasDict, self.singlesDict, self.fragsDict]
         self.eigDicts = [self.PCDict, self.EigDict]
         self._loadGC() 
@@ -307,8 +327,7 @@ class binnedData(object):
             datasum = numpy.sum(data,axis = 0)            
             datamask = datasum > 0
             mask *= datamask  
-            try: countsum = numpy.sum(data,axis = 0) + self.singlesDict[i]
-            except: countsum = numpy.sum(data,axis = 0) 
+            countsum = numpy.sum(data,axis = 0)  
             newmask = countsum >= numpy.percentile(countsum[datamask],cutoff)
             mask *= newmask  
             statmask [(newmask == False) * (datamask == True)] = True
@@ -328,10 +347,11 @@ class binnedData(object):
         for i in self.dataDict.keys():
             data = self.dataDict[i]
             transmask = self.chromosomeIndex[:,None] != self.chromosomeIndex[None,:]
-            lim = numpy.percentile(data[transmask],100*(1 - high))
+            lim = numpy.percentile(data[transmask],100.*(1 - high))
+            print lim 
             tdata = data[transmask]
             tdata[tdata > lim] = lim            
-            self.dataDict[i][transmask] = tdata
+            self.dataDict[i][transmask] = tdata            
         self.appliedOperations["TruncedTrans"] = True                        
         
     def removeCis(self):
@@ -360,9 +380,9 @@ class binnedData(object):
         if silent == False: print("All cis counts are substituted with matching trans count")
         for i in self.dataDict.keys():             
             data = numpy.asarray(self.dataDict[i],order = "C",dtype = float)
-            if mask == "CisCounts": mask =  numpy.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)
-            else: assert mask.shape == self.dataDict.values()[0].shape  #check that mask has correct shape                              
-            s = numpy.abs(numpy.sum(data,axis = 0)) <= 1e-20 
+            if mask == "CisCounts": mask =  numpy.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)                         
+            else: assert mask.shape == self.dataDict.values()[0].shape  #check that mask has correct shape                         
+            s = numpy.abs(numpy.sum(data,axis = 0)) <= 1e-10 
             mask[:,s]= 2
             mask[s,:] = 2              
             N = len(data)
@@ -393,10 +413,10 @@ class binnedData(object):
                         else
                             {
                             int s = rand() % N;
-                            if (mask[s * N + j] == 0)
+                            if (mask[j * N + s] == 0)
                                 {
-                                data[i * N + j] = data[i * N + s];
-                                data[j * N + i] = data[i * N + s]; 
+                                data[i * N + j] = data[j * N + s];
+                                data[j * N + i] = data[j * N + s]; 
                                 break;
                                 }                            
                             }                        
@@ -611,7 +631,8 @@ class binnedData(object):
         if force == False: self._checkAppliedOperations(neededKeys, advicedKeys)
         
         for i in self.dataDict.keys():
-            currentPCA = PCA(self.dataDict[i])
+            currentPCA,eigenvalues = PCA(self.dataDict[i])
+            self.PCAEigenvalueDict[i] = eigenvalues
             for j in xrange(len(currentPCA)):
                 if spearmanr(currentPCA[j],self.trackDict["GC"]) < 0:
                     currentPCA[j] = -currentPCA[j]
@@ -619,7 +640,7 @@ class binnedData(object):
         return self.PCDict 
     
             
-    def doEig(self,force = False):
+    def doEig(self,numPCs = 3,force = False):
         """performs eigenvector expansion on the data
         creates dictionary self.EigDict with results
         Last row of the eigenvector matrix is the largest eigenvector, etc. 
@@ -633,8 +654,9 @@ class binnedData(object):
         if force == False: self._checkAppliedOperations(neededKeys, advicedKeys)
 
         
-        for i in self.dataDict.keys():
-            currentEIG = EIG(self.dataDict[i])
+        for i in self.dataDict.keys():             
+            currentEIG,eigenvalues = EIG(self.dataDict[i],numPCs = numPCs)
+            self.eigEigenvalueDict[i] = eigenvalues 
             for j in xrange(len(currentEIG)):
                 if spearmanr(currentEIG[j],self.trackDict["GC"]) < 0:
                     currentEIG[j] = -currentEIG[j]
