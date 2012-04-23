@@ -343,12 +343,12 @@ class binnedData(object):
         ----------
         high : float, 0<high<1, optional 
             Fraction of top trans interactions to be removed
-        """
+        """                
         for i in self.dataDict.keys():
             data = self.dataDict[i]
             transmask = self.chromosomeIndex[:,None] != self.chromosomeIndex[None,:]
             lim = numpy.percentile(data[transmask],100.*(1 - high))
-            print lim 
+            print "dataset %s truncated at %lf" % (i,lim) 
             tdata = data[transmask]
             tdata[tdata > lim] = lim            
             self.dataDict[i][transmask] = tdata            
@@ -364,7 +364,7 @@ class binnedData(object):
         print("All cis counts set to zero")
             
     def fakeCisOnce(self,mask = "CisCounts", silent = False):
-        """Used to fake cis counts.
+        """Used to fake cis counts or any other region with random trans counts. 
         If extra mask is supplied, it is used instead of cis counts. 
         
         Parameters
@@ -378,13 +378,17 @@ class binnedData(object):
         
         """
         if silent == False: print("All cis counts are substituted with matching trans count")
-        for i in self.dataDict.keys():             
-            data = numpy.asarray(self.dataDict[i],order = "C",dtype = float)
-            if mask == "CisCounts": mask =  numpy.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)                         
-            else: assert mask.shape == self.dataDict.values()[0].shape  #check that mask has correct shape                         
+        for key in self.dataDict.keys():                         
+            data = numpy.asarray(self.dataDict[key],order = "C",dtype = float)
+            if mask == "CisCounts": 
+                _mask =  numpy.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int,order = "C")
+            else:
+                assert mask.shape == self.dataDict.values()[0].shape  #check that mask has correct shape 
+                _mask = numpy.array(mask,dtype = int, order = "C")
+                _mask[self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]] = 2   #do not fake with cis counts                                             
             s = numpy.abs(numpy.sum(data,axis = 0)) <= 1e-10 
-            mask[:,s]= 2
-            mask[s,:] = 2              
+            _mask[:,s]= 2
+            _mask[s,:] = 2              
             N = len(data)
             N
             code = r"""
@@ -394,7 +398,7 @@ class binnedData(object):
             {    
                 for (int j = i; j<N; j++)
                 {
-                    if (mask[i* N + j] == 1)                    
+                    if (_mask[i* N + j] == 1)                    
                     {
                     while (true) 
                         {
@@ -402,7 +406,7 @@ class binnedData(object):
                         if (r == 0)
                             {                            
                             int s = rand() % N;
-                            if (mask[i * N + s] == 0)
+                            if (_mask[i * N + s] == 0)
                                 {                                
                                 data[i * N + j] = data[i * N + s];
                                 data[j * N + i] = data[i * N + s];
@@ -413,7 +417,7 @@ class binnedData(object):
                         else
                             {
                             int s = rand() % N;
-                            if (mask[j * N + s] == 0)
+                            if (_mask[j * N + s] == 0)
                                 {
                                 data[i * N + j] = data[j * N + s];
                                 data[j * N + i] = data[j * N + s]; 
@@ -428,8 +432,8 @@ class binnedData(object):
             support = """
             #include <math.h>
             """
-            weave.inline(code, ['mask','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
-            self.dataDict[i] = data
+            weave.inline(code, ['_mask','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
+            self.dataDict[key] = data
             self.appliedOperations["RemovedCis"] = True 
             self.appliedOperations["FakedCis"] = True 
             #mat_img(data)
@@ -445,7 +449,43 @@ class binnedData(object):
         self.fakeCisOnce(silent = True)
         self.iterativeCorrectWithoutSS(M=10) 
         print("All cis counts are substituted with faked counts")
-        print("Data is iteratively corrected as a part of faking cis counts")
+        print("Data is iteratively corrected as a part of faking cis counts")        
+        
+    def fakeTranslocations(self,translocationRegions):
+        """
+        This method fakes reads corresponding to a translocation.
+        
+        Parameters
+        ----------
+        
+        translocationRegions: list of tuples
+            List of tuples (chr1,start1,end1,chr2,start2,end2), masking a high-count region around visible translocation.
+            If chromosome end is None, it is treated as length of chromosome. So, use (chr1,0,None,chr1,0,None) to remove map entirely.          
+        """
+        self._checkAppliedOperations(excludedKeys = "RemovedZeros")
+        mask = numpy.zeros((self.genome.numBins, self.genome.numBins),int)
+        resolution = self.genome.resolution           
+        
+        for i in translocationRegions:
+            st1 = self.genome.chrmStartsBinCont[i[0]]
+            st2 = self.genome.chrmStartsBinCont[i[3]]
+            beg1 = st1 +i[1]/resolution
+            if i[2] != None: 
+                end1 = st1 + i[2]/resolution+1
+            else:
+                end1 = self.genome.chrmEndsBinCont[i[0]]
+            beg2 = st2 + i[4]/resolution
+            if i[5] != None: 
+                end2 = st2 + i[5]/resolution+1
+            else:
+                end2 = self.genome.chrmEndsBinCont[i[3]]
+
+            mask[beg1:end1,beg2:end2] = 1
+            mask[beg2:end2,beg1:end1] = 1
+        self.fakeCisOnce(mask)
+         
+            
+            
 
 
     def correct(self,names=None):
@@ -634,7 +674,7 @@ class binnedData(object):
             currentPCA,eigenvalues = PCA(self.dataDict[i])
             self.PCAEigenvalueDict[i] = eigenvalues
             for j in xrange(len(currentPCA)):
-                if spearmanr(currentPCA[j],self.trackDict["GC"]) < 0:
+                if spearmanr(currentPCA[j],self.trackDict["GC"])[0] < 0:
                     currentPCA[j] = -currentPCA[j]
             self.PCDict[i] = currentPCA
         return self.PCDict 
@@ -658,7 +698,7 @@ class binnedData(object):
             currentEIG,eigenvalues = EIG(self.dataDict[i],numPCs = numPCs)
             self.eigEigenvalueDict[i] = eigenvalues 
             for j in xrange(len(currentEIG)):
-                if spearmanr(currentEIG[j],self.trackDict["GC"]) < 0:
+                if spearmanr(currentEIG[j],self.trackDict["GC"])[0] < 0:
                     currentEIG[j] = -currentEIG[j]
             self.EigDict[i] = currentEIG                                      
         return self.EigDict
@@ -746,7 +786,8 @@ class binnedDataAnalysis(binnedData):
         data = self.dataDict[name]                 
         avarms = numpy.zeros((80,80))
         avmasks = numpy.zeros((80,80))
-        discardCutoff = 20 
+        discardCutoff = 10
+                
         
         for i in xrange(self.chromosomeCount):
             print i 
@@ -780,15 +821,16 @@ class binnedDataAnalysis(binnedData):
                             by = cenend2
                             ey = end2
                             dy = 1
-                            
-                        
+                                                    
                         if abs(bx - ex) < discardCutoff: continue
-                        if bx < 0: bx = None                          
+                        if bx < 0: bx = None
+                        if ex <0: ex = None                          
                         if abs(by - ey) < discardCutoff: continue
-                        if by < 0: by = None 
+                        if by < 0: by = None
+                        if ey < 0: ey = None 
                                                  
                                                     
-                        arms = data[bx:ex:dx,by:ey:dy]                        
+                        arms = data[bx:ex:dx,by:ey:dy]                                                 
                         assert max(arms.shape) <= self.genome.maxChrmArm / self.genome.resolution + 2
                                                 
                         mx = numpy.sum(arms, axis = 0)
@@ -801,15 +843,18 @@ class binnedDataAnalysis(binnedData):
                         mleny = (numpy.sum(mask, axis = 1) > 0 ).sum()
                         
                         if min(mlenx, mleny) < discardCutoff: continue
-                    
+                                                 
+                        
                         add = numutils.zoomOut(arms,avarms.shape)
                         assert numpy.abs((arms.sum() - add.sum()) / arms.sum()) < 0.02
+                        
+                         
                                                                         
                         addmask = numutils.zoomOut(maskf,avarms.shape)
                         avarms += add 
                         avmasks += addmask
-                        #mat_img(addmask)  
                           
+        
         avarms /= numpy.mean(avarms)
         data = avarms / avmasks
         data /= numpy.mean(data) 

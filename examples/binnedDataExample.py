@@ -309,21 +309,14 @@ def plotDiagonalCorrelation():
                        numpy.diagonal(Tanay.dataDict["GM-NcoI"],i)
                        )[0])
     
-    Tanay.iterativeCorrectWithSS(M = 1)
+    Tanay.iterativeCorrectWithoutSS(M = 1)
     cors2 = []
     for i in x:
         cors2.append(cr(
                        numpy.diagonal(Tanay.dataDict["GM-all"],i),
                        numpy.diagonal(Tanay.dataDict["GM-NcoI"],i)
-                       )[0])
-    del Tanay
-    Tanay = binnedData(200000,myGenome)
-    Tanay.simpleLoad(GM200k,"GM-all")
-    Tanay.simpleLoad(GM200kNcoI,"GM-NcoI")
-    Tanay.removeDiagonal(1)
-    Tanay.removePoorRegions()
-    Tanay.removeZeros()
-    Tanay.iterativeCorrectWithSS() 
+                       )[0])    
+    Tanay.iterativeCorrectWithoutSS(M = 20) 
     cors3 = []
     for i in x:
         cors3.append(cr(
@@ -335,8 +328,8 @@ def plotDiagonalCorrelation():
     matplotlib.rcParams['font.sans-serif']='Arial'
     
 
-    #plt.figure(figsize = (2.3,1.8))
-    plt.figure(figsize = (4,4))
+    plt.figure(figsize = (2.3,1.8))
+    #plt.figure(figsize = (4,4))
     ax = plt.gca()
     fs = 8
     for xlabel_i in ax.get_xticklabels(): xlabel_i.set_fontsize(fs)
@@ -584,7 +577,7 @@ def compareWithGenomicFeatures():
     Tanay.loadErezEigenvector1MB("../../ErezPaperData/eigenvectors")
     for key in keys: 
         Tanay.loadWigFile(datasets[key][0],key,control = datasets[key][1])
-        
+    Tanay.removeChromosome(22)
     Tanay.removeDiagonal()
     Tanay.removePoorRegions()
     Tanay.truncTrans()
@@ -618,7 +611,7 @@ def compareWithGenomicFeatures():
     #                                                Tanay.trackDict[key], E1, Tanay.trackDict["GC"])
     raise 
 
-compareWithGenomicFeatures()
+#compareWithGenomicFeatures()
 
 def plotTanayGenomicFeature():
     Tanay = experimentalBinnedData(1000000,myGenome)

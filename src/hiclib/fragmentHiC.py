@@ -247,8 +247,9 @@ class HiCdataset(object):
         """
         
         rsite_related = ["rsites1","rsites2","uprsites1","uprsites2","downrsites1","downrsites2"]
-        if type(dictLike) == str:
+        if type(dictLike) == str:            
             if not os.path.exists(dictLike): raise IOError("File not found: %s" % dictLike)
+            print "     loading data from file %s" % dictLike
             dictLike = h5dict(dictLike,'r') #attempting to open h5dict
         
         if False not in [i in dictLike.keys() for i in rsite_related]:
@@ -336,21 +337,28 @@ class HiCdataset(object):
             exec("self.%s1 = a" % i)
             exec("self.%s2 = b" % i)
                 
-        mask = (self.fragids1 != self.fragids2)   #Discard dangling ends and self-circles                
-        mask *=  ((self.chrms1 < self.chromosomeCount) * (self.chrms2 < self.chromosomeCount))  #Discard unused chromosomes                
-        mask *= ((self.chrms1 >=0) + (self.chrms2 >=0))   #Has to have at least one side mapped                
+        mask = (self.fragids1 != self.fragids2)   #Discard dangling ends and self-circles
+        maskLen, noSameFrag  = len(mask),  mask.sum()                         
+        mask *=  ((self.chrms1 < self.chromosomeCount) * (self.chrms2 < self.chromosomeCount))  #Discard unused chromosomes
+        noUnusedChroms =  mask.sum()                  
+        mask *= ((self.chrms1 >=0) + (self.chrms2 >=0))   #Has to have at least one side mapped
+        noUnmapped = mask.sum()                 
         if noStrand == True: 
             dist = numpy.abs(self.cuts1 - self.cuts2)  #Can't tell if reads point to each other. 
         else: 
             dist = - self.cuts1 * (2 * self.strands1 -1) - self.cuts2 * (2 * self.strands2 - 1)  #distance between sites facing each other
                                 
                                 
-        readsMolecules = (self.chrms1 == self.chrms2)*(self.strands1 != self.strands2) *  (dist >=0) * (dist <= self.maximumMoleculeLength)#filtering out DE         
-        mask *= (readsMolecules  == False)                                
+        readsMolecules = (self.chrms1 == self.chrms2)*(self.strands1 != self.strands2) *  (dist >=0) * (dist <= self.maximumMoleculeLength)#filtering out DE
+                 
+        mask *= (readsMolecules  == False)
+        extraDE = mask.sum()                                 
         
         
                         
-        print len(mask),mask.sum()
+        print "     Original reads: {maskLen}  -> No same fragment: {noSameFrag} -> remove unused chrom: {noUnusedChroms} -> ...".format(**locals())
+        print "     ... -> No unmapped reads: {noUnmapped} -> no extra DEs (--> (<500) <--): {extraDE}".format(**locals())        
+         
         self.maskFilter(mask)
         
             
@@ -634,8 +642,8 @@ class HiCdataset(object):
         print "----->Filtering duplicates in DS reads: "
         
         dups = numpy.zeros((self.N,2),dtype = "int64",order = "C")
-        dups[:,0] = numpy.array(self.cuts1 , dtype = "int64") + self.chrms1 * self.fragIDmult 
-        dups[:,1] = numpy.array(self.cuts1 , dtype = "int64") + self.chrms1 * self.fragIDmult   
+        dups[:,0] = numpy.array(self.cuts1 , dtype = "int64") + numpy.array(self.chrms1 , dtype = "int64") * self.fragIDmult 
+        dups[:,1] = numpy.array(self.cuts2 , dtype = "int64") + numpy.array(self.chrms2 , dtype = "int64") * self.fragIDmult
         dups.shape = (self.N * 2)
         strings = dups.view("|S16")   #Converting two indices to a single string to run unique
         assert len(strings) == self.N
