@@ -130,7 +130,7 @@ class HiCdataset(object):
         
         self.chromosomeCount = self.genome.chrmCount  #used for building heatmaps
         self.fragIDmult = self.genome.fragIDmult
-        print "----> New dataset opened, genome %s,  %s chromosomes" % (self.genome.folderName, self.chromosomeCount)
+        print "----> New dataset opened, genome %s, folder = %s" % (self.genome.folderName, filename)
 
         self.maximumMoleculeLength = maximumMoleculeLength  #maximum length of a molecule for SS reads        
         self.filename = filename #File to save the data                             
@@ -214,6 +214,7 @@ class HiCdataset(object):
                 res.append(mydict[name])
             res = numpy.concatenate(res)
             self._setData(name,res)
+        
         self.rebuildFragments()
 
     
@@ -624,6 +625,7 @@ class HiCdataset(object):
     
     def filterRsiteStart(self,offset = 5):
         """removes reads that start within x bp near rsite
+        TODO: fix this so that it agrees with the definition. 
         
         Parameters
         ----------
@@ -632,8 +634,9 @@ class HiCdataset(object):
         """
         
         print "----->Semi-dangling end filter: remove guys who start %d bp near the rsite" % offset
-                
+                        
         mask = (numpy.abs(self.dists1 - self.fraglens1) >=offset) * ((numpy.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)    
+                 
         self.maskFilter(mask)
         print
         
@@ -710,6 +713,7 @@ class HiCdataset(object):
                     
             self._setData(name,data) 
         print "---->Loaded data from file %s, contains %d reads" % (filename, length)
+        self.N = length
         self.rebuildFragments()
             
 
