@@ -399,7 +399,11 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
     """Parse SAM files with single-sided reads.
     """
     def _for_each_unique_read(sam_basename, genome_db, action):
-        for sam_path in glob.glob(sam_basename + '.*'):
+        sam_paths = glob.glob(sam_basename + '.*')
+        if not sam_paths:
+            raise Exception('No SAM/BAM files with \'%s\' basename are found.' % sam_basename)
+
+        for sam_path in sam_paths:
             samfile = pysam.Samfile(sam_path)
             
             # Make Bowtie's chromosome tids -> genome_db indices dictionary.
