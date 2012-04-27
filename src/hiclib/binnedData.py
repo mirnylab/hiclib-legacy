@@ -460,7 +460,7 @@ class binnedData(object):
         
         translocationRegions: list of tuples
             List of tuples (chr1,start1,end1,chr2,start2,end2), masking a high-count region around visible translocation.
-            If chromosome end is None, it is treated as length of chromosome. So, use (chr1,0,None,chr1,0,None) to remove map entirely.          
+            If chromosome end is None, it is treated as length of chromosome. So, use (chr1,0,None,chr2,0,None) to remove inter-chromosomal interaction entirely.          
         """
         self._checkAppliedOperations(excludedKeys = "RemovedZeros")
         mask = numpy.zeros((self.genome.numBins, self.genome.numBins),int)
@@ -496,7 +496,7 @@ class binnedData(object):
         names : list of str or None
             Keys of datasets to be corrected. If none, all are corrected. 
         """
-        self.iterativeCorrectWithoutSS(names, M=1)                                          
+        self.iterativeCorrectWithoutSS(names, M=1)
                 
     def iterativeCorrectWithoutSS(self, names = None,M=50,force = False):
         """performs iterative correction without SS

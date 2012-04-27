@@ -525,7 +525,7 @@ class HiCdataset(object):
         
         Parameters 
         ----------
-        fragments : np.array of fragment IDs or bools        
+        fragments : numpy.array of fragment IDs or bools        
             List of fragments to keep, or their indexes in self.ufragments        
         """        
         if fragments.dtype == numpy.bool:
@@ -1010,7 +1010,7 @@ class HiCStatistics(HiCdataset):
         rawValues = []
         for i in xrange(len(lens) - 1):   #Dividing observed by expected
             beg,end  = lens[i], lens[i+1]            
-            first,last = tuple(numpy.searchsorted(distances,[beg,end]))            
+            first,last = tuple(numpy.searchsorted(distances,[beg,end]))             
             mycounts = last - first
             maxcounts = maxcountsall[i]                                     
             positions.append(sqrt(float(beg)*float(end)))
