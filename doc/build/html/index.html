@@ -7,7 +7,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Welcome to mirnylab’s documentation! &mdash; mirnylab v0.1 documentation</title>
+    <title>Welcome to hic-lib’s documentation! &mdash; mirnylab v0.1 documentation</title>
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script type="text/javascript">
@@ -22,7 +22,8 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="mirnylab v0.1 documentation" href="#" /> 
+    <link rel="top" title="mirnylab v0.1 documentation" href="#" />
+    <link rel="next" title="Fragment-level HiC correction" href="fragment.html" /> 
   </head>
   <body>
     <div class="related">
@@ -37,6 +38,9 @@
         <li class="right" >
           <a href="np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
+        <li class="right" >
+          <a href="fragment.html" title="Fragment-level HiC correction"
+             accesskey="N">next</a> |</li>
         <li><a href="#">mirnylab v0.1 documentation</a> &raquo;</li> 
       </ul>
     </div>  
@@ -46,12 +50,57 @@
         <div class="bodywrapper">
           <div class="body">
             
-  <div class="section" id="welcome-to-mirnylab-s-documentation">
-<h1>Welcome to mirnylab&#8217;s documentation!<a class="headerlink" href="#welcome-to-mirnylab-s-documentation" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="welcome-to-hic-lib-s-documentation">
+<h1>Welcome to hic-lib&#8217;s documentation!<a class="headerlink" href="#welcome-to-hic-lib-s-documentation" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
+<p>This library will work only on Linux.
+To install it please run install_linux.py in the hiclib/src/hiclib directory.
+You can then import functions as &#8220;import hiclib.binnedData&#8221;.</p>
+</div>
+<div class="section" id="requirements">
+<h2>Requirements<a class="headerlink" href="#requirements" title="Permalink to this headline">¶</a></h2>
+<p>You will need mirnylab library to use this library. That library is installed in a similar way.</p>
+<p>Python2.6 holds now for every part of the code. However, we advice the use of python 2.7 if possible, as it has numerous bug-fixes relative to 2.6.</p>
+<p>Other libraries required are: joblib, h5py, pysam, numpy, scipy, matplotlib, numexpr, biopython, bx-python (preferably from bitbucket repo)</p>
+<p>Ubuntu 11.04 with default numpy-scipy-matplotlib combination works well. However, for ubuntu 10.04 you&#8217;ll need to update numpy, scipy and biopython to a newer version.</p>
+<p>If you&#8217;re updating numpy/scipy/matplotlib using pip (pip install &#8211;upgrade numpy), be sure to delete/replace the original package.
+Often pip installs new package to a different location, and python still loads the old copy as it looks there first.
+You might need to delete files corresponding to the original package, as running &#8220;apt-get remove python-numpy&#8221; might take down a significant number of packages.</p>
+</div>
+<div class="section" id="hardwre-requirements">
+<h2>Hardwre requirements<a class="headerlink" href="#hardwre-requirements" title="Permalink to this headline">¶</a></h2>
+<p>Fragment-based analysis uses HDD to store all the information about the reads.
+However, at each point in time a few individual tracks are loaded to RAM to perform certain analysis.
+Memory requirements for this part can be estimated as 30-50 bytes per read, dependent on the number of filters used.
+For example, a 400 mln read Hi-C dataset will require no more than 20GB RAM.</p>
+<p>Binned data analysis uses RAM to store all the heatmaps. Application of certain filters will create a copy of a heatmap, one at a time, even if multiple datasets are loaded.
+For example, working with 3 datasets at 200-kb resolution will require:
+(3 GB/200kb)^2 * (8 bytes per float64) * (3 datasets + 1 extra) = 8 GB RAM</p>
+<p>Timewise, fragment-based correction of a dataset is relatively quick, being about 1 hour for 500 million raw reads.
+Binned data analysis performance depends on resolution only, usually being of the order of seconds for 1M-resolution analysis, and scaling as (1/resolution^2),
+reaching few minutes for 200kb resolution, and tens minutes for 100kb.</p>
+<p>Overall, time-limiting step is mapping, and it&#8217;s the only part of the code that is well-paralellized.
+Multi-threading is only utilized by bowtie when mapping reads, and takes about a few days to map 500-million-read dataset on
+a high-level desktop, or a day on a high-performance workstation.</p>
 <p>Contents:</p>
 <div class="toctree-wrapper compound">
-<ul class="simple">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="fragment.html">Fragment-level HiC correction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="fragment.html#input-data">Input data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fragment.html#concepts">Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fragment.html#filtering-the-data">Filtering the data</a></li>
 </ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="binneddata.html">Analysis of binned data</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="binneddata.html#concepts">Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="binneddata.html#input-data">Input data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="binneddata.html#variables">Variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="binneddata.html#hierarchy-of-filters">Hierarchy of filters</a></li>
+</ul>
+</li>
+</ul>
+</div>
 </div>
 </div>
 <div class="section" id="indices-and-tables">
@@ -71,12 +120,20 @@
         <div class="sphinxsidebarwrapper">
   <h3><a href="#">Table Of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">Welcome to mirnylab&#8217;s documentation!</a><ul>
+<li><a class="reference internal" href="#">Welcome to hic-lib&#8217;s documentation!</a><ul>
+<li><a class="reference internal" href="#installation">Installation</a></li>
+<li><a class="reference internal" href="#requirements">Requirements</a></li>
+<li><a class="reference internal" href="#hardwre-requirements">Hardwre requirements</a><ul>
+</ul>
+</li>
 </ul>
 </li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
 </ul>
 
+  <h4>Next topic</h4>
+  <p class="topless"><a href="fragment.html"
+                        title="next chapter">Fragment-level HiC correction</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="_sources/index.txt"
@@ -111,6 +168,9 @@
         <li class="right" >
           <a href="np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
+        <li class="right" >
+          <a href="fragment.html" title="Fragment-level HiC correction"
+             >next</a> |</li>
         <li><a href="#">mirnylab v0.1 documentation</a> &raquo;</li> 
       </ul>
     </div>
