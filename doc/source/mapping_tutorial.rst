@@ -9,9 +9,9 @@ A. Iterative mapping.
 At the first step, the raw sequences of both sides of Hi-C molecules are mapped
 separately to the genome database using Bowtie2 aligner.
 
-.. literalinclude:: iterative_mapping.py
+.. literalinclude:: ../../examples/iterative_mapping.py
    :language: python
-   :lines: 1-21
+   :lines: 1-29
 
 The description of the iterative_mapping function and its arguments
 This code will generate a series of files with names '~/data/hic/1.bam.25',
@@ -23,9 +23,9 @@ B. Parsing of mapped reads.
 
 Then, the mapped sequences of both sides should be parsed and combined.
 
-.. literalinclude:: iterative_mapping.py
+.. literalinclude:: ../../examples/iterative_mapping.py
    :language: python
-   :lines: 24-30
+   :lines: 30-38
 
 The preferable data type for Hi-C data storage is h5dict included into the 
 library. h5dict mimics the interface of the standard Python dict, but stores
@@ -37,8 +37,8 @@ C. Restriction fragments assignment.
 Finally, the ultra-sonic fragments mapped onto the genome are assigned to
 the restriction fragments.
 
-.. literalinclude:: iterative_mapping.py
+.. literalinclude:: ../../examples/iterative_mapping.py
    :language: python
-   :lines: 33-36
+   :lines: 39-43
 
 

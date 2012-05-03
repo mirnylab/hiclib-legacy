@@ -48,15 +48,19 @@ However, one can easily construct another filter as presented in multiple one-li
     >>> Dset.maskFilter((Dset.chrms1 !=14) + (Dset.chrms2 !=14))  #Exclude all reads from chromosome 14
     >>> Dset.maskFilter(Dset.dist1 + Dset.dist2 > 500)  #Keep only random breaks, if 500 is maximum molecule length
 
-
 -------------------------------------------------------------------------------
+
+API documentation
+-----------------
+
+
 
 """
 
 import warnings 
 import os,cPickle
 from mirnylab.genome import Genome 
-import mirnylab.hic.mapping 
+import hiclib.mapping 
 import numpy
 from numpy import array as na  
 from scipy import stats
@@ -141,12 +145,13 @@ class HiCdataset(object):
                 print
             else:
                 os.remove(self.filename)
-        if not os.path.exists(os.path.split(self.filename)[0]):
-            warnings.warn("Folder in which you want to create file do not exist: %s" % os.path.split(self.filename)[0])
-            try: 
-                os.mkdir(os.path.split(self.filename)[0])
-            except: 
-                raise IOError("Failed to create directory: %s" % os.path.split(self.filename)[0])
+        if len(os.path.split(self.filename)[0]) != 0:
+            if not os.path.exists(os.path.split(self.filename)[0]):
+                warnings.warn("Folder in which you want to create file do not exist: %s" % os.path.split(self.filename)[0])
+                try: 
+                    os.mkdir(os.path.split(self.filename)[0])
+                except: 
+                    raise IOError("Failed to create directory: %s" % os.path.split(self.filename)[0])
             
         self.h5dict = h5dict(self.filename,autoflush = self.autoFlush )
 
@@ -302,7 +307,7 @@ class HiCdataset(object):
             rsitedict["cuts2"] = self.cuts2            
             rsitedict["strands1"] = self.strands1
             rsitedict["strands2"] = self.strands2            
-            mirnylab.hic.mapping.fill_rsites(lib = rsitedict, genome_db = self.genome)
+            hiclib.mapping.fill_rsites(lib = rsitedict, genome_db = self.genome)
         else:
             rsitedict = dictLike #rsite information is in our dictionary        
         
@@ -765,7 +770,7 @@ class HiCStatistics(HiCdataset):
             self._setData(name,blowup)
             
     
-    def buildLengthDependencePlot(self,label = "plot", strands = "both",color = None):
+    def buildLengthDependencePlot(self, strands = "both",**kwargs):
         "plots dependence of counts on fragment length. May do based on one strands only"
         "please run  plt.legend & plt.show() after calling this for all datasets you want to consider"
         self._buildFragments()     
@@ -782,8 +787,8 @@ class HiCStatistics(HiCdataset):
             value = numpy.mean(mysum[p])            
             sums.append(value)
             sizes.append(numpy.mean(fragmentLength[p]))    
-        if color == None: plt.plot(sizes,sums,'x-',markersize = 3,linewidth = 2,label = label)
-        else:  plt.plot(sizes,sums,color,linewidth = 2,label = label)
+        
+        plt.plot(sizes,sums,**kwargs)
     
         
     def plotScaling(self,fragids1 = None,fragids2 = None,   #IDs of fragments for which to plot scaling. 
@@ -848,8 +853,8 @@ class HiCStatistics(HiCdataset):
             Restrict scaling calculation to only certain squares of the map
         appendReadCount : bool, optional 
             Append read count to the plot label
-        kwargs : dict, optional
-            Dictionary of kw args to be passed to plt.plot
+        **kwargs :  optional
+            All other keyword args are passed to plt.plot
             
         Returns
         -------
@@ -1066,8 +1071,9 @@ class HiCStatistics(HiCdataset):
 
 
 class experimentalFeatures(HiCdataset):
+    "This class contain some dangerous features that were not tested."
     def splitFragmentsBystrands(self):
-        "Splits fragments: those with strands = 1 gets location += 100. This is totally safe!  "
+        "Splits fragments: those with strands = 1 gets location += 1. This is totally safe!  "
         "This might be fun if you want to analyze two sides of the fragment separately, but unnecessary otherwise"
         f1 = self.fragids1
         f1 += ((f1 % self.fragIDmult) % 2)

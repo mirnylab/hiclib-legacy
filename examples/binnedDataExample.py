@@ -16,19 +16,10 @@ from mirnylab.plotting import mat_img,removeAxes,removeBorder, niceShow
 
 import matplotlib.pyplot as plt 
 import matplotlib
-#def exampleOfTanayUsage():        
-#    a = TanayCorrection()
-#    a.loadTanayFragments()
-#    a.loadTanayCorrections()
-#    a.loadObserved()
-#    expected,number = a.calculateTanayExpected(21,22)
-#    number
-#    mat_img(expected)   #Tanay expected data
-#    mat_img(iterativeCorrectWithoutSS(expected))  #Factorized Tanay expected data
-#    
-#exampleOfTanayUsage()
-genomeVersion = "hg18"
 
+
+
+genomeVersion = "hg18"
 myGenome = "../../data/%s"% genomeVersion
 
 GM1M = "../../ErezPaperData/%s/GM-HindIII-%s-1M.hm"  % (genomeVersion, genomeVersion)
@@ -618,11 +609,11 @@ def plotTanayGenomicFeature():
     Tanay.simpleLoad(GM1M,"GM-all")        
     Tanay.loadTanayDomains()
     
-    #Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeUwDnaseSeqRawSignalRep1Gm06990.bigWig", label = "feature") 
+    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeUwDnaseSeqRawSignalRep1Gm06990.bigWig", label = "feature") 
     #Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k9ac.wig", label = "feature",
     #control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878Control.wig")
-    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k4me3.wig", label = "feature",
-    control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878Control.wig")
+    #Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k4me3.wig", label = "feature",
+    #control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878Control.wig")
 
         
     Tanay.removeDiagonal()
@@ -647,6 +638,18 @@ def plotTanayGenomicFeature():
     plt.scatter(Tanay.trackDict["feature"],E1,c = TD,s=4,linewidth = 0)
     cm = plt.cm.get_cmap("jet")
     
+    
+    print "Our 2r is",(numpy.corrcoef(Tanay.trackDict["feature"],E1)[0,1])**2
+    tset = set(TD)
+    tfeature = numpy.zeros_like(TD,dtype = float)
+    feature = Tanay.trackDict["feature"]
+    for i in tset:
+        #print i  
+        #print numpy.mean(feature[TD==i])
+        tfeature[TD == i] = numpy.mean(feature[TD==i])
+        #print tfeature
+    print "Tanay r2 is", (numpy.corrcoef(tfeature,E1)[0,1])**2  
+    
     plt.legend([matplotlib.lines.Line2D([0],[0],color = cm(i),marker = "o",markersize = 8,linewidth = 0) for i in [0.333,0.666,0.999]],
                ["Active","Centromere proximal","Centromere distal"],loc = 2)
     
@@ -657,7 +660,7 @@ def plotTanayGenomicFeature():
     plt.title("Color represents domain from (Yaffe 2011)")
     niceShow(subplotAdjust = (0.13,0.11,0.97,0.92))
     
-#plotTanayGenomicFeature()
+plotTanayGenomicFeature()
         
 def plotIterativeCorrectionDifference():
     Tanay = binnedDataAnalysis(1000000,myGenome)

@@ -29,6 +29,7 @@ print os.getcwd()
 sys.path.append("exts")
 import numpydoc
 sys.path.append("../../hiclib")
+sys.path.append('examples')
 extensions = ['sphinx.ext.autodoc', 'numpydoc','sphinx.ext.viewcode','sphinx.ext.pngmath']
 autodoc_member_order = "bysource"
 autoclass_content  = "both"
