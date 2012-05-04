@@ -219,8 +219,10 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         else:
             bash_reader = 'cat'
 
+    reading_command = bash_reader.split() + [fastq_path,]
+
     output_is_bam = (out_sam_path.split('.')[-1].lower() == 'bam')
-    output_formatter = '| samtools view -bS -' if output_is_bam else ''
+    bamming_command = ['samtools', 'view', '-bS', '-'] if output_is_bam else []
 
     # Split input files if required and apply iterative mapping to each 
     # segment separately.
@@ -242,7 +244,12 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         return 
 
     # Convert input relative arguments to the absolute length scale.
-    raw_seq_len = len(Bio.SeqIO.parse(open(fastq_path), 'fastq').next().seq)
+    reading_process = subprocess.Popen(reading_command, 
+                                       stdout=subprocess.PIPE)
+    reading_process.stdout.readline()
+    raw_seq_len = len(reading_process.stdout.readline().strip())
+    reading_process.terminate()
+
     if (seq_start < 0 
         or seq_start > raw_seq_len 
         or (seq_end and seq_end > raw_seq_len)):
@@ -255,13 +262,40 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         trim_5 = seq_start
         trim_3 = raw_seq_len - seq_start - min_seq_len
         local_out_sam = out_sam_path + '.' + str(min_seq_len)
-        bowtie_command = (
-            ('{bash_reader} {fastq_path} | {bowtie_path} -x {bowtie_index_path} '
-             '-q - -5 {trim_5:d} -3 {trim_3:d} -p {nthreads:d} {bowtie_flags} '
-             '{output_formatter} > {local_out_sam}').format(**locals()))
+        mapping_command = [
+            bowtie_path, '-x', bowtie_index_path, '-q', '-', 
+            '-5', str(trim_5), '-3', str(trim_3), '-p', str(nthreads)
+            ] + bowtie_flags.split()
 
-        logging.info('Mapping command: %s' % bowtie_command)
-        subprocess.call(bowtie_command, shell=True)
+        logging.info('Fastq reading command: {0}'.format(' '.join(reading_command)))
+        logging.info('Mapping command: {0}'.format(' '.join(mapping_command)))
+        if bamming_command:
+            logging.info('Output formatting command: {0}'.format(' '.join(bamming_command)))
+
+        pipeline = []
+        try:
+            pipeline.append(
+                subprocess.Popen(reading_command, stdout=subprocess.PIPE))
+            if bamming_command:
+                pipeline.append(
+                    subprocess.Popen(mapping_command, 
+                                     stdin=pipeline[-1].stdout,
+                                     stdout=subprocess.PIPE))
+
+                pipeline.append(
+                    subprocess.Popen(bamming_command, 
+                                     stdin=pipeline[-1].stdout,
+                                     stdout=open(local_out_sam, 'w')))
+            else:
+                pipeline.append(
+                    subprocess.Popen(mapping_command, 
+                                     stdin=pipeline[-1].stdout,
+                                     stdout=open(local_out_sam, 'w')))
+            pipeline[-1].wait()
+        finally:
+            for process in pipeline:
+                if process.poll() is None:
+                    process.terminate()
 
         # Check if the next iteration is required.
         if len_step <= 0:
@@ -444,6 +478,9 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
     sam_stats = {'id_len': _count_stats.id_len,
                  'seq_len':_count_stats.seq_len,
                  'num_reads':_count_stats.num_reads}
+    logging.info(
+        'Parsing SAM files with basename {0}, # of reads: {1}'.format(
+            sam_basename, sam_stats['num_reads']))
     if max_seq_len > 0:
         sam_stats['seq_len'] = min(max_seq_len, sam_stats['seq_len'])
 
