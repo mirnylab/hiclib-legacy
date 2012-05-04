@@ -590,23 +590,26 @@ class binnedData(object):
             else: 
                 indices[i] = count
         indices = numpy.r_[indices,indices[-1] + 1]  
+        N = len(self.positionIndex)
         for i in self.dataDict.keys():
             a = self.dataDict[i]
+            if len(a) != N: raise ValueError("Wrong dimensions of data %i: %d instead of %d" % (i,len(a),N))
             b = a[:,s]
             c = b[s,:]
             self.dataDict[i] = c            
         
         for mydict in self.dicts:
             for key in mydict.keys():
-                mydict[key] = mydict[key][s]
-
-        
+                if len(mydict[key]) != N: raise ValueError("Wrong dimensions of data %i: %d instead of %d" % (key,len(mydict[key]),N))
+                mydict[key] = mydict[key][s]        
         for mydict in self.eigDicts:
             for key in mydict.keys():
                 
                 mydict[key] = mydict[key][:,s]  
+                if len(mydict[key][0]) != N: raise ValueError("Wrong dimensions of data %i: %d instead of %d" % (key,len(mydict[key][0]),N))
         
         self.chromosomeIndex = self.chromosomeIndex[s]
+        self.positionIndex = self.positionIndex[s]
         self.armIndex = self.armIndex[s]
         self.chromosomeEnds = indices[self.chromosomeEnds]
         self.chromosomeStarts = indices[self.chromosomeStarts]
@@ -633,7 +636,7 @@ class binnedData(object):
         N = len(s)
 
         for i in self.dataDict.keys():
-            a = self.dataDict[i]
+            a = self.dataDict[i]            
             self.dataDict[i] = numpy.zeros((N,N),dtype = a.dtype) * value 
             tmp = numpy.zeros((N,len(a)),dtype = a.dtype) * value 
             tmp[s,:] = a
