@@ -72,7 +72,8 @@ from mirnylab import plotting
 from mirnylab.plotting import mat_img,removeAxes
 
 from mirnylab import numutils  
-from mirnylab.numutils import arrayInArray,  sumByArray, correct, ultracorrect
+from mirnylab.numutils import arrayInArray,  sumByArray, correct, ultracorrect,\
+    uniqueIndex
 
 r_ = numpy.r_
 
@@ -648,21 +649,29 @@ class HiCdataset(object):
     def filterDuplicates(self):
         "removes duplicate molecules in DS reads"
         print "----->Filtering duplicates in DS reads: "
-        
-        dups = numpy.zeros((self.N,2),dtype = "int64",order = "C")
-        dups[:,0] = numpy.array(self.cuts1 , dtype = "int64") + numpy.array(self.chrms1 , dtype = "int64") * self.fragIDmult 
-        dups[:,1] = numpy.array(self.cuts2 , dtype = "int64") + numpy.array(self.chrms2 , dtype = "int64") * self.fragIDmult
-        dups.shape = (self.N * 2)
+        DS = self.DS
+        Nds = DS.sum()         
+        dups = numpy.zeros((Nds,2),dtype = "int64",order = "C")
+        dups[:,0] = self.chrms1[DS]   #an array to determine unique rows. Eats 16 bytes per DS record 
+        dups[:,0] *= self.fragIDmult
+        dups[:,0] += self.cuts1[DS]        
+        dups[:,1] = self.chrms2[DS]
+        dups[:,1] *= self.fragIDmult
+        dups[:,1] += self.cuts2[DS]                
+        dups.shape = (Nds * 2)
         strings = dups.view("|S16")   #Converting two indices to a single string to run unique
-        assert len(strings) == self.N
-        uids = numpy.unique(strings,return_index = True)[1]
-        del strings, dups 
-        stay = self.SS.copy()
-        stay[uids] = True
+        uids = uniqueIndex(strings)
+        del strings, dups                 
+        stay = self.SS
+        putIn = numpy.zeros(Nds,bool)
+        putIn[uids] = True 
+        stay[DS] = putIn 
         ds = self.DS.sum()
         print "     Number of DS reads changed - %d ---> %d" % (ds,ds - len(self.DS) + stay.sum()) 
         del uids
+        uflen = len(self.ufragments)
         self.maskFilter(stay)
+        assert len(self.ufragments) == uflen 
         print
         
 
