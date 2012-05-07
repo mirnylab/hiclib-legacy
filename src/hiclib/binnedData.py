@@ -95,7 +95,7 @@ class binnedData(object):
     Further classes for other analysis are inherited from this class. 
     """
     
-    def __init__(self, resolution,genome):
+    def __init__(self, resolution,genome, readChrms = ["#","X"]):
         """
         
         self.__init__ - initializes an empty dataset. 
@@ -112,7 +112,7 @@ class binnedData(object):
         
         """        
         if type(genome) == str: 
-            self.genome = Genome(genomePath = genome, readChrms = ["#","X"])
+            self.genome = Genome(genomePath = genome, readChrms = readChrms)
         else:
             self.genome = genome 
             

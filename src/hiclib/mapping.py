@@ -374,9 +374,17 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     their 5' end position.
     '''
     assert isinstance(genome,mirnylab.genome.Genome) #make Pydev happy
-    side = str(side) 
+    side = str(side)
+     
 
-    chrms = lib['chrms' + side]
+    chrms = lib['chrms' + side]   #setting to zero chromosomes that are over the limit of the genome
+    removeMask = chrms >= genome.chrmCount
+    chrms[removeMask] = -1         
+    lib['chrms' + side] = chrms 
+    cuts = lib['cuts' + side]
+    cuts[removeMask] = -1 
+    lib['cuts' + side] = cuts
+    
     rfragIdxs = np.zeros(len(chrms), dtype=np.int64)
     uprsites = np.zeros(len(chrms), dtype=np.int64)
     rsites = np.zeros(len(chrms), dtype=np.int64)
@@ -388,7 +396,7 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     uprsites[chrms == -1] = -1
     downrsites[chrms == -1] = -1
 
-    cuts = lib['cuts' + side]
+    
             
     badCuts = np.nonzero(cuts >= genome.chrmLens[chrms])[0]  
     if len(badCuts) > 0:
