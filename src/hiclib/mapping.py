@@ -46,12 +46,11 @@ def _detect_quality_coding_scheme(in_fastq, num_entries = 10000):
 
     return min_ord, max_ord
 
-## Bowtie doesn't read gzipped FASTQ files.
-#def _gzopen(path):
-#    if path.endswith('.gz'):
-#        return gzip.open(path)
-#    else:
-#        return open(path)
+def _gzopen(path):
+    if path.endswith('.gz'):
+        return gzip.open(path)
+    else:
+        return open(path)
 
 def _line_count(path):
     '''Count the number of lines in a file. The function was posted by
@@ -96,14 +95,15 @@ def _filter_fastq(ids, in_fastq, out_fastq):
     the whose ID are in **ids**.
     '''
     out_file = open(out_fastq, 'w')
-    in_file = open(in_fastq)
+    in_file = _gzopen(in_fastq)
     while True:
         line = in_file.readline()
         if not line:
             break
 
         if not line.startswith('@'):
-            raise Exception('%s does not comply with the FASTQ standards.')
+            raise Exception(
+                '{0} does not comply with the FASTQ standards.'.format(in_fastq))
 
         fastq_entry = [line, in_file.readline(), 
                        in_file.readline(), in_file.readline()]
@@ -393,8 +393,9 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     badCuts = np.nonzero(cuts >= genome.chrmLens[chrms])[0]  
     if len(badCuts) > 0:
         maxDev = np.max(cuts[badCuts] - genome.chrmLens[chrms[badCuts]])
-        warnings.warn("\nDetermined many (%s) reads that map after the end of chromosome!"
-                      "\n Maximum deviation is %s bp " % (len(badCuts),maxDev))   
+        warnings.warn(
+            ('\nDetermined many ({0}) reads that map after the end of chromosome!'
+             '\n Maximum deviation is {1} bp ').format(len(badCuts), maxDev))   
         if maxDev > 50: 
             raise StandardError("Deviation is too large. Probably, genome mismatch.")     
         cuts[badCuts] = genome.chrmLens[chrms[badCuts]]-1
