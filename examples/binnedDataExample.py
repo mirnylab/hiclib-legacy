@@ -288,58 +288,69 @@ def plotDiagonalCorrelation():
     S = 50
     x = numpy.arange(2,S)
     Tanay = binnedData(200000,myGenome)
-    Tanay.simpleLoad(GM200k,"GM-all")
+    Tanay.simpleLoad(GM200k,"GM-HindIII")
     Tanay.simpleLoad(GM200kNcoI,"GM-NcoI")
+    Tanay.simpleLoad(tcc200k,"TCC")
     Tanay.removeDiagonal(1)
     Tanay.removePoorRegions()    
     Tanay.removeZeros()
-    cors = []
+    pairs = [("GM-HindIII","GM-NcoI"),("GM-HindIII","TCC"),("GM-NcoI","TCC")]
+    cors = [[] for _ in pairs]
     for i in x:
-        cors.append(cr(
-                       numpy.diagonal(Tanay.dataDict["GM-all"],i),
-                       numpy.diagonal(Tanay.dataDict["GM-NcoI"],i)
+        for j,pair in enumerate(pairs): 
+            cors[j].append(cr(
+                       numpy.diagonal(Tanay.dataDict[pair[0]],i),
+                       numpy.diagonal(Tanay.dataDict[pair[1]],i)
                        )[0])
     
     Tanay.iterativeCorrectWithoutSS(M = 1)
-    cors2 = []
+    cors2 = [[] for _ in pairs]
     for i in x:
-        cors2.append(cr(
-                       numpy.diagonal(Tanay.dataDict["GM-all"],i),
-                       numpy.diagonal(Tanay.dataDict["GM-NcoI"],i)
+        for j,pair in enumerate(pairs):
+            cors2[j].append(cr(
+                       numpy.diagonal(Tanay.dataDict[pair[0]],i),
+                       numpy.diagonal(Tanay.dataDict[pair[1]],i)
                        )[0])    
     Tanay.iterativeCorrectWithoutSS(M = 20) 
-    cors3 = []
+    cors3 = [[] for _ in pairs]
     for i in x:
-        cors3.append(cr(
-                       numpy.diagonal(Tanay.dataDict["GM-all"],i),
-                       numpy.diagonal(Tanay.dataDict["GM-NcoI"],i)
+        for j,pair in enumerate(pairs):
+            cors3[j].append(cr(
+                       numpy.diagonal(Tanay.dataDict[pair[0]],i),
+                       numpy.diagonal(Tanay.dataDict[pair[1]],i)
                        )[0])
 
 
     matplotlib.rcParams['font.sans-serif']='Arial'
     
 
-    plt.figure(figsize = (2.3,1.8))
-    #plt.figure(figsize = (4,4))
+    #plt.figure(figsize = (2.3,1.8))
+    print cors
+    print cors2
+    print cors3
+    plt.figure(figsize = (10,3))
     ax = plt.gca()
-    fs = 8
-    for xlabel_i in ax.get_xticklabels(): xlabel_i.set_fontsize(fs)
-    for xlabel_i in ax.get_yticklabels(): xlabel_i.set_fontsize(fs)
-    plt.plot(x/5.,cors3,color = "#E5A826",label = "Iterative")
-    plt.plot(x/5.,cors2,color = "#28459A",label = "Single")
-    plt.plot(x/5.,cors,color = "#E55726",label = "Raw")
-    plt.xlabel("Genomic Separation, MB",fontsize = 8)
-    plt.ylabel("Spearman correlation",fontsize = 8)
-    plt.legend()
-                    
-    legend = plt.legend(prop={"size":6},loc = 9,handlelength=2)
-    legend.draw_frame(False)
-    plt.ylim((0,0.6))
-    removeAxes(shift = 0)
+    for j,pair in enumerate(pairs):
+        plt.subplot(1,len(pairs),j)        
+        fs = 8
+        for xlabel_i in ax.get_xticklabels(): xlabel_i.set_fontsize(fs)
+        for xlabel_i in ax.get_yticklabels(): xlabel_i.set_fontsize(fs)
+        plt.title("%s vs %s" % pair)
+        plt.plot(x/5.,cors3[j],color = "#E5A826",label = "Iterative")
+        plt.plot(x/5.,cors2[j],color = "#28459A",label = "Single")
+        plt.plot(x/5.,cors[j],color = "#E55726",label = "Raw")
+        plt.xlabel("Genomic Separation, MB",fontsize = 8)
+        plt.ylabel("Spearman correlation",fontsize = 8)
+        plt.legend()
+                        
+        legend = plt.legend(prop={"size":6},loc = 9,handlelength=2)
+        legend.draw_frame(False)
+        plt.ylim((0,1))
+        removeAxes(shift = 0)
     
     plt.show()     
      
-#plotDiagonalCorrelation()
+plotDiagonalCorrelation()
 
 def plotDiagonalCorrelationWithFaking():
     "main paper plot with correlations of diagonals"

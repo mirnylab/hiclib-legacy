@@ -10,8 +10,8 @@ This example script does the following:
 
 --Locations of individual files are defined by source(ID) function.
 --Datasets are defined in the datasets.tsv file
---genome is defined by genomeFolder function, and workingGenome constant.
---Resulting files are placed to the workingDirectory folder  
+--genome is defined by genomeFolder function, and workingGenome identifyer
+--output files are arranged to folders named by their workingGenome IDs   
 
 Warnings: 
     Running this over NFS might cause unexpected slow-downs because NFS is
@@ -29,16 +29,11 @@ import os
 def genomeFolder(name):
     return os.path.join("/home/magus/HiC2011/data",name)   #Fetch genome folder by genome name
 
-workingGenome = "hg19"
-workingDirectory = "%s" % workingGenome
 
 def source(ID):
     return "/net/tamm/home/magus/gigareadHiC/data/%s.fastq.hdf5" % ID
 
 
-if os.path.exists(workingDirectory) == False:
-    print "working directory does not exist"
-    exit()    
 
  
 def refineDataset(filenames,create = True, delete = True ,parseInMemory = True):
@@ -48,6 +43,7 @@ def refineDataset(filenames,create = True, delete = True ,parseInMemory = True):
     
     filenames[0] is a list of filenames of incoming files 
     filenames[1] is a folder for outgoing file
+    filenames[2] is a working genome, that is output directory
     
     create : bool, optional 
         If True, parse each file. 
@@ -62,16 +58,24 @@ def refineDataset(filenames,create = True, delete = True ,parseInMemory = True):
     """
     in_files = filenames[0]
     out_file = filenames[1]
+    workingGenome = filenames[2]    
+    
+    if os.path.exists(workingGenome) == False:
+        try:
+            os.mkdir(workingGenome)
+        except:            
+            print "Cannot create working directory"
+            exit()    
         
     if create == True:  #if we need to parse the input files (.hdf5 from mapping).         
         for onename in in_files:
             #Parsing individual files
             if not os.path.exists(source(onename)): raise StandardError("path not found: %s" % onename)
-            if parseInMemory == True: 
+            if parseInMemory == True:
+                #create dataset in memory, parse and then save to destination
                 TR = HiCdataset("bla",genome = genomeFolder(workingGenome),
                                 maximumMoleculeLength=500,override = True,
-                                inMemory = True)   #remove inMemory if you don't have enough RAM
-                #create dataset in memory, parse and then save to destination 
+                                inMemory = True)   #remove inMemory if you don't have enough RAM                 
                 
                 TR.parseInputData(dictLike = source(onename))
                 TR.save(onename + "_parsed.frag")
@@ -98,14 +102,15 @@ def refineDataset(filenames,create = True, delete = True ,parseInMemory = True):
         "Now opening new dataset for refined data, and performing all the filtering "         
         TR = HiCdataset(out_file+"_refined.frag",
                         genome = genomeFolder(workingGenome),
-                        override = True,autoFlush = False) #because we do many operations, we disable autoFlush here                  
+                        override = True)                   
         TR.load(out_file+"_merged.frag")
+        #----------------------------Set of filters applied -------------
         TR.filterRsiteStart(offset = 5)                
         TR.filterDuplicates()
         #TR.save(out_file+".dat")
         TR.filterLarge()    
         TR.filterExtreme(cutH = 0.005, cutL = 0)
-        TR.flush()        
+        #------------------------End set of filters applied----------                
          
     else: 
         #If merging & filters has already been done, just load files                 
@@ -134,43 +139,45 @@ def refineDataset(filenames,create = True, delete = True ,parseInMemory = True):
 #This code is actually parsing datasets.tsv file
 dataFiles = open("datasets.tsv").readlines() 
 dataFiles = [i.split() for i in dataFiles if (len(i) > 3) and (i[0] != "#")]
-assert False not in [len(i) == 3 for i in dataFiles]
+assert False not in [len(i) == 4 for i in dataFiles]
 
-experimentNames  = set((i[1],i[2]) for i in dataFiles)
+experimentNames  = set((i[1],i[2],i[3]) for i in dataFiles)
 byExperiment = []
 newExperimentNames = []
 for experiment in experimentNames:
-    filenames = [i[0] for i in dataFiles if (i[1],i[2]) == experiment] 
+    workingGenome = experiment[2]
+    filenames = [i[0] for i in dataFiles if (i[1],i[2],i[3]) == experiment] 
     outName = str(experiment[0]) + "-" + str(experiment[1])
-    byExperiment.append((filenames,os.path.join(workingDirectory,outName),"HindIII"))
-    newExperimentNames.append((experiment[0],os.path.join(workingDirectory,outName)))
+    byExperiment.append((filenames,os.path.join(workingGenome,outName),workingGenome))
+    newExperimentNames.append((experiment[0],os.path.join(workingGenome,outName)))
     
 
 #Now running refineDataset for each experiment 
-for i in byExperiment: refineDataset(i, create = True)    
+for i in byExperiment: refineDataset(i, create = True, delete = True)    
 
 #Now merging different experiments alltogether
 experiments = set(i[0] for i in newExperimentNames)
 
 
 for experiment in experiments:
+    workingGenome = experiment[2]
     myExperimentNames = [i[1] + "_refined.frag" for i in newExperimentNames if i[0] == experiment]
     assert len(myExperimentNames) > 0 
     if len(myExperimentNames) > 1:
-        TR = HiCdataset(os.path.join(workingDirectory,"%s-all_refined.frag" % experiment),genome = genomeFolder(workingGenome))        
+        TR = HiCdataset(os.path.join(workingGenome,"%s-all_refined.frag" % experiment),genome = genomeFolder(workingGenome))        
         TR.merge(myExperimentNames)
-        TR.saveHeatmap(os.path.join(workingDirectory,"%s-all-100k.hm" % experiment),100000)
-        TR.saveHeatmap(os.path.join(workingDirectory,"%s-all-200k.hm" % experiment),200000)
-        TR.saveHeatmap(os.path.join(workingDirectory,"%s-all-500k.hm" % experiment),500000)
-        TR.saveHeatmap(os.path.join(workingDirectory,"%s-all-1M.hm" % experiment),1000000)
+        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-100k.hm" % experiment),100000)
+        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-200k.hm" % experiment),200000)
+        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-500k.hm" % experiment),500000)
+        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-1M.hm" % experiment),1000000)
 
 
 
 #map(refine_paper,
 #        [((source("SRR027961"),
-#       source("SRR027960")),   os.path.join(workingDirectory, "GM-NcoI-%s" % workingGenome ),"NcoI"),  
+#       source("SRR027960")),   os.path.join(workingGenome, "GM-NcoI-%s" % workingGenome ),"NcoI"),  
 #      ((source("SRR027956"),
 #        source("SRR027957"),
 #        source("SRR027958"),
-#        source("SRR027959")),  os.path.join(workingDirectory, "GM-HindIII-%s" % workingGenome ),"HindIII")])
+#        source("SRR027959")),  os.path.join(workingGenome, "GM-HindIII-%s" % workingGenome ),"HindIII")])
 
