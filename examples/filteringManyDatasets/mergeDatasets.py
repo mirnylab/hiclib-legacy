@@ -41,7 +41,7 @@ if os.path.exists(workingDirectory) == False:
     exit()    
 
  
-def refineDatasets(filenames,create = True, delete = True ,parseInMemory = True):
+def refineDataset(filenames,create = True, delete = True ,parseInMemory = True):
     """
     Parameters
     ----------
@@ -146,8 +146,12 @@ for experiment in experimentNames:
     newExperimentNames.append((experiment[0],os.path.join(workingDirectory,outName)))
     
 
-for i in byExperiment: refineDatasets(i, create = True)    
+#Now running refineDataset for each experiment 
+for i in byExperiment: refineDataset(i, create = True)    
+
+#Now merging different experiments alltogether
 experiments = set(i[0] for i in newExperimentNames)
+
 
 for experiment in experiments:
     myExperimentNames = [i[1] + "_refined.frag" for i in newExperimentNames if i[0] == experiment]
