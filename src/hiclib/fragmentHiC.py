@@ -89,7 +89,7 @@ class HiCdataset(object):
     If you apply any filters to a dataset, it will actually modify the content of the current working file.  
     Thus, to preserve the data, loading datasets is advised. """
     
-    def __init__(self, filename , genome , maximumMoleculeLength = 500 , override = True , autoFlush = True):
+    def __init__(self, filename , genome , maximumMoleculeLength = 500 , override = True , autoFlush = True,inMemory = False):
         """        
         __init__ method 
         
@@ -154,7 +154,7 @@ class HiCdataset(object):
                 except: 
                     raise IOError("Failed to create directory: %s" % os.path.split(self.filename)[0])
             
-        self.h5dict = h5dict(self.filename,autoflush = self.autoFlush )
+        self.h5dict = h5dict(self.filename,autoflush = self.autoFlush ,in_memory = inMemory)
 
     def _setData(self,name,data):
         "an internal method to save numpy arrays to HDD quickly"
@@ -239,6 +239,9 @@ class HiCdataset(object):
         
         Parameters
         ----------
+        dictLike: dict or dictLike object, or string with h5dict filename 
+            Input reads
+        
         dictLike["chrms1,2"] : Chromosomes of 2 sides of the read         
         dictLike["cuts1,2"] : Exact position of cuts        
         dictLike["strands1,2"], essential : Direction of the read        
@@ -483,26 +486,24 @@ class HiCdataset(object):
         self.genome.setResolution(resolution)
         dr = self.DS 
         
-        label1 = self.genome.chrmStartsBinCont[self.chrms1[dr] ] + self.mids1[dr] / resolution
-        label1 = numpy.array(label1, dtype = "uint32")
-        label2 = self.genome.chrmStartsBinCont[self.chrms2[dr] ] + self.mids2[dr] / resolution
-        label2 = numpy.array(label2, dtype = "uint32")       
-        label = label1 * numpy.int64(self.genome.numBins) + label2
-        del label1
-        del label2
-        if self.genome.numBins < 65000:
-            label = numpy.array(label, dtype = "uint32")                    
-         
+        label = self.genome.chrmStartsBinCont[self.chrms1[dr]]
+        label = numpy.asarray(label,dtype = "uint32")
+        label += self.mids1[dr] / resolution
+        if self.genome.numBins > 65000:
+            label = numpy.array(label, dtype = "int64")
+        label *= self.genome.numBins        
+        label += self.genome.chrmStartsBinCont[self.chrms2[dr] ]
+        label += self.mids2[dr] / resolution
+        
         counts = numpy.bincount(label, minlength = self.genome.numBins**2)
         if len(counts) > self.genome.numBins**2:
-            print "heatmap exceed length of the genome!!! Check genome"
-            exit()
+            raise StandardError("\nheatmap exceed length of the genome!!! Check genome")            
             
         counts.shape = (self.genome.numBins,self.genome.numBins)
         for i in xrange(len(counts)):
             counts[i,i:] += counts[i:,i]
             counts[i:,i] = counts[i,i:]        
-        return counts 
+        return counts
     
     def buildSinglesCoverage(self,resolution):
         "creates an SS coverage vector heatmap in accordance with the output of the 'genome' class"
@@ -641,8 +642,10 @@ class HiCdataset(object):
         
         print "----->Semi-dangling end filter: remove guys who start %d bp near the rsite" % offset
                         
-        mask = (numpy.abs(self.dists1 - self.fraglens1) >=offset) * ((numpy.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)    
-                 
+        d1 = numpy.abs(self.dists1 - self.fraglens1) >= offset 
+        d2 = numpy.abs(self.dists2 - self.fraglens2) >= offset 
+        mask =  d1 * (d2 * self.DS + self.SS)         
+        #mask = (numpy.abs(self.dists1 - self.fraglens1) >=offset) * ((numpy.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)                     
         self.maskFilter(mask)
         print
         
