@@ -1,11 +1,11 @@
 from hiclib.fragmentHiC import HiCdataset,HiCStatistics
 import hiclib.binnedData
-import mirnylab.numutils 
+import mirnylib.numutils 
 import hiclib.domainSearch 
 import numpy
 import matplotlib.pyplot as plt   
 import os
-import mirnylab.plotting 
+import mirnylib.plotting 
 import scipy.stats
 
 dataDir = "../.."   #base folder with project data
@@ -61,7 +61,7 @@ def compareWeightsNoWeights():
     TR.maskFilter((TR.strands1 == TR.strands2) * (TR.chrms1 == TR.chrms2))    
     TR.plotScaling( excludeNeighbors=3,enzyme = "NcoI", mindist = 100 ,label = "No weights, NcoI")
     TR.plotScaling( useWeights= True, excludeNeighbors=3,enzyme = "NcoI", mindist = 100 ,label = "weights, NcoI")
-    mirnylab.plotting.niceShow()
+    mirnylib.plotting.niceShow()
     
 #compareWeightsNoWeights()
            
@@ -125,7 +125,7 @@ def plotScalingsByDomains(build = True):
     plt.xlabel("genomic separation")
     plt.ylabel("Pc")    
     
-    mirnylab.plotting.niceShow()
+    mirnylib.plotting.niceShow()
     raise 
     
 plotScalingsByDomains()  

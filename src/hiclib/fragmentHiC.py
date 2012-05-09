@@ -782,7 +782,7 @@ class HiCStatistics(HiCdataset):
             self._setData(name,blowup)
             
     
-    def buildLengthDependencePlot(self, strands = "both",**kwargs):
+    def buildLengthDependencePlot(self, strands = "both",normalize = True,**kwargs):
         "plots dependence of counts on fragment length. May do based on one strands only"
         "please run  plt.legend & plt.show() after calling this for all datasets you want to consider"
         self._buildFragments()     
@@ -798,8 +798,10 @@ class HiCStatistics(HiCdataset):
             p = (b1 < fragmentLength)* (b2 > fragmentLength)
             value = numpy.mean(mysum[p])            
             sums.append(value)
-            sizes.append(numpy.mean(fragmentLength[p]))    
-        
+            sizes.append(numpy.mean(fragmentLength[p]))
+        sums = numpy.array(sums)     
+        if normalize == True: 
+            sums /= sums.mean() 
         plt.plot(sizes,sums,**kwargs)
     
         

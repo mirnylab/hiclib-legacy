@@ -14,8 +14,8 @@ import numpy as np
 import Bio.SeqIO, Bio.Seq, Bio.Restriction
 import pysam
 
-import mirnylab.h5dict 
-import mirnylab.genome  
+import mirnylib.h5dict 
+import mirnylib.genome  
 
 ##TODO: write some autodetection of chromosome lengthes base on genome folder
 ##TODO: throw an exception if no chromosomes found in chromosome folder
@@ -327,9 +327,9 @@ def fill_rsites(lib, genome_db, enzyme_name=None, min_frag_size = None):
     lib : dict
         A library of mapped Hi-C molecules. Gets modified by the function.
 
-    genome_db : str or mirnylab.genome.genome
+    genome_db : str or mirnylib.genome.genome
         A path to the folder with genome sequences in FASTA format or
-        a mirnylab.genome.genome object.
+        a mirnylib.genome.genome object.
 
     enzyme_name : str
         A name of the restriction enzyme. The full list of possible names
@@ -343,8 +343,8 @@ def fill_rsites(lib, genome_db, enzyme_name=None, min_frag_size = None):
     '''
    
     if isinstance(genome_db, str):
-        genome_db = mirnylab.genome.Genome(genome_db)        
-    assert isinstance(genome_db, mirnylab.genome.Genome)
+        genome_db = mirnylib.genome.Genome(genome_db)        
+    assert isinstance(genome_db, mirnylib.genome.Genome)
 
     if len(lib['chrms1']) == 0:
         return lib
@@ -373,7 +373,7 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     '''Private: assign mapped reads to restriction fragments by 
     their 5' end position.
     '''
-    assert isinstance(genome,mirnylab.genome.Genome) #make Pydev happy
+    assert isinstance(genome,mirnylib.genome.Genome) #make Pydev happy
     side = str(side)
      
 
@@ -560,7 +560,7 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
     out_dict : dict-like
         A dict-like structure to store the library of matched HiC reads.
 
-    genome_db : str or mirnylab.genome.genome
+    genome_db : str or mirnylib.genome.genome
         A path to a folder with FASTA files or a genome object. It is used
         to convert Bowtie chromosome indices to internal indices.
 
@@ -578,13 +578,13 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
     '''
     
     if isinstance(genome_db, str):
-        genome_db = mirnylab.genome.Genome(genome_db)        
-    assert isinstance(genome_db, mirnylab.genome.Genome)
+        genome_db = mirnylib.genome.Genome(genome_db)        
+    assert isinstance(genome_db, mirnylib.genome.Genome)
 
     # Parse the single-sided reads.
     ss_lib = {}
-    ss_lib[1] = mirnylab.h5dict.h5dict()
-    ss_lib[2] = mirnylab.h5dict.h5dict()
+    ss_lib[1] = mirnylib.h5dict.h5dict()
+    ss_lib[2] = mirnylib.h5dict.h5dict()
 
     logging.info('Parse the first side of the reads from %s' % sam_basename1)
     _parse_ss_sams(sam_basename1, ss_lib[1], genome_db,

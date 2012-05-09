@@ -1,5 +1,5 @@
 import numpy,numexpr 
-import mirnylab.numutils
+import mirnylib.numutils
 
     
 
@@ -80,7 +80,7 @@ class gradientDescentDomains:
         O,B1,B2,D1,D2,M0 #Eclipse warning removal     
         #M0 = B[:,None] + B[None,:] + D[:,None] * D[None,:]        
         M1 = numexpr.evaluate("O * M0 - exp(M0)")        
-        s =  mirnylab.numutils.openmpSum(M1)
+        s =  mirnylib.numutils.openmpSum(M1)
         
         print -s
         if numpy.isfinite(s) == False:

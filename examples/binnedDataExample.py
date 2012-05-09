@@ -3,16 +3,16 @@ sys.path.append(os.path.split(os.getcwd())[0])
 from hiclib.binnedData import binnedData, binnedDataAnalysis,\
     experimentalBinnedData
 
-import mirnylab.systemutils
-mirnylab.systemutils
+import mirnylib.systemutils
+mirnylib.systemutils
 from hiclib.fragmentHiC import HiCdataset
-from mirnylab.numutils import EIG, coarsegrain, project
+from mirnylib.numutils import EIG, coarsegrain, project
 import numpy
-import mirnylab.plotting              
+import mirnylib.plotting               
 import scipy.stats
 cr = scipy.stats.spearmanr
 import cPickle
-from mirnylab.plotting import mat_img,removeAxes,removeBorder, niceShow
+from mirnylib.plotting import mat_img,removeAxes,removeBorder, niceShow
 
 import matplotlib.pyplot as plt 
 import matplotlib
@@ -48,7 +48,7 @@ def correctedScalingPlot():
     Tanay.iterativeCorrectWithSS()
     Tanay.plotScaling("GM-all",label = "Corrected",color = "#344370")
     ax = plt.gca() 
-    mirnylab.plotting.removeAxes()
+    mirnylib.plotting.removeAxes()
     fs = 6
     plt.xlabel("Genomic distance (MB)",fontsize = 6 )
     plt.ylabel("Contact probability",fontsize = 6 )
@@ -74,11 +74,11 @@ def doArmPlot():
     plt.figure(figsize = (1.6,1.6))
     Tanay.averageTransMap("GM-all")
 
-    mirnylab.plotting.removeBorder()
+    mirnylib.plotting.removeBorder()
     cb = plt.colorbar(orientation = "vertical")
     cb.set_ticks([-0.05,0.05,0.15])
     for xlabel_i in cb.ax.get_xticklabels(): xlabel_i.set_fontsize(6)    
-    mirnylab.plotting.niceShow()    
+    mirnylib.plotting.niceShow()    
 #doArmPlot()     
 
     
@@ -229,7 +229,7 @@ def checkLowResolutionIC():
     
     mask1 = numpy.isnan(data1[30])
     print mask1
-    mirnylab.systemutils.setExceptionHook()
+    mirnylib.systemutils.setExceptionHook()
 
     
     
@@ -256,7 +256,7 @@ def checkLowResolutionIC():
     mask2 = numpy.isnan(data2) == False
     data2[mask2 == False] = 0
     print data2 
-    mirnylab.systemutils.setExceptionHook()
+    mirnylib.systemutils.setExceptionHook()
     E3 = numpy.zeros(data1.shape,dtype = float)
     for i in xrange(T1.genome.chrmCount):
         beg = T2.genome.chrmStartsBinCont[i]
@@ -503,7 +503,7 @@ def saddlePlot():
     for xlabel_i in cbar.ax.get_xticklabels(): xlabel_i.set_fontsize(6)    
     cbar.set_ticks([-0.5,0,0.5,1])
     removeBorder()
-    mirnylab.plotting.niceShow()
+    mirnylib.plotting.niceShow()
       
 #saddlePlot() 
 
@@ -553,7 +553,7 @@ def doCartoonPlot():
 
 
 def compareWithGenomicFeatures():
-    mirnylab.systemutils.setExceptionHook()
+    mirnylib.systemutils.setExceptionHook()
     Tanay = experimentalBinnedData(1000000,myGenome)
     Tanay.simpleLoad(GM1M,"GM-all")
     Tanay.simpleLoad(tcc1M,"tcc")
@@ -609,7 +609,7 @@ def compareWithGenomicFeatures():
         print key, "\t%lf\t" % c1[0] ,"%lf\t" % c4[0] ,"%lf\t" % c2[0] ,"%lf" % c3[0]
     print
     #for key in keys:
-    #    print key,"partial correlation is:",mirnylab.numutils.partialCorrelation(
+    #    print key,"partial correlation is:",mirnylib.numutils.partialCorrelation(
     #                                                Tanay.trackDict[key], E1, Tanay.trackDict["GC"])
     raise 
 

@@ -15,8 +15,8 @@ If key is not an array, python's repr command is used
 to get an exact representation of an object.  
 """
 
-from mirnylab.h5dict import h5dict
-from mirnylab.numutils import generalizedDtype
+from mirnylib.h5dict import h5dict
+from mirnylib.numutils import generalizedDtype
 import os,sys
 import numpy
 

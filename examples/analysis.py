@@ -2,12 +2,12 @@
 This is an example file that shows different domain search algorithms 
 """
 
-import mirnylab.systemutils 
-mirnylab.systemutils.setExceptionHook()
-import mirnylab.plotting
-plotting = mirnylab.plotting 
-import mirnylab.numutils
-numutils = mirnylab.numutils  
+import mirnylib.systemutils 
+mirnylib.systemutils.setExceptionHook()
+import mirnylib.plotting
+plotting = mirnylib.plotting 
+import mirnylib.numutils
+numutils = mirnylib.numutils  
 import numpy 
 na = numpy.array 
 
@@ -17,7 +17,7 @@ import hiclib
 from hiclib.binnedData import binnedData, binnedDataAnalysis
 from hiclib.fragmentHiC import HiCStatistics 
 from hiclib.domainSearch import gradientDescentDomains
-from mirnylab.plotting import mat_img
+from mirnylib.plotting import mat_img
 
 import scipy.stats  
 #os.chdir("/old/home/magus/HiC2011")
@@ -48,7 +48,7 @@ def correctedScalingPlot():
     Tanay.iterativeCorrectWithSS(M = 10)
     Tanay.plotScaling("GM-all",label = "Corrected",color = "#344370")
     ax = plt.gca() 
-    mirnylab.plotting.removeAxes(shift = 0 )
+    mirnylib.plotting.removeAxes(shift = 0 )
     fs = 6
     plt.xlabel("Genomic distance (MB)",fontsize = 6 )
     plt.ylabel("Contact probability",fontsize = 6 )
@@ -105,7 +105,7 @@ def saddlePlot():
         inds = numpy.argsort(array)
         ndata = data[inds,:]
         return ndata[:,inds]
-    toplot = (mirnylab.numutils.coarsegrain(reorder(Tanay.dataDict["GM-all"]),60))
+    toplot = (mirnylib.numutils.coarsegrain(reorder(Tanay.dataDict["GM-all"]),60))
     toplot /= toplot.mean()
     toplot = numpy.log(toplot)
     sh = toplot.shape
@@ -208,7 +208,7 @@ def plotScalingsByDomains(build = True):
     plt.xlabel("genomic separation")
     plt.ylabel("Pc")    
     
-    mirnylab.plotting.niceShow()
+    mirnylib.plotting.niceShow()
 
     
     

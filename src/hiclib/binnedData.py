@@ -308,6 +308,23 @@ class binnedData(object):
         mask2D = mask[:,None] * mask[None,:]        
         for i in self.dataDict.values(): i[mask2D == False] = 0
         self.appliedOperations["RemovedStandalone"] = True
+    
+    
+    def removeBySequencedCount(self,sequencedPercent = 0.5):
+        self._checkAppliedOperations(excludedKeys = "RemovedZeros")
+        binCutoff = int(self.resolution * sequencedPercent)
+        sequenced = numpy.concatenate(self.genome.mappedBasesBin)
+        mask = sequenced < binCutoff
+        nzmask = numpy.zeros(len(mask),bool)  #mask of regions with non-zero counts         
+        
+        for i in self.dataDict.values():
+            sumData = numpy.sum(i[mask],axis = 1)>0
+            nzmask[mask] = nzmask[mask] + sumData                           
+            i[mask,:] = 0
+            i[:,mask] = 0 
+        print "Removing %d bins with <%lf %% coverage by sequenced reads" % ((nzmask >0).sum(), 100 * sequencedPercent)
+        self.appliedOperations["RemovedUnsequenced"] = True
+        pass
         
     def removePoorRegions(self,names = None, cutoff = 2):
         """removes cutoff persent of bins with least counts
@@ -331,9 +348,12 @@ class binnedData(object):
             newmask = countsum >= numpy.percentile(countsum[datamask],cutoff)
             mask *= newmask  
             statmask [(newmask == False) * (datamask == True)] = True
-        print "removed %d poor bins", statmask.sum() 
-        mask2D = mask[:,None] * mask[None,:]
-        for i in self.dataDict.values(): i[mask2D == False] = 0
+        print "removed %d poor bins", statmask.sum()
+        inds = numpy.nonzero(mask == False) 
+        
+        for i in self.dataDict.values(): 
+            i[inds,:] = 0
+            i[:,inds] = 0 
         self.appliedOperations["RemovedPoor"] = True
               
     def truncTrans(self,high = 0.0005):
