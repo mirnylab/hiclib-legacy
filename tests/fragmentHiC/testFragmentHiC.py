@@ -3,7 +3,7 @@ from hiclib.fragmentHiC import HiCdataset
 import os 
 
 
-
+if os.path.exists("test-1M.hm"): os.remove("test-1M.hm")
 workingGenome = "hg18"
 genomeFolder = "../../../data/hg18"
 if not os.path.exists(genomeFolder):
@@ -59,7 +59,7 @@ def refine_paper(filename,create = True):
     print "----->Building Raw heatmap at two resolutions"
     TR.printStats()
     TR.saveHeatmap(filename[1] + "-1M.hm",1000000)
-    from mirnylab.h5dict import h5dict
+    from mirnylib.h5dict import h5dict
     a = h5dict(filename[1] + "-1M.hm")
     assert  a["heatmap"][::10,::10].sum()  == 12726
 
@@ -77,7 +77,6 @@ map(refine_paper,
       [(source("test"),
 ), "test","HindIII"]])
 
-os.remove("test-1M.hm")
 os.remove("test_breaks.frag")
 os.remove("test-hg18.hdf5_parsed.frag")
 os.remove("test_merged.frag")
