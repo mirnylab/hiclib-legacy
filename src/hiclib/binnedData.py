@@ -74,19 +74,19 @@ hierarchy
 """
 
 import os 
-from mirnylab import numutils
+from mirnylib import numutils
 import warnings
-from mirnylab.plotting import  removeBorder , mat_img
-from mirnylab.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector,\
+from mirnylib.plotting import  removeBorder , mat_img
+from mirnylib.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector,\
     isInteger
-from mirnylab.genome import Genome 
+from mirnylib.genome import Genome 
 import  numpy
 from math import exp
-from mirnylab.h5dict import h5dict  
+from mirnylib.h5dict import h5dict  
 from scipy import weave 
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt 
-from mirnylab.systemutils import setExceptionHook
+from mirnylib.systemutils import setExceptionHook
 
 
     

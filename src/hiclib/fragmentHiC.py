@@ -59,7 +59,7 @@ API documentation
 
 import warnings 
 import os,cPickle
-from mirnylab.genome import Genome 
+from mirnylib.genome import Genome 
 import hiclib.mapping 
 import numpy
 from numpy import array as na  
@@ -67,12 +67,12 @@ from scipy import stats
 import matplotlib
 import matplotlib.pyplot as plt
 from math import sqrt 
-from mirnylab.h5dict import h5dict 
-from mirnylab import plotting 
-from mirnylab.plotting import mat_img,removeAxes
+from mirnylib.h5dict import h5dict 
+from mirnylib import plotting 
+from mirnylib.plotting import mat_img,removeAxes
 
-from mirnylab import numutils  
-from mirnylab.numutils import arrayInArray,  sumByArray, correct, ultracorrect,\
+from mirnylib import numutils  
+from mirnylib.numutils import arrayInArray,  sumByArray, correct, ultracorrect,\
     uniqueIndex
 
 r_ = numpy.r_
@@ -102,7 +102,7 @@ class HiCdataset(object):
             A filename to store HiC dataset in an HDF5 file.  
         genome : folder with genome, or Genome object 
             A folder with fastq files of the genome and gap table from Genome browser.
-            Alternatively, mirnylab.genome.Genome object.               
+            Alternatively, mirnylib.genome.Genome object.               
         maximumMoleculeLength : int, optional 
             Maximum length of molecules in the HiC library, used as a cutoff for dangling ends filter
         override : bool, optional
