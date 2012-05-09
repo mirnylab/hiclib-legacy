@@ -149,27 +149,27 @@ for experiment in experimentNames:
     filenames = [i[0] for i in dataFiles if (i[1],i[2],i[3]) == experiment] 
     outName = str(experiment[0]) + "-" + str(experiment[1])
     byExperiment.append((filenames,os.path.join(workingGenome,outName),workingGenome))
-    newExperimentNames.append((experiment[0],os.path.join(workingGenome,outName)))
+    newExperimentNames.append((experiment[0],os.path.join(workingGenome,outName),workingGenome))
     
 
 #Now running refineDataset for each experiment 
 for i in byExperiment: refineDataset(i, create = True, delete = True)    
 
 #Now merging different experiments alltogether
-experiments = set(i[0] for i in newExperimentNames)
+experiments = set([(i[0],i[2]) for i in newExperimentNames])
 
 
 for experiment in experiments:
-    workingGenome = experiment[2]
-    myExperimentNames = [i[1] + "_refined.frag" for i in newExperimentNames if i[0] == experiment]
+    workingGenome = experiment[1]
+    myExperimentNames = [i[1] + "_refined.frag" for i in newExperimentNames if i[0] == experiment[0]]
     assert len(myExperimentNames) > 0 
     if len(myExperimentNames) > 1:
-        TR = HiCdataset(os.path.join(workingGenome,"%s-all_refined.frag" % experiment),genome = genomeFolder(workingGenome))        
+        TR = HiCdataset(os.path.join(workingGenome,"%s-all_refined.frag" % experiment[0]),genome = genomeFolder(workingGenome))        
         TR.merge(myExperimentNames)
-        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-100k.hm" % experiment),100000)
-        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-200k.hm" % experiment),200000)
-        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-500k.hm" % experiment),500000)
-        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-1M.hm" % experiment),1000000)
+        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-100k.hm" % experiment[0]),100000)
+        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-200k.hm" % experiment[0]),200000)
+        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-500k.hm" % experiment[0]),500000)
+        TR.saveHeatmap(os.path.join(workingGenome,"%s-all-1M.hm" % experiment[0]),1000000)
 
 
 
