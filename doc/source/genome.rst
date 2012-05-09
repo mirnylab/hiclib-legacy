@@ -1,5 +1,5 @@
 Unifying class that represents Genome
 =====================================
   
-.. automodule:: mirnylab.genome 
+.. automodule:: mirnylib.genome 
     :members:

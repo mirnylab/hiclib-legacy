@@ -3,25 +3,35 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
  
-Welcome to hic-lib's documentation!
-===================================
+Documentation for the Hi-C data analysis library by Leonid Mirny lab
+====================================================================
+
+Code is available here: https://bitbucket.org/mirnylab/hiclib
+
+Overview
+--------
+
+Here we present a collection of tools to map, filter and analyze Hi-C data. 
+The libarary is written in Python, an easy-to-learn human-friendly programming language. 
 
 Installation
 ------------
 This library will work only on Linux. 
 To install it please run install_linux.py in the hiclib/src directory. 
-This will make hiclib module accessible from any folder on the machine 
-(don't forget to restart bash in order to apply the changes made by install_linux.py). 
+This will add hiclib to PYTHONPATH (in .bashrc & .bash_profile), what will make 
+hiclib library accessible from any folder of the computer. 
 You can then import hiclib sub-modules as "import hiclib.binnedData", etc. 
+(don't forget to restart bash in order to apply the changes made by install_linux.py).
 
 Requirements
 ------------
 
-You will need mirnylab library to use this library. That library is installed in a similar way.  
+You will need mirnylib library to use this library. 
+Mirnylib library is publicly available at https://bitbucket.org/mirnylab/mirnylib. 
 
-This library is not python 2.5-compatible, but works fine with python 2.6. 
-However, it might require a newer versions of python packages, than those available with python 2.6-equipped linux distributions. 
-It does not work with python 3.x 
+Both libraries are library not compatible with python 2.5 and python 3.x, but work fine with python 2.6, 2.7.
+
+However, it might require a newer versions of python packages, than those available with python 2.6-equipped linux distributions (e.g. Ubuntu 10.04 LTS). 
 
 Hiclib requires the following python libraries: joblib, h5py, pysam, numpy, scipy, matplotlib, numexpr, biopython, bx-python (preferably from bitbucket repo)
 
@@ -29,7 +39,7 @@ Hiclib requires following non-python binaries to be installed: samtools.
 
 Ubuntu 11.04 with default numpy-scipy-matplotlib combination works well. However, for ubuntu 10.04 you'll need to update numpy, scipy and biopython to newer versions.
 
-If you're updating numpy/scipy/matplotlib using pip (pip install --upgrade numpy), be sure to delete/replace the original package. 
+If you're upgrading numpy/scipy/matplotlib using pip (pip install --upgrade numpy), be sure to delete/replace the original package. 
 Often pip installs new package to a different location, and python still loads the old copy as it looks there first.
 You might need to specifically delete files corresponding to the original package, as running "apt-get remove python-numpy" might take down a significant number of packages. Locations of files can be determined from the python console by >>>print numpy.__file__, and version by >>>print numpy.__version__. 
 
@@ -58,11 +68,15 @@ Storage concept
 ---------------
 
 mirnylab.h5dict is a default storage used by all parts of the library. 
-H5dict is a persistent python dictionary with all the data stored on the HDD. 
+H5dict is a persistent python dictionary with all the data stored on the HDD.
 It uses HDF5 to store and access the data, and can be viewed using external HDF5 viewers or python. 
-It stores data in a compressed format, and can be possibly modified to hold data in RAM only. 
+It stores data in a compressed format. For small datasets, it can be initialized to hold data in memory only.
 
-H5dict can be converted to txt format using a small utility called h5dictToTxt.py
+.. warning:: H5dict is not equivalent to dict, as it does not provide direct references to arrays on an HDD. 
+	For example ``>>> a = h5dict["myarray"] >>> a[0] = 1`` will not change the array in h5dict. You would need to run ``>>> h5dict["myarray"] = a`` to commit the change to the hard disk.  
+
+H5dict file can be converted to txt format using a small utility called h5dictToTxt.py, 
+or to matlab files using h5dictToMat.py. Both utilities are a part of mirnylib repository. 
 
 Pipeline structure
 ------------------
@@ -70,11 +84,11 @@ Pipeline structure
 Two sides of the read are mapped to the genome independently using iterative mapping function. 
 Acceptable read format is fastq, but .sra format can be incorporated using a bash_reader parameter 
 of iterative_mapping and a fastq-dump tool from SRA toolkit. 
-Iterative mapping outputs a combination of sam/bam files (autodetect by filename), which can be then parsed and written to an h5dict containing read data.
+Iterative mapping outputs a combination of sam/bam files (autodetect by filename), which can be then parsed and written to an h5dict containing read data using parse_sams function. 
 
-Fragment-level analysis inputs an h5dict, or any dictionary-like interface, containing at minimum information about read positions (directions are highly recommended). 
+Fragment-level analysis inputs an h5dict, or any dictionary-like interface, containing at minimum information about read positions (however, strand information is highly recommended). 
 It stores all the data in an h5dict, and modifies it as the analysis goes. 
-An example script shows how  fragment-level analysis can be used to merge multiple datasets together, filter them and save heatmaps to an h5dict. 
+An example script shows how  fragment-level analysis can be used to merge multiple datasets together, filter them and save heatmaps to an h5dict.
 
 Heatmaps and vectors of SS reads are then passed to a binnedData class, that can be used to further filter the Hi-C data,
 perform multiple types of iterative correction and eigenvector expansion, and compare results with different genomic tracks.
