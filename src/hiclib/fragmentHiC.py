@@ -508,7 +508,10 @@ class HiCdataset(object):
     def buildSinglesCoverage(self,resolution):
         "creates an SS coverage vector heatmap in accordance with the output of the 'genome' class"
         self.genome.setResolution(resolution)
-        ds = self.DS == False        
+        ds = self.DS == False
+        if ds.sum() == 0: 
+            return numpy.zeros(self.genome.numBins)
+                 
         label = self.genome.chrmStartsBinCont[self.chrms1[ds] ] + self.mids1[ds] / resolution
         counts = sumByArray(label, numpy.arange(self.genome.numBins))
         return counts

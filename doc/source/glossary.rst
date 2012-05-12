@@ -4,9 +4,6 @@ Glossary
 General Hi-C terms
 ------------------
 
-ATTENTION! THIS TEXT MAY CONTAIN RAW AND UNDIGESTIBLE INGREDIENTS! 
-PLEASE BE LENIENT!
-
 restriction fragment - a fragment between two sites of restriction
 
 ligation junction - a site of enzymatic ligation between two restriction 

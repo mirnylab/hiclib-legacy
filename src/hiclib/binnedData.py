@@ -64,11 +64,43 @@ self.PCDict - dictionary with principal components of each datasets. Keys as in 
 
 self.EigEict - dictionary with eigenvectors for each dataset. Keys as in datadict. 
 
-
 Hierarchy of filters
 --------------------
 
-hierarchy
+Generally filters from the next group should be applied after filters from previous group. 
+
+1. Remove Diagonal, removeBySequencedCount
+
+2. RemovePoorRegions, RemoveStandalone (this two filters are not transitive)
+
+3. removeZeros
+
+4. fakeTranslocations
+
+5. truncTrans
+
+6. fakeCis  
+
+7. iterative correction
+
+8. PCA
+
+9. RestoreZeros 
+
+Besides that, filter dependencies are: 
+
+Faking reads require: removeZeros
+
+PCA requires: removeZeros, fakeCis 
+
+IC with SS requires: no previous iterative corrections, no removed cis reads
+
+IC recommends removal of poor regions
+
+Other filter dependencies, including adviced but not required filters, will be ussied as warnings during runtime of a program. 
+
+API Documentation
+-----------------
 
 --------------------------------------------------------------- 
 """
@@ -397,6 +429,8 @@ class binnedData(object):
              
         
         """
+        self._checkAppliedOperations(neededKeys = ["RemovedZeros"])
+        
         if silent == False: print("All cis counts are substituted with matching trans count")
         for key in self.dataDict.keys():                         
             data = numpy.asarray(self.dataDict[key],order = "C",dtype = float)
