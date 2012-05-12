@@ -281,6 +281,28 @@ class binnedData(object):
             print "source genome",len(alldata["heatmap"])
             print "our genome",self.genome.numBins
             raise StandardError("Genome size mismatch! ")
+        
+    def export(self,name, out_filename):
+        """
+        Exports 
+        """
+        
+        if not self.dataDict.has_key(name):
+            raise ValueError("No data {name}".format(name=name))
+        toexport = {}
+        toexport["heatmap"] = self.dataDict[name]
+        if self.singlesDict.has_key(name):
+            toexport["singles"] = self.singlesDict[name]
+        if self.fragsDict.has_key(name):
+            toexport["frags"] = self.fragsDict[name]
+            
+        toexport["resolution"] = self.resolution
+        toexport["genome"] = self.genome.folderName
+        myh5dict = h5dict(out_filename,mode = "w")
+        myh5dict.update(toexport)
+        
+        
+        
 
               
         
