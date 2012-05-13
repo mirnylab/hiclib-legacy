@@ -15,7 +15,8 @@ when working with 2 or more datasets.
 
 Class has significant knowledge about filters that have been applied. 
 If an essential filter was not applied, it will throw an exception; 
-if adviced filter is not applied, it will throw a warning. 
+if adviced filter is not applied, it will throw a warning.
+However, it does not guarantee dependencies, and you have to think yourself. 
 Most of the methods have an optional "force" argument that will ignore dependensies.
 
 We provide example scripts that show ideal protocols for certain types of the analysis, 
@@ -25,13 +26,13 @@ Input data
 ----------
 
 method :py:func:`SimpleLoad <binnedData.simpleLoad>` may be used to load the data. 
-It automatically checks for possible genome length mismatch. 
+It automatically checks for possible genome length mismatch.
 
 This method works best with h5dict files, created by fragmentHiC.
 In this case you just need to supply the filename.  
 
 It can also accept any dictionary-like object with the following keys, 
-where all but "heatmap" is optional.  
+where all but "heatmap" is optional.
 
 * ["heatmap"] : all-by-all heatmap
 
@@ -62,12 +63,34 @@ self.biasDict - dictionary with biases as calculated by iterative correction (in
 
 self.PCDict - dictionary with principal components of each datasets. Keys as in dataDict
 
-self.EigEict - dictionary with eigenvectors for each dataset. Keys as in datadict. 
+self.EigEict - dictionary with eigenvectors for each dataset. Keys as in datadict.
+ 
 
 Hierarchy of filters
 --------------------
 
-Generally filters from the next group should be applied after filters from previous group. 
+This hierarchy attempts to connect all logical dependencies between filters into one diagram.
+This includes both biological dependencies and programming dependencies. 
+As a result, it's incomplete and might be not 100% accurate.
+ 
+Generally filters from the next group should be applied after filters from previous groups, if any.
+
+Examples of the logic are below: 
+
+* First, apply filters that don't depend on counts, i.e. remove diagonal and low-coverage bins. 
+
+* Second, remove regions with poor coverage; do this before chaiging heatmaps with other filters. 
+
+* Fake translocations before truncating trans, as translocations are very high-count regions, and truncTrans will truncate them, not actuall trans reads
+
+* Faking reads currently requires zeros to be removed. This will be changed later 
+
+* Fake cis counts after truncating trans, so that they don't get faked with extremely high-count outliers in a trans-map 
+
+* Perform iterative correction after all the filters are applied 
+
+* Preform PCA after IC of trans data, and with zeros removed  
+
 
 1. Remove Diagonal, removeBySequencedCount
 
@@ -81,21 +104,21 @@ Generally filters from the next group should be applied after filters from previ
 
 6. fakeCis  
 
-7. iterative correction
+7. iterative correction  (does not require removeZeros) 
 
-8. PCA
+8. PCA   (Requires removeZeros) 
 
 9. RestoreZeros 
 
 Besides that, filter dependencies are: 
 
-Faking reads require: removeZeros
+* Faking reads requires: removeZeros
 
-PCA requires: removeZeros, fakeCis 
+* PCA requires: removeZeros, fakeCis 
 
-IC with SS requires: no previous iterative corrections, no removed cis reads
+* IC with SS requires: no previous iterative corrections, no removed cis reads
 
-IC recommends removal of poor regions
+* IC recommends removal of poor regions
 
 Other filter dependencies, including adviced but not required filters, will be ussied as warnings during runtime of a program. 
 
@@ -693,7 +716,8 @@ class binnedData(object):
         self.removeZerosMask = s
         if self.appliedOperations.get("RemovedZeros",False) == True:
             warnings.warn("\nYou're removing zeros twice. You can't restore zeros now!")
-        self.appliedOperations["RemovedZeros"] = True  
+        self.appliedOperations["RemovedZeros"] = True
+        self.genome.setResolution(-1)  
         return s 
 
     def restoreZeros(self, value = numpy.NAN):
@@ -706,7 +730,8 @@ class binnedData(object):
         value : number-like, optional. 
             Value to fill in missing regions. By default, NAN. 
         """
-        if not hasattr(self,"removeZerosMask"): raise StandardError("Zeros have not been removed!")        
+        if not hasattr(self,"removeZerosMask"): raise StandardError("Zeros have not been removed!")
+                
         
         s = self.removeZerosMask
         N = len(s)
@@ -728,7 +753,8 @@ class binnedData(object):
                 a = mydict[key]
                 mydict[key] = numpy.zeros((len(a),N),dtype = a.dtype) * value 
                 mydict[key][:,s] = a
-                                        
+        
+        self.genome.setResolution(self.resolution)                                
         self._initChromosomes()     
         self.appliedOperations["RemovedZeros"] = False           
         
