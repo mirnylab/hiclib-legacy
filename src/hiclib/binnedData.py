@@ -96,15 +96,15 @@ Examples of the logic are below:
 
 2. RemovePoorRegions, RemoveStandalone (this two filters are not transitive)
 
-3. removeZeros
+3. fakeTranslocations
 
-4. fakeTranslocations
+4. truncTrans
 
-5. truncTrans
+5. fakeCis  
 
-6. fakeCis  
+6. iterative correction  (does not require removeZeros)
 
-7. iterative correction  (does not require removeZeros) 
+7. removeZeros  
 
 8. PCA   (Requires removeZeros) 
 
@@ -324,12 +324,6 @@ class binnedData(object):
         myh5dict = h5dict(out_filename,mode = "w")
         myh5dict.update(toexport)
         
-        
-        
-
-              
-        
-        
   
     
     def removeDiagonal(self,m=1):
@@ -387,9 +381,23 @@ class binnedData(object):
         self.appliedOperations["RemovedStandalone"] = True
     
     
-    def removeBySequencedCount(self,sequencedPercent = 0.5):
+    def removeBySequencedCount(self,sequencedFraction = 0.5):
+        """
+        Removes bins that have less than sequencedFraction*resolution sequenced counts.
+        This filters bins by percent of sequenced counts, and also removes the last bin if it's very short.
+        
+        .. note:: this is not equivalent to mapability 
+        
+        Parameters
+        ----------
+        
+        sequencedFraction: float, optional, 0<x<1
+            Fraction of the bin that needs to be sequenced in order to keep the bin
+          
+         
+        """
         self._checkAppliedOperations(excludedKeys = "RemovedZeros")
-        binCutoff = int(self.resolution * sequencedPercent)
+        binCutoff = int(self.resolution * sequencedFraction)
         sequenced = numpy.concatenate(self.genome.mappedBasesBin)
         mask = sequenced < binCutoff
         nzmask = numpy.zeros(len(mask),bool)  #mask of regions with non-zero counts         
@@ -399,12 +407,12 @@ class binnedData(object):
             nzmask[mask] = nzmask[mask] + sumData                           
             i[mask,:] = 0
             i[:,mask] = 0 
-        print "Removing %d bins with <%lf %% coverage by sequenced reads" % ((nzmask >0).sum(), 100 * sequencedPercent)
+        print "Removing %d bins with <%lf %% coverage by sequenced reads" % ((nzmask >0).sum(), 100 * sequencedFraction)
         self.appliedOperations["RemovedUnsequenced"] = True
         pass
         
     def removePoorRegions(self,names = None, cutoff = 2):
-        """removes cutoff persent of bins with least counts
+        """removes "cutoff" percent of bins with least counts
         
         Parameters
         ----------

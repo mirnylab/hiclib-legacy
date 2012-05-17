@@ -1,6 +1,6 @@
 from hiclib.fragmentHiC import HiCdataset 
   
-import os 
+import os,sys 
 
 
 if os.path.exists("test-1M.hm"): os.remove("test-1M.hm")
