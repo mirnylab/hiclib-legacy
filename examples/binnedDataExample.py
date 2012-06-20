@@ -1,4 +1,5 @@
 import os,sys
+from mirnylib.systemutils import setExceptionHook
 sys.path.append(os.path.split(os.getcwd())[0])
 from hiclib.binnedData import binnedData, binnedDataAnalysis,\
     experimentalBinnedData
@@ -17,8 +18,6 @@ from mirnylib.plotting import mat_img,removeAxes,removeBorder, niceShow
 import matplotlib.pyplot as plt 
 import matplotlib
 
-
-
 genomeVersion = "hg18"
 myGenome = "../../data/%s"% genomeVersion
 
@@ -36,9 +35,8 @@ workingFile1 = "../../ErezPaperData/working1"
 workingFile2 = "../../ErezPaperData/working2"
 workingFile3 = "../../ErezPaperData/working3"
 
-
 def correctedScalingPlot():
-    
+    "Paper figure to compare scaling before/after correction"    
     plt.figure(figsize = (4,4))
     Tanay = binnedDataAnalysis(200000,genome = myGenome)
     Tanay.simpleLoad(GM200kBreaks,"GM-all")    
@@ -64,6 +62,7 @@ def correctedScalingPlot():
 
 
 def doArmPlot():
+    "Perform an average trans map for one dataset - paper figure"    
     
     Tanay = binnedDataAnalysis(resolution = 1000000, genome = myGenome)    
     Tanay.simpleLoad(GM1M,"GM-all")
@@ -73,62 +72,26 @@ def doArmPlot():
     Tanay.iterativeCorrectWithoutSS()
     plt.figure(figsize = (1.6,1.6))
     Tanay.averageTransMap("GM-all")
-
     mirnylib.plotting.removeBorder()
     cb = plt.colorbar(orientation = "vertical")
     cb.set_ticks([-0.05,0.05,0.15])
     for xlabel_i in cb.ax.get_xticklabels(): xlabel_i.set_fontsize(6)    
     mirnylib.plotting.niceShow()    
-#doArmPlot()     
-
     
 
-def checkCorrelationBetweenInterchromosomal(): 
-    resolution = 1000000                    
-    Tanay = binnedDataAnalysis(resolution,genome = myGenome)     
-    Tanay.simpleLoad(GM1M,"GM-all")
-    Tanay.simpleLoad(GM1MNcoI,"GM-NcoI")
-    Tanay.removePoorRegions()
-    Tanay.removeDiagonal()
-    Tanay.removeZeros()    
-    t =  Tanay.interchromosomalValues()
-    t2 = Tanay.interchromosomalValues("GM-NcoI")
-    print "raw: ",numpy.corrcoef(t,t2) 
-    
-    #Tanay.iterativeCorrectWithSS(M = 55)
-    Tanay.correct() 
-    
-    t =  Tanay.interchromosomalValues()
-    t2 = Tanay.interchromosomalValues("GM-NcoI")
-    print "single correct, ",numpy.corrcoef(t,t2) 
-    
-    Tanay.iterativeCorrectWithoutSS()
-    
-    t =  Tanay.interchromosomalValues()
-    t2 = Tanay.interchromosomalValues("GM-NcoI")
-    print "iterative correct, ",numpy.corrcoef(t,t2) 
-    
-
-    Tanay.fakeCis()
-    Tanay.iterativeCorrectWithoutSS()
-    t =  Tanay.interchromosomalValues()
-    t2 = Tanay.interchromosomalValues("GM-NcoI")
-    print "trans only iterative correct, ",numpy.corrcoef(t,t2)
-
-
-#checkCorrelationBetweenInterchromosomal()
 
 def averagePC2TransMap():
-    "plot average trans map reconstructed from PC2 only"    
+    """plot average trans map reconstructed from PC2 only 
+    paper supplemental figure"""    
     Tanay = binnedDataAnalysis(1000000,genome = myGenome)
     #Tanay.loadNcoI()
     Tanay.simpleLoad(GM1M,"GM-all")    
     Tanay.removePoorRegions() 
     Tanay.removeZeros()    
     Tanay.truncTrans()
-    Tanay.fakeCis()
-    
+    Tanay.fakeCis()    
     Tanay.doEig()
+    
     Tanay.restoreZeros(value = 0 )    
     PC2 = Tanay.EigDict["GM-all"][1]
     proj = PC2[:,None] * PC2[None,:]
@@ -142,17 +105,13 @@ def averagePC2TransMap():
     plt.show()
 
 
-#averagePC2TransMap()
-
 
 
 
 def compareInterarmMaps():
-    "plots supplementary figure witn 8 inetrarm maps"
+    "plots witn 8 inetrarm maps - paper supplement figure"
     Tanay = binnedDataAnalysis(1000000,myGenome)
-    #Tanay.loadK562()
-    #Tanay.loadRachel1MB()
-    #Tanay.loadRachel1MB("Rachel-1M-breaks", "Rachel-breaks")
+
     Tanay.simpleLoad(GM1M,"GM-all")
     Tanay.simpleLoad(GM1MNcoI,"GM-NcoI")    
     Tanay.removeDiagonal()
@@ -213,12 +172,10 @@ def compareInterarmMaps():
     Tanay.averageTransMap("GM-NcoI",vmin = vmin, vmax=vmax)
     plt.colorbar()
 
-    plt.show()
-
-    
+    plt.show()    
 
 def plotDiagonalCorrelation():
-    "main paper plot with correlations of diagonals"
+    "Correlation of diagonal bins - paper figure"
     S = 50
     x = numpy.arange(2,S)
     Tanay = binnedData(200000,myGenome)
@@ -293,8 +250,7 @@ def plotCrossValidation():
     matplotlib.rcParams['font.sans-serif']='Arial'
     plt.figure(figsize = (1,1))
     FG = HiCdataset(workingFile1,myGenome)
-    FG.load(GMFrag) 
-    
+    FG.load(GMFrag)     
     
     Tanay = binnedData(1000000)    
     Tanay.simpleLoad("GM-all-10p","GM-1")   #need to create these datasets using fragment-level analysis
@@ -475,6 +431,8 @@ def compareWithGenomicFeatures():
 #compareWithGenomicFeatures()
 
 def plotTanayGenomicFeature():
+    """Shows how genomic feature is spawned by Eig1, not Tanay domains
+    paper supplementary  figure"""
     Tanay = experimentalBinnedData(1000000,myGenome)
     Tanay.simpleLoad(GM1M,"GM-all")        
     Tanay.loadTanayDomains()
@@ -484,7 +442,6 @@ def plotTanayGenomicFeature():
     #control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878Control.wig")
     #Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878H3k4me3.wig", label = "feature",
     #control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignalGm12878Control.wig")
-
         
     Tanay.removeDiagonal()
     Tanay.removePoorRegions()
@@ -494,21 +451,17 @@ def plotTanayGenomicFeature():
     Tanay.doEig()
     E1 = Tanay.EigDict["GM-all"][0] 
     E2 = Tanay.EigDict["GM-all"][1]
-    GC = Tanay.trackDict["GC"]
-    
+    GC = Tanay.trackDict["GC"]    
     
     if scipy.stats.spearmanr(E1,GC)[0] < 0: E1 = -E1
-    if scipy.stats.spearmanr(E2,GC)[0] < 0: E2 = -E2
-    
-     
+    if scipy.stats.spearmanr(E2,GC)[0] < 0: E2 = -E2         
     
     TD = Tanay.trackDict["TanayDomains"]
     print scipy.stats.spearmanr(Tanay.trackDict["feature"],E1)
     
     plt.scatter(Tanay.trackDict["feature"],E1,c = TD,s=4,linewidth = 0)
     cm = plt.cm.get_cmap("jet")
-    
-    
+        
     print "Our 2r is",(numpy.corrcoef(Tanay.trackDict["feature"],E1)[0,1])**2
     tset = set(TD)
     tfeature = numpy.zeros_like(TD,dtype = float)
@@ -530,29 +483,4 @@ def plotTanayGenomicFeature():
     plt.title("Color represents domain from (Yaffe 2011)")
     niceShow(subplotAdjust = (0.13,0.11,0.97,0.92))
     
-plotTanayGenomicFeature()
         
-def plotIterativeCorrectionDifference():
-    Tanay = binnedDataAnalysis(1000000,myGenome)
-    Tanay.simpleLoad(GM1M,"GM-all")
-    Tanay.removeDiagonal()
-    Tanay.removePoorRegions()
-    Tanay.iterativeCorrectWithSS()
-    data1 = numpy.array(Tanay.dataDict["GM-all"])
-    Tanay.iterativeCorrectWithoutSS()
-    data2 = Tanay.dataDict["GM-all"]
-    Tanay.dataDict["SSReats"] = data2/data1
-    Tanay.averageTransMap("GM-all")
-    plt.show()
-    
-#plotIterativeCorrectionDifference()    
-                             
-    
-    
-
-#plotTanayGenomicFeature()
-    
-        
-    
-#compareWithGenomicFeatures() 
-#doCartoonPlot()

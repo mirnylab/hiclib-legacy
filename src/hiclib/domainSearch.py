@@ -124,7 +124,7 @@ class gradientDescentDomains:
         print gradValue[0] * 0.001, "According to the gradient"
         d1 = newFunValue - funValue
         d2 = gradValue[0] * 0.001
-        assert (abs(d1 - d2) / abs(d1) < 0.05)
+        assert (abs(d1 - d2) / abs(d1) < 0.1)
         
         funValue = newFunValue
         
@@ -135,7 +135,7 @@ class gradientDescentDomains:
         print gradValue[-1] * 0.001, "According to the gradient"
         d1 = newFunValue - funValue
         d2 = gradValue[-1] * 0.001
-        assert (abs(d1 - d2) / abs(d1) < 0.05)
+        assert (abs(d1 - d2) / abs(d1) < 0.1)
         
                         
                    

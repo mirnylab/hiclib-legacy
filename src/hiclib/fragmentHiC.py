@@ -813,7 +813,7 @@ class HiCStatistics(HiCdataset):
                     #Or calculate scaling only between different arms                    
                     useWeights = False ,        #use weights associated with fragment length                    
                     excludeNeighbors = None, enzyme = None,   #number of neighboring fragments to exclude. Enzyme is needed for that!   
-                    normalize = True,          #normalize the final plot to sum to one
+                    normalize = True, normRange = None,          #normalize the final plot to sum to one
                     withinArms = True,                #Treat chromosomal arms separately
                     mindist = 10000,  #Scaling was proved to be unreliable under 10000 bp for 6-cutter enzymes
                     maxdist = None,
@@ -880,7 +880,9 @@ class HiCStatistics(HiCdataset):
         """
         self._buildFragments()
         if excludeNeighbors <= 0: excludeNeighbors = None   #Not excluding neighbors  
-        #use all fragments if they're not specified 
+        #use all fragments if they're not specified
+        if (fragids1 == None) and (fragids2 == None): allFragments = True
+        else: allFragments = False  
         if fragids1 == None: fragids1 = self.ufragments
         if fragids2 == None: fragids2 = self.ufragments
         if fragids1.dtype == numpy.bool: 
@@ -946,16 +948,23 @@ class HiCStatistics(HiCdataset):
             mask3 = fragmentDists > excludeNeighbors   #keep only guys more than excludeNeighbors fragments apart 
         
         #Keeping reads for fragments in use
-        p11 = arrayInArray(self.fragids1,fragids1)
-        p12 = arrayInArray(self.fragids1,fragids2)
-        p21 = arrayInArray(self.fragids2,fragids1)
-        p22 = arrayInArray(self.fragids2,fragids2)
-        mask = (p11* p22) + (p12 * p21)   #reads between fragids1 and fragids2 
+        
+        
+        if allFragments == False: 
+            p11 = arrayInArray(self.fragids1,fragids1)
+            p12 = arrayInArray(self.fragids1,fragids2)
+            p21 = arrayInArray(self.fragids2,fragids1)
+            p22 = arrayInArray(self.fragids2,fragids2)
+            mask = ((p11* p22) + (p12 * p21)) * self.DS   #reads between fragids1 and fragids2
+        else: 
+            mask = self.DS  
         mask2 = (mask) * (regionID >= 0) * (self.strands1 == self.strands2)
         #Reads only between fragments
         #Reads from the same region
         #Reads like --> -->    or <-- <--, discarding --> <-- and <-- -->             
-        if excludeNeighbors != None: mask2 = mask2 * mask3    #remove all neighbors 
+        if excludeNeighbors != None: mask2 = mask2 * mask3    #remove all neighbors
+        
+         
                     
         distances = numpy.sort(self.distances[mask2])            
                 
@@ -980,8 +989,10 @@ class HiCStatistics(HiCdataset):
         pos1 = fragids1 % self.fragIDmult        
         pos2 = fragids2 % self.fragIDmult
         
-        for regionNumber,region  in enumerate(regions):  
+        for regionNumber,region  in enumerate(regions):
 
+            print region 
+            
             mask = numpy.nonzero(fragRegions1  == regionNumber)[0]
             mask2 = numpy.nonzero(fragRegions2  == regionNumber)[0]  #filtering fragments that correspont to current region             
             if (len(mask) == 0) or (len(mask2) == 0): continue                             
@@ -1001,6 +1012,7 @@ class HiCStatistics(HiCdataset):
                 w1,w2 = weights1[mask], weights2[mask2]                                  
                 sw2 = numpy.r_[0,numpy.cumsum(w2[p2arg])]    #cumsum for sorted weights on 2 strand                         
             for lenmin,lenmax,index in zip(lenmins,lenmaxs,range(len(lenmins))):
+                
                 "Now calculating actual number of fragment pairs for a length-bin, or weight of all these pairs"                
                 mymin,mymax = bp1 - lenmax, bp1 - lenmin   #calculating boundaries for fragments on a second strand                  
                 val1 = numpy.searchsorted(p2,mymin)  #Calculating indexes on the second strand 
@@ -1030,19 +1042,29 @@ class HiCStatistics(HiCdataset):
                 #print index,count[index]
         maxcountsall = count        
         rawValues = []
+        begs = []
+        ends = []
+        #print "before"
         for i in xrange(len(lens) - 1):   #Dividing observed by expected
-            beg,end  = lens[i], lens[i+1]            
+            beg,end  = lens[i], lens[i+1]
+            begs.append(beg)
+            ends.append(end)            
             first,last = tuple(numpy.searchsorted(distances,[beg,end]))             
             mycounts = last - first
             maxcounts = maxcountsall[i]                                     
-            positions.append(sqrt(float(beg)*float(end)))
+            positions.append(0.5*(float(beg)+float(end)))
             values.append(mycounts/float(maxcounts))
             rawValues.append(mycounts)
-            
+        #print "after"
         positions = numpy.array(positions)
+        lengthes = numpy.array(ends) - numpy.array(begs)
         values = numpy.array(values)
          
-        if normalize == True: values /= numpy.sum(1. * (positions * values) [numpy.logical_not(numpy.isnan(positions * values))])        
+        if normalize == True:
+            if normRange == None: 
+                values /= numpy.sum(1. * (lengthes * values) [numpy.logical_not(numpy.isnan(positions * values))])
+            else: 
+                values /= numpy.sum(1. * (lengthes * values) [numpy.logical_not(numpy.isnan(positions * values)) * (positions > normRange[0]) * (positions < normRange[1])])
         
         if appendReadCount == True: 
             if "label" in kwargs.keys(): 

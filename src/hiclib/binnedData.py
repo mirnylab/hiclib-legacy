@@ -144,6 +144,7 @@ import matplotlib.pyplot as plt
 from mirnylib.systemutils import setExceptionHook
 
 
+
     
 class binnedData(object):
     """Base class to work with binned data, the most documented and robust part of the code. 
@@ -482,7 +483,7 @@ class binnedData(object):
              
         
         """
-        self._checkAppliedOperations(neededKeys = ["RemovedZeros"])
+        
         
         if silent == False: print("All cis counts are substituted with matching trans count")
         for key in self.dataDict.keys():                         
@@ -660,6 +661,8 @@ class binnedData(object):
 
         
         self.appliedOperations["Corrected"] = True
+
+
         
     def removeChromosome(self,chromNum):
         "removes certain chromosome from all tracks and heatmaps, setting all values to zero "
@@ -849,7 +852,7 @@ class binnedDataAnalysis(binnedData):
     Class containing experimental features and data analysis scripts
     """
     
-    def plotScaling(self,name,label = "BLA", color = None):
+    def plotScaling(self,name,label = "BLA", color = None,plotUnit = 1000000):
         "plots scaling of a heatmap,treating arms separately"
         data = self.dataDict[name]
         bins = numutils.logbins(2,self.genome.maxChrmArm/self.resolution,1.17)
@@ -886,8 +889,8 @@ class binnedDataAnalysis(binnedData):
         values = observed/expected
         bins = numpy.array(bins,float)
         bins2 = 0.5 * (bins[:-1] + bins[1:])
-        norm = numpy.sum(values * (bins[1:] - bins[:-1]))
-        args = [self.resolution * bins2 / 1000000,values/(1. * norm)]
+        norm = numpy.sum(values * (bins[1:] - bins[:-1]) * (self.resolution / float(plotUnit)))
+        args = [self.resolution * bins2 / plotUnit ,values/(1. * norm)]
         if color != None: args.append(color)
         plt.plot(*args, label = label,linewidth = 2)
         
