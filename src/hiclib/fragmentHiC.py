@@ -65,8 +65,7 @@ import numpy
 from numpy import array as na  
 from scipy import stats
 import matplotlib
-import matplotlib.pyplot as plt
-from math import sqrt 
+import matplotlib.pyplot as plt 
 from mirnylib.h5dict import h5dict 
 from mirnylib import plotting 
 from mirnylib.plotting import mat_img,removeAxes

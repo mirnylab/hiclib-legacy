@@ -133,7 +133,7 @@ from mirnylib import numutils
 import warnings
 from mirnylib.plotting import  removeBorder , mat_img
 from mirnylib.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector,\
-    isInteger
+    isInteger, observedOverExpected, ultracorrect
 from mirnylib.genome import Genome 
 import  numpy
 from math import exp
@@ -142,6 +142,7 @@ from scipy import weave
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt 
 from mirnylib.systemutils import setExceptionHook
+import scipy
 
 
 
@@ -818,6 +819,61 @@ class binnedData(object):
                     currentEIG[j] = -currentEIG[j]
             self.EigDict[i] = currentEIG                                      
         return self.EigDict
+    
+    def doCisPCADomains(self,numPCs = 3, swapFirstTwoPCs = False, useArms = True):
+        corr = lambda x,y:spearmanr(x,y)[0]
+        
+        corrdict = {}  #dict of per-chromosome correlation coefficients
+        lengthdict = {}
+        for key in self.dataDict.keys():
+            corrdict[key] = []
+            lengthdict[key] = []
+                    
+        for key in self.dataDict.keys():
+            dataset = self.dataDict[key]
+            N = len(dataset)
+            PCArray = numpy.zeros((3,N))
+            for chrom in xrange(len(self.chromosomeStarts)):                
+                if useArms == False: 
+                    begs = (self.chromosomeStarts[chrom],)
+                    ends = (self.chromosomeEnds[chrom],)
+                else: 
+                    begs = (self.chromosomeStarts[chrom],self.centromerePositions[chrom])
+                    ends = (self.centromerePositions[chrom],self.chromosomeEnds[chrom])
+                for end,beg in zip(ends,begs):                    
+                    if end-beg < 5: continue
+                    chrom = dataset[beg:end,beg:end]
+                    chrom = ultracorrect(chrom)
+                    chrom = observedOverExpected(chrom)
+                    chrom = ultracorrect(chrom,M=10)
+                    chrom = observedOverExpected(chrom)
+                    chrom = ultracorrect(chrom,M=10)
+                    chrom = numpy.corrcoef(chrom)                
+                    PCs = PCA(chrom, numPCs)[0]
+                    GC = self.trackDict["GC"][beg:end]
+                    
+                    for PC in PCs:
+                         
+                        if corr(PC,GC) < 0:
+                            PC *= -1 
+                    if swapFirstTwoPCs == True: 
+                        if corr(PCs[0],GC) < corr(PCs[1],GC):
+                            p0,p1 = PCs[0].copy(),PCs[1].copy()
+                            PCs[0],PCs[1] = p1,p0
+                    corrdict[key].append(tuple([corr(i,GC) for i in PCs]))
+                    lengthdict[key].append(end-beg)
+                
+                    PCArray[:,beg:end] = PCs
+            self.PCDict[key] = PCArray
+        return corrdict,lengthdict
+            
+        
+                
+                
+                 
+                 
+                
+             
     
     
     def cisToTrans(self,mode = "All", filename = "GM-all"):
