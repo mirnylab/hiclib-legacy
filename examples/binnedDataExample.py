@@ -604,7 +604,8 @@ def plotCorrelationAtDifferentBinning():
     setExceptionHook()
     
     cache = False
-    create = False 
+    create = False
+     
     if create == True:  
         if cache == True:
             #-------------------standard version code-----------------             
@@ -629,12 +630,14 @@ def plotCorrelationAtDifferentBinning():
             #FR2 = fragmentHiC.HiCdataset("bla","../data/hg18",override = False,inMemory = True )
             #FR2.load("../ErezPaperData/hg18/GM-HindIII-hg18_refined.frag")
             
-            #-------------------------------------------------------
+            #-------end corss-check code ---------------------------------
 
+            #--------Filter only trans DS reads-----------------
             FR.maskFilter(FR.DS * (FR.chrms1 != FR.chrms2))
             FR2.maskFilter(FR2.DS * (FR2.chrms1 != FR2.chrms2))
             FR3.maskFilter(FR3.DS * (FR3.chrms1 != FR3.chrms2))
 
+            #Now create two halfs of one dataset and down-sample second dataset 
             #----------------------standard version code--------            
             fraction = 0.5 * len(FR.DS) / float(len(FR2.DS)) 
             
@@ -707,15 +710,13 @@ def plotCorrelationAtDifferentBinning():
             evs.append(BD.interchromosomalValues("HindIII"))
             evs.append(BD.interchromosomalValues("NcoI"))
             evs.append(BD.interchromosomalValues("control"))
-        p4.append(c4)
-
-        
+        p4.append(c4)        
         p1.append(c1)
         
         print "size\t%d\traw:" % size,c1,
         BD.removeZeros()         
-        BD.fakeCis()
-        BD.restoreZeros(value = 0)        
+        BD.fakeCis()   #does iterative correction as well 
+        BD.restoreZeros(value = 0)
 
         data1 = BD.dataDict["HindIII"]
         data2 = BD.dataDict["NcoI"]

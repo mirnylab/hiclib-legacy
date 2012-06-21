@@ -820,19 +820,68 @@ class binnedData(object):
             self.EigDict[i] = currentEIG                                      
         return self.EigDict
     
-    def doCisPCADomains(self,numPCs = 3, swapFirstTwoPCs = False, useArms = True):
-        corr = lambda x,y:spearmanr(x,y)[0]
+    def doCisPCADomains(self,numPCs = 3, swapFirstTwoPCs = False, useArms = True, 
+                        corrFunction = lambda x,y:spearmanr(x,y)[0],
+                        domainFunction = "default"):
+        """Calculates A-B compartments based on cis data.
+        All PCs are oriented to have positive correlation with GC.
+         
+        Writes the main result (PCs) in the self.PCADict dictionary. 
+        Additionally, returns correlation coefficients by chromosome.  
         
-        corrdict = {}  #dict of per-chromosome correlation coefficients
-        lengthdict = {}
+        Parameters
+        ----------
+        numPCs : int, optional 
+            Number of PCs to compute
+        swapFirstTwoPCs : bool, by default False  
+            Swap first and second PC if second has higher correlation with GC
+        useArms : bool, by default True
+            Use individual arms, not chromosomes
+        corr function : function, default: spearmanr
+            Function to compute correlation with GC. 
+            Accepts two arrays, returns correlation 
+        domain function : function, optional 
+            Function to calculate principal components of a square matrix. 
+            Accepts: N by N matrix
+            returns: numPCs by N matrix 
+            Default does iterative correction, then observed over expected. 
+            Then iterates IS and OOE 2 more times. Then calculates correlation matrix. 
+            Then calculates PCA of correlation matrix. 
+            
+        Returns
+        -------
+        corrdict,lengthdict
+        Dictionaries with keys for each dataset. 
+        Values of corrdict contains an M x numPCs array with correlation coefficient for
+        each chromosome (or arm) with non-zero length. 
+        Values of lengthdict contain lengthds of chromosomes/arms. 
+        These dictionaries can be used to calculate average correlation coefficient by chromosome (or by arm).   
+             
+         
+        """
+        corr = corrFunction
+        if domainFunction == "default":
+            def domainFunction(chrom):
+                chrom = ultracorrect(chrom)
+                chrom = observedOverExpected(chrom)
+                chrom = ultracorrect(chrom,M=10)
+                chrom = observedOverExpected(chrom)
+                chrom = ultracorrect(chrom,M=10)
+                chrom = numpy.corrcoef(chrom)                
+                PCs = PCA(chrom, numPCs)[0]
+                return PCs
+                
+        
+        corrdict,lengthdict  = {},{}  #dict of per-chromosome correlation coefficients
+        
+                            
         for key in self.dataDict.keys():
             corrdict[key] = []
             lengthdict[key] = []
-                    
-        for key in self.dataDict.keys():
             dataset = self.dataDict[key]
             N = len(dataset)
             PCArray = numpy.zeros((3,N))
+            
             for chrom in xrange(len(self.chromosomeStarts)):                
                 if useArms == False: 
                     begs = (self.chromosomeStarts[chrom],)
@@ -840,41 +889,25 @@ class binnedData(object):
                 else: 
                     begs = (self.chromosomeStarts[chrom],self.centromerePositions[chrom])
                     ends = (self.centromerePositions[chrom],self.chromosomeEnds[chrom])
+            
                 for end,beg in zip(ends,begs):                    
                     if end-beg < 5: continue
                     chrom = dataset[beg:end,beg:end]
-                    chrom = ultracorrect(chrom)
-                    chrom = observedOverExpected(chrom)
-                    chrom = ultracorrect(chrom,M=10)
-                    chrom = observedOverExpected(chrom)
-                    chrom = ultracorrect(chrom,M=10)
-                    chrom = numpy.corrcoef(chrom)                
-                    PCs = PCA(chrom, numPCs)[0]
                     GC = self.trackDict["GC"][beg:end]
-                    
-                    for PC in PCs:
-                         
+                    PCs = domainFunction(chrom)
+                    for PC in PCs:         
                         if corr(PC,GC) < 0:
-                            PC *= -1 
+                            PC *= -1
                     if swapFirstTwoPCs == True: 
                         if corr(PCs[0],GC) < corr(PCs[1],GC):
                             p0,p1 = PCs[0].copy(),PCs[1].copy()
                             PCs[0],PCs[1] = p1,p0
+                            
                     corrdict[key].append(tuple([corr(i,GC) for i in PCs]))
-                    lengthdict[key].append(end-beg)
-                
-                    PCArray[:,beg:end] = PCs
+                    lengthdict[key].append(end-beg)                
+                    PCArray[:,beg:end] = PCs                    
             self.PCDict[key] = PCArray
         return corrdict,lengthdict
-            
-        
-                
-                
-                 
-                 
-                
-             
-    
     
     def cisToTrans(self,mode = "All", filename = "GM-all"):
         """
