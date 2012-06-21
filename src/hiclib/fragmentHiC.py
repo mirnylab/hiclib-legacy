@@ -936,7 +936,7 @@ class HiCStatistics(HiCdataset):
         del chr1,chr2,pos1,pos2
 
                                         
-        lens = numpy.array(numutils.logbins(mindist,maxdist,1.25),float)+0.1   #bins of lengths        
+        lens = numpy.array(numutils.logbins(mindist,maxdist,1.12),float)+0.1   #bins of lengths        
         
         positions = []   #arrays to write the result 
         values = []
