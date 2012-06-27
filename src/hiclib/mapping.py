@@ -630,5 +630,11 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
             out_dict[key + str(i)] = buf
             del buf
 
+    misc_dict = {}
+    misc_dict['genome'] = {}
+    misc_dict['genome']['idx2label'] = dict(genome_db.idx2label)
+    misc_dict['genome']['label2idx'] = dict(genome_db.label2idx)
+    out_dict['misc'] = misc_dict
+
     return out_dict
 
