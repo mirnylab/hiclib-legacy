@@ -47,8 +47,8 @@ Often pip installs new package to a different location, and python still loads t
 You might need to specifically delete files corresponding to the original package, as running "apt-get remove python-numpy" might take down a significant number of packages. Locations of files can be determined from the python console by >>>print numpy.__file__, and version by >>>print numpy.__version__. 
 
          
-Hardwre requirements
---------------------
+Hardware requirements
+---------------------
 
 Fragment-based analysis uses HDD to store all the information about the reads. 
 However, at each point in time a few individual tracks are loaded to RAM to perform certain analysis. 
