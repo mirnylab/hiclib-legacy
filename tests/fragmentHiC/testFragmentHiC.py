@@ -1,15 +1,16 @@
 from hiclib.fragmentHiC import HiCdataset 
-  
+from mirnylib.h5dict import h5dict  
 import os,sys 
-
+from mirnylib.plotting import mat_img
+import numpy
 
 if os.path.exists("test-1M.hm"): os.remove("test-1M.hm")
 workingGenome = "hg18"
 genomeFolder = "../../../data/hg18"
 if not os.path.exists(genomeFolder):
-    try:
-        genomeFolder = sys.argv[1]
-    except:
+    
+    genomeFolder = sys.argv[1]        
+    if not os.path.exists(genomeFolder):
         raise StandardError("Please provide hg18 Genome folder in the code or as a first argument") 
 
 def source(ID):
@@ -62,14 +63,26 @@ def refine_paper(filename,create = True):
     from mirnylib.h5dict import h5dict
     a = h5dict(filename[1] + "-1M.hm")
     assert  a["heatmap"][::10,::10].sum()  == 12726
+    
+    print "---->Testing updateGenome method"
+    from mirnylib.genome import Genome
+    removeChromIDs = numpy.array([0,1,1,1,1]+[0]*17 + [1]+[0])    
+    #print ((removeChromIDs[TR.chrms1] == 1) + (removeChromIDs[TR.chrms2] == 1) ).sum()    
+    t =  ((removeChromIDs[TR.chrms1] == 1) * (removeChromIDs[TR.chrms2] == 1) ).sum() + ((removeChromIDs[TR.chrms1] == 1) * (TR.chrms2 == -1)).sum()
+    newGenome = Genome(genomePath = genomeFolder, readChrms = ["2","3","4","5","X"])    
+    TR.updateGenome(newGenome,removeSSreads = "trans")
+    assert  len(TR.DS) == t
+    
+    a = h5dict(filename[1] + "-1M.hm")["heatmap"]
+    
 
     print "----->Building RB heatmap"
     TR = HiCdataset(filename[1] + "_breaks.frag",genome = genomeFolder, override = True)
     TR.load(filename[1] + "_refined.frag")    
     TR.maskFilter((TR.dists1 > TR.maximumMoleculeLength) + (TR.dists2 > TR.maximumMoleculeLength) * TR.DS)
-    assert len(TR.DS) == 78142
-
-
+    
+    print len(TR.DS)
+    assert len(TR.DS) == 16848
 
 
 map(refine_paper,

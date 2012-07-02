@@ -134,7 +134,7 @@ class HiCdataset(object):
         
         self.chromosomeCount = self.genome.chrmCount  #used for building heatmaps
         self.fragIDmult = self.genome.fragIDmult
-        print "----> New dataset opened, genome %s, folder = %s" % (self.genome.folderName, filename)
+        print "----> New dataset opened, genome %s, filename = %s" % (self.genome.folderName, filename)
 
         self.maximumMoleculeLength = maximumMoleculeLength  #maximum length of a molecule for SS reads        
         self.filename = filename #File to save the data                             
@@ -188,10 +188,24 @@ class HiCdataset(object):
             self._setData(x,value)                        
         else:
             return object.__setattr__(self,x,value)
+            
+            
         
     def _buildFragments(self):
         if not hasattr(self,"ufragments"):
             self.rebuildFragments()
+    
+    def _moveSSReads(self):
+        mask = (self.chrms1 < 0)   #moving SS reads to the first side
+        variables = set([i[:-1] for i in self.vectors.keys() if i[-1] == "1"])  #set of variables to change
+        for i in variables:  
+            exec("a = self.%s1" % i)
+            exec("b = self.%s2" % i)
+            exec("a[mask] = b[mask]")
+            exec("b[mask] = -1")
+            exec("self.%s1 = a" % i)
+            exec("self.%s2 = b" % i)
+        
         
     def flush(self):
         "Flushes h5dict if used in autoFlush = False mode"
@@ -223,7 +237,7 @@ class HiCdataset(object):
         self.rebuildFragments()
 
     
-    def parseInputData(self,dictLike,zeroBaseChrom = True ,enzymeToFillRsites = None):        
+    def parseInputData(self,dictLike,zeroBaseChrom = True ,enzymeToFillRsites = None,removeSS = False):        
         """Inputs data from a dictionary-like object, containing coordinates of the reads. 
         Performs filtering of the reads.   
         
@@ -250,8 +264,10 @@ class HiCdataset(object):
         
         zeroBaseChrom : bool , optional
             Use zero-base chromosome counting if True, one-base if False
-        enzymeToFillRsites = None or str, optional if rsites are specified
+        enzymeToFillRsites : None or str, optional if rsites are specified
             Enzyme name to use with Bio.restriction
+        removeSS : bool, optional
+            If set to True, removes SS reads from the library
                  
         """
         
@@ -282,7 +298,7 @@ class HiCdataset(object):
         
 
         if not (("strands1" in dictLike.keys()) and ("strands2" in dictLike.keys())):
-            print "No strand information provided, assigning random strands."
+            warnings.warn("No strand information provided, assigning random strands.")
             t = numpy.random.randint(0,2,self.trackLen)
             self.strands1 = t
             self.strands2 = 1-t
@@ -335,22 +351,15 @@ class HiCdataset(object):
         distances[self.chrms1 != self.chrms2] = -1
         self.distances = distances   #distances between restriction fragments
         
-        mask = self.chrms1 == -1  #moving SS reads to the first side
-        mask #Eclipse warning removal 
-        variables = set([i[:-1] for i in self.vectors.keys() if i[-1] == "1"])  #set of variables to change
-        for i in variables:  
-            exec("a = self.%s1" % i)
-            exec("b = self.%s2" % i)
-            exec("a[mask] = b[mask]")
-            exec("b[mask] = -1")
-            exec("self.%s1 = a" % i)
-            exec("self.%s2 = b" % i)
+        
+        self._moveSSReads() #Eclipse warning removal 
                 
         mask = (self.fragids1 != self.fragids2)   #Discard dangling ends and self-circles
         maskLen, noSameFrag  = len(mask),  mask.sum()                         
         mask *=  ((self.chrms1 < self.chromosomeCount) * (self.chrms2 < self.chromosomeCount))  #Discard unused chromosomes
         noUnusedChroms =  mask.sum()                  
-        mask *= ((self.chrms1 >=0) + (self.chrms2 >=0))   #Has to have at least one side mapped
+        if removeSS == False: mask *= ((self.chrms1 >=0) + (self.chrms2 >=0))   #Has to have at least one side mapped
+        else: mask *= ((self.chrms1 >=0) * (self.chrms2 >=0))   #Has to have at least one side mapped
         noUnmapped = mask.sum()                 
         if noStrand == True: 
             dist = numpy.abs(self.cuts1 - self.cuts2)  #Can't tell if reads point to each other. 
@@ -374,12 +383,73 @@ class HiCdataset(object):
     def saveFragments(self):
         "saves fragment data to make correct expected estimates after applying a heavy mask"
         self.ufragmentsOriginal = numpy.array(self.ufragments)
-        self.ufragmentlenOriginal = numpy.array(self.ufragmentlen)
+        self.ufragmentlenOriginal = numpy.array(self.ufragmentlen)        
 
     def originalFragments(self):
         "loads original fragments"
         self.ufragments = numpy.array(self.ufragmentsOriginal)
         self.ufragmentlen = numpy.array(self.ufragmentlenOriginal)
+        
+    def updateGenome(self,newGenome,removeSSreads = "trans"):
+        """
+        Updates dataset to a new genome, with a fewer number of chromosomes. 
+        Use it to delete chromosomes.  
+        By default, removes all SS and DS reads with that chromosomes. 
+        
+        Parameters
+        ----------
+        newGenome : Genome object
+            Genome to replace the old genome, with fewer chromosomes
+        removeSSreads : "trans"(default), "all" or "none"
+            "trans": remove all reads from deleted chromosomes, ignore the rest.
+            "all": remove all SS reads from all chromosomes
+            "None": mark all trans reads as SS reads
+         
+        """
+        
+        assert isinstance(newGenome,Genome)
+        newN = newGenome.chrmCount
+        
+        upgrade = newGenome.upgradeMatrix(self.genome)
+        
+         
+        if newN == self.genome.chrmCount:
+            return
+        
+        if upgrade != None:            
+            upgrade[upgrade == -1] = 9999 #to tell old SS reads from new SS reads             
+            chrms1 = numpy.array(self.chrms1, int) 
+            mask = chrms1>=0
+            chrms1[mask] = upgrade[chrms1[mask]]
+            self.chrms1 = chrms1
+            del chrms1 
+            chrms2 = numpy.array(self.chrms2,int)
+            mask = chrms2 >=0
+            chrms2[mask] = upgrade[chrms2[mask]]
+            self.chrms2 = chrms2
+        
+        if self.genome.hasEnzyme(): newGenome.setEnzyme(self.genome.enzymeName)
+                                
+        if removeSSreads.lower() == "all":
+            "Keeping only DS reads"
+            mask = ((self.chrms1 < newN) * (self.chrms2 < newN) * self.DS)
+            self.genome = newGenome
+            self.maskFilter(mask)
+            
+        if removeSSreads.lower() == "none":
+            "Maksin all trans and SS reads into new SS reads"
+            self.maskFilter((self.chrms1 >= 0) * (self.chrms1 < newN) + (self.chrms2 >= 0)*(self.chrms2 < newN))
+            self.chrms1[self.chrms1 >= newN] = -1 
+            self.chrms1[self.chrms2 >= newN] = -1                
+            self._moveSSReads()
+            self.DS = (self.chrms1 >= 0) * (self.chrms2 >=0)   #if we have reads from both chromosomes, we're a DS read
+            self.SS = (self.DS == False)
+            
+        if removeSSreads.lower() == "trans":
+            "Removing trans reads, keeping SS as they are"
+            self.maskFilter((self.chrms1 < newN) * (self.chrms2 < newN) * self.DS + self.SS * (self.chrms1 >= 0) * (self.chrms1 < newN) )
+                
+ 
 
     def calculateWeights(self):
         """Calculates weights for reads based on fragment length correction similar to Tanay's;
@@ -524,9 +594,7 @@ class HiCdataset(object):
         label = self.genome.chrmStartsBinCont[chroms ] + positions / resolution
         counts = sumByArray(label, numpy.arange(self.genome.numBins))
         return counts
-        
-
-    
+            
         
     
     def fragmentFilter(self,fragments):
@@ -716,7 +784,7 @@ class HiCdataset(object):
         for name in self.vectors.keys(): newh5dict[name] = self.h5dict[name]
         print "----> Data saved to file %s" % (filename,)
     
-    def load(self,filename):
+    def load(self,filename, buildFragments = True ):
         "Loads dataset from file to working file; check for inconsistency"
         otherh5dict = h5dict(filename,'r')
         length = 0 
@@ -733,7 +801,8 @@ class HiCdataset(object):
             self._setData(name,data) 
         print "---->Loaded data from file %s, contains %d reads" % (filename, length)
         self.N = length
-        self.rebuildFragments()
+        if buildFragments == True: 
+            self.rebuildFragments()
             
 
         
