@@ -293,6 +293,12 @@ class HiCdataset(object):
             self.chrms1 = a - 1
             self.chrms2 = dictLike["chrms2"] - 1
             
+        if "metadata" in dictLike.keys():
+            
+            pass
+        else:
+            warnings.warn("Genome not found in mapped data. Please ")
+            
         self.cuts1 = dictLike["cuts1"]
         self.cuts2 = dictLike["cuts2"]    
         
