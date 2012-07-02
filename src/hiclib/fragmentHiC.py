@@ -293,11 +293,7 @@ class HiCdataset(object):
             self.chrms1 = a - 1
             self.chrms2 = dictLike["chrms2"] - 1
             
-        if "metadata" in dictLike.keys():
             
-            pass
-        else:
-            warnings.warn("Genome not found in mapped data. Please ")
             
         self.cuts1 = dictLike["cuts1"]
         self.cuts2 = dictLike["cuts2"]    
@@ -358,7 +354,16 @@ class HiCdataset(object):
         self.distances = distances   #distances between restriction fragments
         
         
-        self._moveSSReads() #Eclipse warning removal 
+        self._moveSSReads() #Eclipse warning removal
+         
+                
+        if "misc" in dictLike.keys():
+            self.updateGenome(self.genome, removeSSreads = "trans", oldGenome = dictLike["misc"]["idx2label"])            
+        else:
+            assumedGenome = Genome(self.genome.genomePath)
+            self.updateGenome(self.genome, removeSSreads = "trans", oldGenome = assumedGenome)
+            warnings.warn("\n Genome not found in mapped data. \n Assuming genome comes from the same folder with all chromosomes ")
+        
                 
         mask = (self.fragids1 != self.fragids2)   #Discard dangling ends and self-circles
         maskLen, noSameFrag  = len(mask),  mask.sum()                         
@@ -396,7 +401,7 @@ class HiCdataset(object):
         self.ufragments = numpy.array(self.ufragmentsOriginal)
         self.ufragmentlen = numpy.array(self.ufragmentlenOriginal)
         
-    def updateGenome(self,newGenome,removeSSreads = "trans"):
+    def updateGenome(self,newGenome,removeSSreads = "trans", oldGenome = "current"):
         """
         Updates dataset to a new genome, with a fewer number of chromosomes. 
         Use it to delete chromosomes.  
@@ -410,17 +415,26 @@ class HiCdataset(object):
             "trans": remove all reads from deleted chromosomes, ignore the rest.
             "all": remove all SS reads from all chromosomes
             "None": mark all trans reads as SS reads
+            
+        oldGenome : Genome object or idx2label dictionary of old genome, optional 
          
         """
         
         assert isinstance(newGenome,Genome)
         newN = newGenome.chrmCount
         
+                     
+            
+        if oldGenome == "current":  oldGenome = self.genome
+            
+        
         upgrade = newGenome.upgradeMatrix(self.genome)
         
          
-        if newN == self.genome.chrmCount:
-            return
+        try: oldN = oldGenome.chrmCount
+        except AttributeError: oldN = len(oldGenome.keys())
+        if oldN == newN:
+            return None             
         
         if upgrade != None:            
             upgrade[upgrade == -1] = 9999 #to tell old SS reads from new SS reads             
@@ -434,7 +448,9 @@ class HiCdataset(object):
             chrms2[mask] = upgrade[chrms2[mask]]
             self.chrms2 = chrms2
         
-        if self.genome.hasEnzyme(): newGenome.setEnzyme(self.genome.enzymeName)
+        if isinstance(oldGenome,Genome): 
+            if oldGenome.hasEnzyme(): 
+                newGenome.setEnzyme(oldGenome.enzymeName)
                                 
         if removeSSreads.lower() == "all":
             "Keeping only DS reads"
