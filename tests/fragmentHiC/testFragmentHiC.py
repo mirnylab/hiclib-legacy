@@ -38,6 +38,7 @@ def refine_paper(filename,create = True):
         TR.flush()
                  
         TR = HiCdataset(filename[1]+"_refined.frag",genome = genomeFolder,override = True,autoFlush = False) 
+        TR.chunksize = 50000
         #because we do many operations, we disable autoFlush here 
         TR.load(filename[1]+"_merged.frag")
         TR.filterRsiteStart(offset = 5)
@@ -58,6 +59,9 @@ def refine_paper(filename,create = True):
         TR.rebuildFragments()
 
     print "----->Building Raw heatmap at two resolutions"
+    
+
+    
     TR.printStats()
     TR.saveHeatmap(filename[1] + "-1M.hm",1000000)
     from mirnylib.h5dict import h5dict

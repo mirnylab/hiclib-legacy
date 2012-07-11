@@ -59,6 +59,7 @@ API documentation
 
 import warnings 
 import os,cPickle
+from copy import copy 
 from mirnylib.genome import Genome 
 import hiclib.mapping 
 import numpy
@@ -72,7 +73,7 @@ from mirnylib.plotting import mat_img,removeAxes
 
 from mirnylib import numutils  
 from mirnylib.numutils import arrayInArray,  sumByArray, correct, ultracorrect,\
-    uniqueIndex
+    uniqueIndex, chunkedUnique
 
 r_ = numpy.r_
 
@@ -137,7 +138,8 @@ class HiCdataset(object):
         print "----> New dataset opened, genome %s, filename = %s" % (self.genome.folderName, filename)
 
         self.maximumMoleculeLength = maximumMoleculeLength  #maximum length of a molecule for SS reads        
-        self.filename = filename #File to save the data                             
+        self.filename = filename #File to save the data
+        self.chunksize = 5000000                             
                  
         if os.path.exists(self.filename):
             if override == False: 
@@ -205,7 +207,74 @@ class HiCdataset(object):
             exec("b[mask] = -1")
             exec("self.%s1 = a" % i)
             exec("self.%s2 = b" % i)
+            
+    def evaluate(self,expression, internalVariables, externalVariables = {} ,
+                 constants = {"numpy":numpy},
+                 outVariable = "autodetect", 
+                 chunkSize = "default"):
+        """
+        Still experimental class to perform evaluation of any expression on hdf5 datasets
+        Note that out_variable should be writable.
+        ---If one can provide default values for internal variables by parsing an expression, it would be great!---
         
+        For good examples 
+        
+        .. note :: See example of usage of this class in filterRsiteStart
+        
+        .. warning ::   Please avoid passing internal variables as "self.cuts1" - use "cuts1"
+        
+        .. warning :: You have to pass all the modules (e.g. numpy) in a "constants" dictionary.  
+        
+        Parameters
+        ----------
+        expression : str
+            Mathematical expression, single or multi line
+        internal_variables : list of str 
+            List of variables ("chrms1", etc.), used in the expression
+        external_variables : dict , optional
+            Dict of {str:array}, where str indicates name of the variable, and array - value of the variable.
+        constants : dict, optional
+            Dictionary of constants to be used in the evaluation. Because evaluation happens without namespace, you should include numpy here if you use it. 
+        out_variable : str or tuple, optional 
+            Variable to output the data. Either internal variable, or tuple (name,value), where value is an array
+            
+        
+        """
+        if chunkSize == "default": 
+            chunkSize = self.chunksize
+        if outVariable == "autodetect":  #detecting output variable automatically 
+            outVariable = expression.split("\n")[-1].split("=")[0].strip() 
+            if outVariable not in self.vectors:
+                outVariable = (outVariable, numpy.zeros(self.N, float))
+        
+        code = compile(expression, '<string>', 'exec')  #compile because we're launching it many times 
+        
+        bins = range(0,self.N,chunkSize) + [self.N]   #creating bins to perform evaluation
+        bins = zip(bins[:-1],bins[1:])
+        for start,end in bins:
+            
+            variables = copy(constants)  #dictionary to pass to the evaluator. It's safer than to use the default locals() 
+            
+            for name in internalVariables:
+                variables[name] = self.h5dict.get_dataset(name)[start:end]
+            
+            for name,variable in externalVariables.items():
+                variables[name] = variable[start:end]
+            
+            exec code in variables #actually execute the code in our own namespace
+                
+            if type(outVariable) == str:
+                self.h5dict.get_dataset(outVariable)[start:end] = variables[outVariable]
+            
+            elif len(outVariable) == 2:
+                outVariable[1][start:end] = variables[outVariable[0]]
+            
+            else: raise ValueError("Please provide str or (str,value) for out variable")
+        
+        if type(outVariable) == tuple:
+            return outVariable[1] 
+             
+             
         
     def flush(self):
         "Flushes h5dict if used in autoFlush = False mode"
@@ -644,6 +713,7 @@ class HiCdataset(object):
         mask : array of bools
             Indexes of reads to keep 
         """
+        #Uses 16 bytes per read
         
         print "          Number of reads changed  %d ---> %d" % (len(mask),mask.sum()),
         length = 0 
@@ -665,9 +735,10 @@ class HiCdataset(object):
         try: 
             past = len(self.ufragments)        
         except:
-            past = 0        
-        self.ufragids1,self.ufragids1ind = numpy.unique(self.fragids1,return_index=True)
-        self.ufragids2,self.ufragids2ind = numpy.unique(self.fragids2[self.DS],return_index=True)
+            past = 0
+                        
+        self.ufragids1,self.ufragids1ind = chunkedUnique(self.fragids1,return_index=True,chunksize = self.chunksize)
+        self.ufragids2,self.ufragids2ind = chunkedUnique(self.fragids2[self.DS],return_index=True,chunksize = self.chunksize)
                 
         #Funding unique fragments and unique fragment IDs
         self.ufragment1len = self.fraglens1[self.ufragids1ind]
@@ -733,16 +804,24 @@ class HiCdataset(object):
         """
         
         print "----->Semi-dangling end filter: remove guys who start %d bp near the rsite" % offset
-                        
-        d1 = numpy.abs(self.dists1 - self.fraglens1) >= offset 
-        d2 = numpy.abs(self.dists2 - self.fraglens2) >= offset 
-        mask =  d1 * (d2 * self.DS + self.SS)         
+        
+        expression = "mask = (numpy.abs(dists1 - fraglens1) >= offset) * ((numpy.abs(dists2 - fraglens2) >= offset) * DS + SS)"
+        mask = self.evaluate(expression,
+                             internalVariables = ["dists1","fraglens1","dists2","fraglens2","SS","DS"],
+                             constants = {"offset":offset,"numpy":numpy}, 
+                             outVariable = ("mask",numpy.zeros(self.N, bool)))
+        
+        #Old code, if something fails, switch to here!!! 
+        #d1 = numpy.abs(self.dists1 - self.fraglens1) >= offset 
+        #d2 = numpy.abs(self.dists2 - self.fraglens2) >= offset 
+        #mask =  d1 * (d2 * self.DS + self.SS)         
         #mask = (numpy.abs(self.dists1 - self.fraglens1) >=offset) * ((numpy.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)                     
         self.maskFilter(mask)
         print
         
     def filterDuplicates(self):
         "removes duplicate molecules in DS reads"
+        #Uses a lot! 
         print "----->Filtering duplicates in DS reads: "
         DS = self.DS
         Nds = DS.sum()         
@@ -772,6 +851,7 @@ class HiCdataset(object):
 
     def fragmentSum(self,fragments = None, strands = "both"):
         """returns sum of all counts for a set or subset of fragments
+        
 
         Parameters
         ---------- 
@@ -780,8 +860,10 @@ class HiCdataset(object):
         strands : 1,2 or "both" (default) 
             Use only first or second side of the read (first has SS, second - doesn't) 
         """
+        #Uses 16 bytes per read
         self._buildFragments()
-        if fragments == None: fragments = self.ufragments                
+        if fragments == None: fragments = self.ufragments
+                                
         if strands == "both":  
             return sumByArray(self.fragids1,fragments) + sumByArray(self.fragids2[self.DS],fragments) 
         if strands == 1: return sumByArray(self.fragids1,fragments)
@@ -789,6 +871,7 @@ class HiCdataset(object):
         
         
     def printStats(self):
+        #Uses <10 bytes per read
         print "-----> Statistics for the file  %s!" % self.filename
         print "     Single sided reads: " ,self.SS.sum()
         print "     Double sided reads: " , self.DS.sum()
