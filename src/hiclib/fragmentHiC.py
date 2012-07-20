@@ -74,6 +74,7 @@ from mirnylib.plotting import mat_img,removeAxes
 from mirnylib import numutils  
 from mirnylib.numutils import arrayInArray,  sumByArray, correct, ultracorrect,\
     uniqueIndex, chunkedUnique
+from mirnylib.systemutils import setExceptionHook
 
 r_ = numpy.r_
 
@@ -199,6 +200,7 @@ class HiCdataset(object):
     
     def _moveSSReads(self):
         mask = (self.chrms1 < 0)   #moving SS reads to the first side
+        mask #Eclipse warning removal 
         variables = set([i[:-1] for i in self.vectors.keys() if i[-1] == "1"])  #set of variables to change
         for i in variables:  
             exec("a = self.%s1" % i)
@@ -214,16 +216,14 @@ class HiCdataset(object):
                  chunkSize = "default"):
         """
         Still experimental class to perform evaluation of any expression on hdf5 datasets
-        Note that out_variable should be writable.
-        ---If one can provide default values for internal variables by parsing an expression, it would be great!---
-        
-        For good examples 
+        Note that out_variable should be writable by slices.
+        ---If one can provide autodetect of values for internal variables by parsing an expression, it would be great!---                
         
         .. note :: See example of usage of this class in filterRsiteStart
         
         .. warning ::   Please avoid passing internal variables as "self.cuts1" - use "cuts1"
         
-        .. warning :: You have to pass all the modules (e.g. numpy) in a "constants" dictionary.  
+        .. warning :: You have to pass all the modules and functions (e.g. numpy) in a "constants" dictionary.  
         
         Parameters
         ----------
@@ -234,12 +234,15 @@ class HiCdataset(object):
         external_variables : dict , optional
             Dict of {str:array}, where str indicates name of the variable, and array - value of the variable.
         constants : dict, optional
-            Dictionary of constants to be used in the evaluation. Because evaluation happens without namespace, you should include numpy here if you use it. 
+            Dictionary of constants to be used in the evaluation. 
+            Because evaluation happens without namespace, 
+            you should include numpy here if you use it (included by default)  
         out_variable : str or tuple, optional 
             Variable to output the data. Either internal variable, or tuple (name,value), where value is an array
             
         
         """
+        if type(internalVariables) == str: internalVariables = [internalVariables]
         if chunkSize == "default": 
             chunkSize = self.chunksize
         if outVariable == "autodetect":  #detecting output variable automatically 
@@ -821,6 +824,7 @@ class HiCdataset(object):
         
     def filterDuplicates(self):
         "removes duplicate molecules in DS reads"
+        "TODO: rewrite it when Anton allows direct creation of Hi-C datasets"
         #Uses a lot! 
         print "----->Filtering duplicates in DS reads: "
         DS = self.DS
@@ -938,6 +942,59 @@ class HiCdataset(object):
 
         
         print "----> Heatmap saved to '%s' at %d resolution" % (filename,resolution)
+    
+    def saveByChromosomeHeatmap(self,filename,resolution = 10000, includeTrans = False):
+        """
+        Saves chromosome by chromosome heatmaps to h5dict. 
+        This method is not as memory demanding as saving allxall heatmap.
+        
+        Keys of the h5dict are of the format ["1 14"], where chromosomes are zero-based, and there is one space between numbers. 
+        
+        .. warning :: Chromosomes are zero-based. Only "chr3" means one-based in this package. 
+        
+        Parameters
+        ----------
+        
+        filename : str
+            Filename of the h5dict with the output
+        resolution : int 
+            Resolution to save heatmaps 
+        includeTrans : bool, optional 
+            Build inter-chromosomal heatmaps (default: False) 
+    
+        """
+        
+        self.genome.setResolution(resolution)                
+        pos1 = self.evaluate("a = numpy.array(cuts1 / {res}, dtype = 'int32')".format(res = resolution), "cuts1")
+        pos2 = self.evaluate("a = numpy.array(cuts2 / {res}, dtype = 'int32')".format(res = resolution), "cuts2")
+        chr1 = self.chrms1        
+        chr2 = self.chrms2    
+        DS = self.DS       #13 bytes per read up to now, 16 total
+        mydict = h5dict(filename)
+        for chrom in xrange(self.genome.chrmCount):
+            mask = ((chr1 == chrom) + (chr2 == chrom)) * DS  
+            c1,c2,p1,p2 = chr1[mask],chr2[mask],pos1[mask],pos2[mask]
+            mask = c2 == chrom
+            c1[mask],c2[mask],p1[mask],p2[mask] = c2[mask].copy(), c1[mask].copy(), p2[mask].copy() , p1[mask].copy()
+            
+            label = numpy.asarray(p1, "int64") * self.genome.numBins
+            label += self.genome.chrmStartsBinCont[c2]
+            label += p2
+            maxLabel = self.genome.chrmLensBin[chrom] * self.genome.numBins
+            counts = numpy.bincount(label, minlength = maxLabel)
+            assert len(counts) == maxLabel
+            counts.shape = (self.genome.chrmLensBin[chrom],self.genome.numBins)
+            if includeTrans == False:
+                chroms2 = [chrom]
+            else:
+                chroms2 = range(self.genome.chrmCount)
+            for chrom2 in chroms2:
+                mymap = counts[:,self.genome.chrmStartsBinCont[chrom2]:self.genome.chrmEndsBinCont[chrom2]]
+                if chrom == chrom2:
+                    mymap = mymap + mymap.T 
+                mydict["%d %d" % (chrom,chrom2)] = mymap                            
+        return  
+            
         
     def exitProgram(self,a):
         print a

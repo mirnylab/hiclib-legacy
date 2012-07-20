@@ -3,6 +3,8 @@ from mirnylib.h5dict import h5dict
 import os,sys 
 from mirnylib.plotting import mat_img
 import numpy
+from mirnylib.systemutils import setExceptionHook
+from mirnylib.numutils import coarsegrain
 
 if os.path.exists("test-1M.hm"): os.remove("test-1M.hm")
 workingGenome = "hg18"
@@ -38,7 +40,7 @@ def refine_paper(filename,create = True):
         TR.flush()
                  
         TR = HiCdataset(filename[1]+"_refined.frag",genome = genomeFolder,override = True,autoFlush = False) 
-        TR.chunksize = 50000
+        TR.chunksize = 30000
         #because we do many operations, we disable autoFlush here 
         TR.load(filename[1]+"_merged.frag")
         TR.filterRsiteStart(offset = 5)
@@ -63,10 +65,24 @@ def refine_paper(filename,create = True):
 
     
     TR.printStats()
-    TR.saveHeatmap(filename[1] + "-1M.hm",1000000)
-    from mirnylib.h5dict import h5dict
+    TR.saveHeatmap(filename[1] + "-1M.hm",1000000)    
     a = h5dict(filename[1] + "-1M.hm")
+    st,end = TR.genome.chrmStartsBinCont[1],TR.genome.chrmEndsBinCont[1]
+    st2,end2 = TR.genome.chrmStartsBinCont[2],TR.genome.chrmEndsBinCont[2]
+    chrom1 = a["heatmap"][st:end,st:end]
+    chrom12 = a["heatmap"][st:end,st2:end2]
+    setExceptionHook()
+    print "----> saving by chromosome heatmap" 
+    TR.saveByChromosomeHeatmap(filename[1]+ "-1M.hm", resolution = 1000000,includeTrans= True)
+    
+    b = h5dict(filename[1] + "-1M.hm")["1 1"]
+    bb = h5dict(filename[1] + "-1M.hm")["1 2"]
+    assert (b -chrom1).sum() == 0  
+    assert (bb - chrom12).sum() == 0 
+    print "    Allxall and by chromosome heatmaps are consistent"
     assert  a["heatmap"][::10,::10].sum()  == 12726
+    
+    
     
     print "---->Testing updateGenome method"
     from mirnylib.genome import Genome

@@ -131,7 +131,7 @@ API Documentation
 import os 
 from mirnylib import numutils
 import warnings
-from mirnylib.plotting import  removeBorder , mat_img
+from mirnylib.plotting import  removeBorder 
 from mirnylib.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector,\
     isInteger, observedOverExpected, ultracorrect
 from mirnylib.genome import Genome 
@@ -141,8 +141,6 @@ from mirnylib.h5dict import h5dict
 from scipy import weave 
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt 
-from mirnylib.systemutils import setExceptionHook
-import scipy
 
 
 

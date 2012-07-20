@@ -186,9 +186,9 @@ def plotScalingsByDomains(build = True):
     
     fragments= TR.ufragments   #Now filtering fragments 
     pos = fragments % TR.fragIDmult
-    chr = fragments / TR.fragIDmult   
-    mask1 = domainIndexRescaled[(pos/resolution) + chromosomeStarts[chr]] == 1
-    mask2 = domainIndexRescaled[(pos/resolution) + chromosomeStarts[chr]] == -1    #fragment masks for open/closed regions 
+    chrom = fragments / TR.fragIDmult   
+    mask1 = domainIndexRescaled[(pos/resolution) + chromosomeStarts[chrom]] == 1
+    mask2 = domainIndexRescaled[(pos/resolution) + chromosomeStarts[chrom]] == -1    #fragment masks for open/closed regions 
     
      
 
