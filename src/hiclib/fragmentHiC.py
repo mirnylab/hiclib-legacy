@@ -647,16 +647,13 @@ class HiCdataset(object):
             Resolution of a heatmap 
         """ 
         self.genome.setResolution(resolution)
-        dr = self.DS 
-        
+        dr = self.DS         
         label = self.genome.chrmStartsBinCont[self.chrms1[dr]]
-        label = numpy.asarray(label,dtype = "uint32")
+        label = numpy.asarray(label,dtype = "int64")
         label += self.mids1[dr] / resolution
-        if self.genome.numBins > 65000:
-            label = numpy.array(label, dtype = "int64")
         label *= self.genome.numBins        
         label += self.genome.chrmStartsBinCont[self.chrms2[dr] ]
-        label += self.mids2[dr] / resolution
+        label += self.mids2[dr] / resolution        
         
         counts = numpy.bincount(label, minlength = self.genome.numBins**2)
         if len(counts) > self.genome.numBins**2:
@@ -965,8 +962,8 @@ class HiCdataset(object):
         """
         
         self.genome.setResolution(resolution)                
-        pos1 = self.evaluate("a = numpy.array(cuts1 / {res}, dtype = 'int32')".format(res = resolution), "cuts1")
-        pos2 = self.evaluate("a = numpy.array(cuts2 / {res}, dtype = 'int32')".format(res = resolution), "cuts2")
+        pos1 = self.evaluate("a = numpy.array(mids1 / {res}, dtype = 'int32')".format(res = resolution), "mids1")
+        pos2 = self.evaluate("a = numpy.array(mids2 / {res}, dtype = 'int32')".format(res = resolution), "mids2")
         chr1 = self.chrms1        
         chr2 = self.chrms2    
         DS = self.DS       #13 bytes per read up to now, 16 total
