@@ -646,6 +646,7 @@ class HiCdataset(object):
         Resolution : int
             Resolution of a heatmap 
         """ 
+        #8 bytes per record + heatmap 
         self.genome.setResolution(resolution)
         dr = self.DS         
         label = self.genome.chrmStartsBinCont[self.chrms1[dr]]

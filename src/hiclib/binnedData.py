@@ -411,7 +411,7 @@ class binnedData(object):
         self.appliedOperations["RemovedUnsequenced"] = True
         pass
         
-    def removePoorRegions(self,names = None, cutoff = 2):
+    def removePoorRegions(self,names = None, cutoff = 2, coverage = False ):
         """removes "cutoff" percent of bins with least counts
         
         Parameters
@@ -429,7 +429,9 @@ class binnedData(object):
             datasum = numpy.sum(data,axis = 0)            
             datamask = datasum > 0
             mask *= datamask  
-            countsum = numpy.sum(data,axis = 0)  
+            if coverage == False: countsum = numpy.sum(data,axis = 0)
+            elif coverage == True:   countsum = numpy.sum(data>0,axis = 0)
+            else: raise ValueError("coverage is true or false!")
             newmask = countsum >= numpy.percentile(countsum[datamask],cutoff)
             mask *= newmask  
             statmask [(newmask == False) * (datamask == True)] = True
