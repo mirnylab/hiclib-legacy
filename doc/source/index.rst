@@ -66,7 +66,7 @@ Both libraries are library not compatible with python 2.5 and python 3.x, but wo
 
 However, it might require a newer versions of python packages (specifically numpy and scipy), than those available with python 2.6-equipped linux distributions (e.g. Ubuntu 10.04 LTS, ubuntu 11.04+ works fine!).
 
-Hiclib requires the following python libraries: joblib, h5py, pysam, numpy, scipy, matplotlib, numexpr, biopython, bx-python (preferably from bitbucket repo by james_taylor)
+Hiclib requires the following python libraries: joblib, h5py, pysam, numpy, scipy, matplotlib, biopython, bx-python (preferably from bitbucket repo by james_taylor)
 
 Hiclib requires following non-python binaries to be installed: samtools. 
 
@@ -80,8 +80,10 @@ Hardware requirements
 
 Fragment-based analysis uses HDD to store all the information about the reads. 
 However, at each point in time a few individual tracks are loaded to RAM to perform certain analysis. 
-Memory requirements for this part can be estimated as 30-50 bytes per read, dependent on the number of filters used. 
+Memory requirements for this part can be estimated as 20-40 bytes per read, dependent on the number of filters used. 
 For example, a 400 mln read Hi-C dataset will require no more than 20GB RAM. 
+We're working on rewriting the core of the library to consume less memory. 
+If you found a bottleneck, which can be easily fixed, please let us know and we'll fix it. 
 
 Binned data analysis uses RAM to store all the heatmaps. Application of certain filters will create a copy of a heatmap, one at a time, even if multiple datasets are loaded. 
 For example, working with 3 datasets at 200-kb resolution will require: 
@@ -104,10 +106,10 @@ It uses HDF5 to store and access the data, and can be viewed using external HDF5
 It stores data in a compressed format. For small datasets, it can be initialized to hold data in memory only.
 
 .. warning:: H5dict is not equivalent to dict, as it does not provide direct references to arrays on an HDD. 
-	For example ``>>> a = h5dict["myarray"] >>> a[0] = 1`` will not change the array in h5dict. You would need to run ``>>> h5dict["myarray"] = a`` to commit the change to the hard disk.  
+	For example ``>>> a = h5dict["myarray"] >>> a[0] = 1`` will not change the array in h5dict. You would need to run ``>>> h5dict["myarray"] = a`` to commit the change to the hard disk.  If you want to edit a part of an array, you can get a direct h5py dataset using ``>>> h5dict.get_dataset``
 
 H5dict file can be converted to txt format or matlab format using a small utilities
-h5dictToTxt.py and h5dictToMat.py. Both utilities are a part of mirnylib repository. 
+h5dictToTxt.py and h5dictToMat.py. Both utilities are a part of mirnylib repository.
 
 Pipeline structure
 ------------------

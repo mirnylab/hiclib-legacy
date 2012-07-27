@@ -45,7 +45,7 @@ However, one can easily construct another filter as presented in multiple one-li
     >>> Dset.fragmentFilter((Dset.ufragmentlen >1000) * (Dset.ufragmentlen < 4000)) #filter reads from fragments between 1kb and 4kb long. 
     >>> Dset.maskFilter(Dset.DS)   #Keep only DS reads
     >>> Dset.maskFilter(Dset.chrms1 == Dset.chrms2)  #keep only cis reads
-    >>> Dset.maskFilter((Dset.chrms1 !=14) + (Dset.chrms2 !=14))  #Exclude all reads from chromosome 14
+    >>> Dset.maskFilter((Dset.chrms1 !=14) + (Dset.chrms2 !=14))  #Exclude all reads from chromosome 15 (yes, chromosomes are zero-based!) 
     >>> Dset.maskFilter(Dset.dist1 + Dset.dist2 > 500)  #Keep only random breaks, if 500 is maximum molecule length
 
 -------------------------------------------------------------------------------
@@ -90,7 +90,7 @@ class HiCdataset(object):
     If you apply any filters to a dataset, it will actually modify the content of the current working file.  
     Thus, to preserve the data, loading datasets is advised. """
     
-    def __init__(self, filename , genome , maximumMoleculeLength = 500 , override = True , autoFlush = True,inMemory = False):
+    def __init__(self, filename , genome , maximumMoleculeLength = 500 , override = "deprecated" , autoFlush = "deprecated",inMemory = False, mode = "a"):
         """        
         __init__ method 
         
@@ -106,16 +106,22 @@ class HiCdataset(object):
             Alternatively, mirnylib.genome.Genome object.               
         maximumMoleculeLength : int, optional 
             Maximum length of molecules in the HiC library, used as a cutoff for dangling ends filter
-        override : bool, optional
-            Use specified dataset, do not remove it's contents. 
-            By default, if filename exists, it is deleted upon initialization.
-        autoFlush : bool, optional
+        override : bool, optional, deprecated
+            If true, file will be overwritten. Deprecated, use "mode = 'w'" instead of "override = True". 
+        autoFlush : bool, optional, deprecated
             Set to True to disable autoflush - possibly speeds up read/write operations. 
-            Don't forget to run flush then!             
-        
+            Currently deprecated. 
+        inMemory : bool, optional
+            Create dataset in memory. Filename is ignored then, but still needs to be specified. 
+        mode : str 
+            'r'  - Readonly, file must exist
+            'r+' - Read/write, file must exist
+            'w'  - Create file, overwrite if exists
+            'w-' - Create file, fail if exists
+            'a'  - Read/write if exists, create otherwise (default)
         """                
         #---------->>> Important::: do not define any variables before vectors!!! <<<-------- 
-        #These are fields that will be kept on a hard drive 
+        #These are fields that will be kept on a hard drive                 
         self.vectors = {"chrms1":"int8","chrms2":"int8", #chromosomes. If >chromosomeCount, then it's second chromosome arm! 
                         "mids1":"int32","mids2":"int32",  #midpoint of a fragment, determined as "(start+end)/2"
                         "fraglens1":"int32","fraglens2":"int32", #fragment lengthes                        
@@ -125,29 +131,33 @@ class HiCdataset(object):
                         "cuts1":"int32","cuts2":"int32",           #precise location of cut-site 
                         "strands1":"bool","strands2":"bool",
                         "DS":"bool","SS":"bool"}
-        
-        self.autoFlush = autoFlush
+        #--------Deprecation warnings-------
+        if override != "deprecated":  
+            warnings.warn(DeprecationWarning("Please use a more intuitive flag 'mode =' instead of 'override ='"))
+            override = True             
+        elif override  == True:
+            mode = "w"            
+        if autoFlush != "deprecated":
+            warnings.warn(DeprecationWarning("Autoflush was deprecated, inMemory is adviced instead"))
                        
+        #-------Initialization of the genome-----
         if type(genome) == str: 
             self.genome = Genome(genomePath = genome, readChrms = ["#","X"])
         else:
             self.genome = genome             
         assert isinstance(self.genome, Genome)        
         
-        self.chromosomeCount = self.genome.chrmCount  #used for building heatmaps
-        self.fragIDmult = self.genome.fragIDmult
+        self.chromosomeCount = self.genome.chrmCount  
+        self.fragIDmult = self.genome.fragIDmult    #used for building heatmaps
         print "----> New dataset opened, genome %s, filename = %s" % (self.genome.folderName, filename)
 
         self.maximumMoleculeLength = maximumMoleculeLength  #maximum length of a molecule for SS reads        
         self.filename = filename #File to save the data
-        self.chunksize = 5000000                             
-                 
-        if os.path.exists(self.filename):
-            if override == False: 
-                print "----->!!!File already exists! It will be opened in the 'append' mode."  
-                print
-            else:
-                os.remove(self.filename)
+        self.chunksize = 5000000   #Chunk size for h5dict operation, external sorting, etc.                              
+
+        #------Creating filenames, etc---------                 
+        if os.path.exists(self.filename) and (mode in ['w','a']):             
+            print "----->!!!File already exists! It will be {0}\n".format({"w":"deleted","a":"opened in the append mode"}[mode])                          
         if len(os.path.split(self.filename)[0]) != 0:
             if not os.path.exists(os.path.split(self.filename)[0]):
                 warnings.warn("Folder in which you want to create file do not exist: %s" % os.path.split(self.filename)[0])
@@ -156,7 +166,7 @@ class HiCdataset(object):
                 except: 
                     raise IOError("Failed to create directory: %s" % os.path.split(self.filename)[0])
             
-        self.h5dict = h5dict(self.filename,autoflush = self.autoFlush ,in_memory = inMemory)
+        self.h5dict = h5dict(self.filename,mode = mode, in_memory = inMemory)
 
     def _setData(self,name,data):
         "an internal method to save numpy arrays to HDD quickly"
@@ -217,9 +227,10 @@ class HiCdataset(object):
         """
         Still experimental class to perform evaluation of any expression on hdf5 datasets
         Note that out_variable should be writable by slices.
+        
         ---If one can provide autodetect of values for internal variables by parsing an expression, it would be great!---                
         
-        .. note :: See example of usage of this class in filterRsiteStart
+        .. note :: See example of usage of this class in filterRsiteStart, parseInputData, etc. 
         
         .. warning ::   Please avoid passing internal variables as "self.cuts1" - use "cuts1"
         
@@ -229,7 +240,7 @@ class HiCdataset(object):
         ----------
         expression : str
             Mathematical expression, single or multi line
-        internal_variables : list of str 
+        internal_variables : list of str
             List of variables ("chrms1", etc.), used in the expression
         external_variables : dict , optional
             Dict of {str:array}, where str indicates name of the variable, and array - value of the variable.
@@ -237,7 +248,7 @@ class HiCdataset(object):
             Dictionary of constants to be used in the evaluation. 
             Because evaluation happens without namespace, 
             you should include numpy here if you use it (included by default)  
-        out_variable : str or tuple, optional 
+        out_variable : str or tuple or None, optional 
             Variable to output the data. Either internal variable, or tuple (name,value), where value is an array
             
         
@@ -245,10 +256,10 @@ class HiCdataset(object):
         if type(internalVariables) == str: internalVariables = [internalVariables]
         if chunkSize == "default": 
             chunkSize = self.chunksize
-        if outVariable == "autodetect":  #detecting output variable automatically 
+        if outVariable == "autodetect":  #detecting output variable automatically            
             outVariable = expression.split("\n")[-1].split("=")[0].strip() 
             if outVariable not in self.vectors:
-                outVariable = (outVariable, numpy.zeros(self.N, float))
+                outVariable = (outVariable, "ToDefine")
         
         code = compile(expression, '<string>', 'exec')  #compile because we're launching it many times 
         
@@ -259,19 +270,26 @@ class HiCdataset(object):
             variables = copy(constants)  #dictionary to pass to the evaluator. It's safer than to use the default locals() 
             
             for name in internalVariables:
+                if name not in self.h5dict.keys():
+                    raise ValueError("{0} not in keys".format(name))
                 variables[name] = self.h5dict.get_dataset(name)[start:end]
             
             for name,variable in externalVariables.items():
                 variables[name] = variable[start:end]
             
             exec code in variables #actually execute the code in our own namespace
+            
+            if outVariable[1] == "ToDefine":  #autodetecting output dtype on the first run if not specified
+                dtype = variables[outVariable[0]].dtype 
+                outVariable = (outVariable[0], numpy.zeros(self.N, dtype))                
                 
             if type(outVariable) == str:
                 self.h5dict.get_dataset(outVariable)[start:end] = variables[outVariable]
             
             elif len(outVariable) == 2:
                 outVariable[1][start:end] = variables[outVariable[0]]
-            
+            elif outVariable == None: 
+                pass             
             else: raise ValueError("Please provide str or (str,value) for out variable")
         
         if type(outVariable) == tuple:
@@ -280,9 +298,8 @@ class HiCdataset(object):
              
         
     def flush(self):
-        "Flushes h5dict if used in autoFlush = False mode"
-        self.h5dict.flush()
-        
+        warnings.warn(DeprecationWarning("Autoflush was deprecated, flush is useless now"))
+
     
     def merge(self,filenames):
         """combines data from multiple datasets
@@ -319,9 +336,6 @@ class HiCdataset(object):
         
         .. warning:: Strand information is needed for proper scaling calculations, but will be imitated if not provided
         
-           
-                    
-        
         Parameters
         ----------
         dictLike: dict or dictLike object, or string with h5dict filename 
@@ -346,7 +360,7 @@ class HiCdataset(object):
         rsite_related = ["rsites1","rsites2","uprsites1","uprsites2","downrsites1","downrsites2"]
         if type(dictLike) == str:            
             if not os.path.exists(dictLike): raise IOError("File not found: %s" % dictLike)
-            print "     loading data from file %s" % dictLike
+            print "     loading data from file %s (assuming h5dict)" % dictLike
             dictLike = h5dict(dictLike,'r') #attempting to open h5dict
         
         if False not in [i in dictLike.keys() for i in rsite_related]:
@@ -364,8 +378,7 @@ class HiCdataset(object):
         else:
             self.chrms1 = a - 1
             self.chrms2 = dictLike["chrms2"] - 1
-            
-            
+        del a                         
             
         self.cuts1 = dictLike["cuts1"]
         self.cuts2 = dictLike["cuts2"]    
@@ -376,7 +389,8 @@ class HiCdataset(object):
             t = numpy.random.randint(0,2,self.trackLen)
             self.strands1 = t
             self.strands2 = 1-t
-            noStrand = True 
+            del t
+            noStrand = True             
         else:
             self.strands1 = dictLike["strands1"]
             self.strands2 = dictLike["strands2"]            
@@ -393,7 +407,7 @@ class HiCdataset(object):
             #enzymeToFillRsites has preference over self.genome's enzyme
                 
             print "Filling rsites"            
-            rsitedict = h5dict()  #creating dict to pass to anton's code 
+            rsitedict = h5dict()  #creating dict to pass to fillRsite's code 
             rsitedict["chrms1"] = self.chrms1
             rsitedict["chrms2"] = self.chrms2
             rsitedict["cuts1"] = self.cuts1
@@ -402,7 +416,7 @@ class HiCdataset(object):
             rsitedict["strands2"] = self.strands2            
             hiclib.mapping.fill_rsites(lib = rsitedict, genome_db = self.genome)
         else:
-            rsitedict = dictLike #rsite information is in our dictionary        
+            rsitedict = dictLike #rsite information is in our dictionary    
         
         self.DS = (self.chrms1 >= 0) * (self.chrms2 >=0)   #if we have reads from both chromosomes, we're a DS read
         self.SS = (self.DS == False)
@@ -424,42 +438,41 @@ class HiCdataset(object):
         distances = numpy.abs(self.mids1 - self.mids2)
         distances[self.chrms1 != self.chrms2] = -1
         self.distances = distances   #distances between restriction fragments
+        del distances
         
         
-        self._moveSSReads() #Eclipse warning removal
-         
+        self._moveSSReads() #Eclipse warning removal         
                 
         if "misc" in dictLike.keys():
             self.updateGenome(self.genome, removeSSreads = "trans", oldGenome = dictLike["misc"]["idx2label"])            
         else:
             assumedGenome = Genome(self.genome.genomePath)
             self.updateGenome(self.genome, removeSSreads = "trans", oldGenome = assumedGenome)
-            warnings.warn("\n Genome not found in mapped data. \n Assuming genome comes from the same folder with all chromosomes ")
+            warnings.warn("\n Genome not found in mapped data. \n Assuming genome comes from the same folder with all chromosomes ")                
         
-                
-        mask = (self.fragids1 != self.fragids2)   #Discard dangling ends and self-circles
-        maskLen, noSameFrag  = len(mask),  mask.sum()                         
+        mask = self.evaluate("a = (fragids1 != fragids2)",["fragids1", "fragids2"] )   #Discard dangling ends and self-circles
+        maskLen, noSameFrag  = len(mask),  mask.sum()        
         mask *=  ((self.chrms1 < self.chromosomeCount) * (self.chrms2 < self.chromosomeCount))  #Discard unused chromosomes
-        noUnusedChroms =  mask.sum()                  
+        noUnusedChroms =  mask.sum()
         if removeSS == False: mask *= ((self.chrms1 >=0) + (self.chrms2 >=0))   #Has to have at least one side mapped
-        else: mask *= ((self.chrms1 >=0) * (self.chrms2 >=0))   #Has to have at least one side mapped
-        noUnmapped = mask.sum()                 
+        else: mask *= ((self.chrms1 >=0) * (self.chrms2 >=0))   #Has to have both sides mapped
+        noUnmapped = mask.sum()
         if noStrand == True: 
-            dist = numpy.abs(self.cuts1 - self.cuts2)  #Can't tell if reads point to each other. 
+            dist = self.evaluate("a = numpy.abs(cuts1 - cuts2)",["cuts1","cuts2"])  #Can't tell if reads point to each other. 
         else: 
-            dist = - self.cuts1 * (2 * self.strands1 -1) - self.cuts2 * (2 * self.strands2 - 1)  #distance between sites facing each other
-                                
-                                
-        readsMolecules = (self.chrms1 == self.chrms2)*(self.strands1 != self.strands2) *  (dist >=0) * (dist <= self.maximumMoleculeLength)#filtering out DE
-                 
+            dist = self.evaluate("a = - cuts1 * (2 * strands1 -1) - cuts2 * (2 * strands2 - 1)",["cuts1","cuts2","strands1","strands2"])  #distance between sites facing each other
+                                                                        
+         
+        readsMolecules = self.evaluate("a = (chrms1 == chrms2)*(strands1 != strands2) *  (dist >=0) * (dist <= maximumMoleculeLength)",
+                                       internalVariables = ["chrms1","chrms2","strands1","strands2"],
+                                       externalVariables = {"dist":dist},constants={"maximumMoleculeLength":self.maximumMoleculeLength})                                                                                               
         mask *= (readsMolecules  == False)
-        extraDE = mask.sum()                                 
-        
-        
+        extraDE = mask.sum()                                             
                         
         print "     Original reads: {maskLen}  -> No same fragment: {noSameFrag} -> remove unused chrom: {noUnusedChroms} -> ...".format(**locals())
-        print "     ... -> No unmapped reads: {noUnmapped} -> no extra DEs (--> (<500) <--): {extraDE}".format(**locals())        
-         
+        print "     ... -> No unmapped reads: {noUnmapped} -> no extra DEs (--> (<500) <--): {extraDE}".format(**locals())
+        del dist
+        del readsMolecules 
         self.maskFilter(mask)
         
             
@@ -477,7 +490,7 @@ class HiCdataset(object):
         """
         Updates dataset to a new genome, with a fewer number of chromosomes. 
         Use it to delete chromosomes.  
-        By default, removes all SS and DS reads with that chromosomes. 
+        By default, removes all DS reads with that chromosomes. 
         
         Parameters
         ----------
@@ -493,16 +506,9 @@ class HiCdataset(object):
         """
         
         assert isinstance(newGenome,Genome)
-        newN = newGenome.chrmCount
-        
-                     
-            
-        if oldGenome == "current":  oldGenome = self.genome
-            
-        
-        upgrade = newGenome.upgradeMatrix(self.genome)
-        
-         
+        newN = newGenome.chrmCount                                         
+        if oldGenome == "current":  oldGenome = self.genome                    
+        upgrade = newGenome.upgradeMatrix(self.genome)                 
         try: oldN = oldGenome.chrmCount
         except AttributeError: oldN = len(oldGenome.keys())
         if oldN == newN:
@@ -541,13 +547,13 @@ class HiCdataset(object):
             
         if removeSSreads.lower() == "trans":
             "Removing trans reads, keeping SS as they are"
-            self.maskFilter((self.chrms1 < newN) * (self.chrms2 < newN) * self.DS + self.SS * (self.chrms1 >= 0) * (self.chrms1 < newN) )
-                
+            self.maskFilter((self.chrms1 < newN) * (self.chrms2 < newN) * self.DS + self.SS * (self.chrms1 >= 0) * (self.chrms1 < newN) )                
  
 
     def calculateWeights(self):
         """Calculates weights for reads based on fragment length correction similar to Tanay's;
-         may be used for scalings or creating heatmaps"""        
+         may be used for scalings or creating heatmaps"""
+        self._buildFragments()        
         fragmentLength = self.ufragmentlen
         pls = numpy.sort(fragmentLength)
         pls = numpy.r_[pls,pls[-1]+1]
@@ -565,7 +571,6 @@ class HiCdataset(object):
                 self.weights[p] =  value / meanSum
             else:
                 print "no weights",i,b1,b2
-
 
 
     def buildHeatmap(self,chromosome = 14,chromosome2 = None,resolution = 1000000,show = False,useRsiteDensity = True):
@@ -671,10 +676,10 @@ class HiCdataset(object):
         self.genome.setResolution(resolution)
         ds = self.DS == False
         if ds.sum() == 0: 
-            return numpy.zeros(self.genome.numBins)
-                 
-        label = self.genome.chrmStartsBinCont[self.chrms1[ds] ] + self.mids1[ds] / resolution
-        counts = sumByArray(label, numpy.arange(self.genome.numBins))
+            return numpy.zeros(self.genome.numBins)                 
+        label = self.genome.chrmStartsBinCont[self.chrms1[ds]] + self.mids1[ds] / resolution
+        label = numpy.asarray(label, dtype = "int64")                
+        counts = numpy.bincount(label, minlength = self.genome.numBins)
         return counts
     
     def buildFragmetCoverage(self,resolution):
@@ -684,7 +689,7 @@ class HiCdataset(object):
         chroms = self.ufragments / self.fragIDmult
         positions = self.ufragments % self.fragIDmult
         label = self.genome.chrmStartsBinCont[chroms ] + positions / resolution
-        counts = sumByArray(label, numpy.arange(self.genome.numBins))
+        counts = numpy.bincount(label, minlength = self.genome.numBins)
         return counts
             
         
@@ -717,18 +722,23 @@ class HiCdataset(object):
         #Uses 16 bytes per read
         
         print "          Number of reads changed  %d ---> %d" % (len(mask),mask.sum()),
-        length = 0 
+        length = 0
+        if hasattr(self,"ufragments"): del self.ufragmentlen,self.ufragments  
         for name in self.vectors:
             data = self._getData(name)
             ld = len(data)
             if length == 0: 
-                length = ld
-                
+                length = ld                
             else:
                 if ld != length: 
-                    self.delete()             
-            self._setData(name,data[mask])
-        self.N = mask.sum()   
+                    self.delete()
+            newdata = numpy.asarray(data[mask])
+            del data                          
+            self._setData(name,newdata)
+            del newdata              
+        self.N = mask.sum()
+        del mask
+        print "rebuilding fragments"    
         self.rebuildFragments()
         
     def rebuildFragments(self):
@@ -737,16 +747,15 @@ class HiCdataset(object):
             past = len(self.ufragments)        
         except:
             past = 0
-                        
-        self.ufragids1,self.ufragids1ind = chunkedUnique(self.fragids1,return_index=True,chunksize = self.chunksize)
-        self.ufragids2,self.ufragids2ind = chunkedUnique(self.fragids2[self.DS],return_index=True,chunksize = self.chunksize)
+        ufragids1,ufragids1ind = chunkedUnique(self.fragids1,return_index=True,chunksize = self.chunksize)
+        ufragids2,ufragids2ind = chunkedUnique(self.fragids2[self.DS],return_index=True,chunksize = self.chunksize)
                 
         #Funding unique fragments and unique fragment IDs
-        self.ufragment1len = self.fraglens1[self.ufragids1ind]
-        self.ufragment2len = self.fraglens2[self.DS][self.ufragids2ind]
+        ufragment1len = self.fraglens1[ufragids1ind]
+        ufragment2len = self.fraglens2[self.DS][ufragids2ind]
  
-        uall = numpy.r_[self.ufragids1,self.ufragids2]
-        ulen = numpy.r_[self.ufragment1len,self.ufragment2len]
+        uall = numpy.r_[ufragids1,ufragids2]
+        ulen = numpy.r_[ufragment1len,ufragment2len]
          
         self.ufragments,ind = numpy.unique(uall, True)        
         self.ufragmentlen = ulen[ind]            
@@ -812,7 +821,7 @@ class HiCdataset(object):
                              constants = {"offset":offset,"numpy":numpy}, 
                              outVariable = ("mask",numpy.zeros(self.N, bool)))
         
-        #Old code, if something fails, switch to here!!! 
+        #Old code, if something fails, switch to it!!! 
         #d1 = numpy.abs(self.dists1 - self.fraglens1) >= offset 
         #d2 = numpy.abs(self.dists2 - self.fraglens2) >= offset 
         #mask =  d1 * (d2 * self.DS + self.SS)         
@@ -848,7 +857,8 @@ class HiCdataset(object):
         uflen = len(self.ufragments)
         self.maskFilter(stay)
         assert len(self.ufragments) == uflen 
-        print
+        print                         
+        
         
 
     def fragmentSum(self,fragments = None, strands = "both"):
@@ -869,7 +879,7 @@ class HiCdataset(object):
         if strands == "both":  
             return sumByArray(self.fragids1,fragments) + sumByArray(self.fragids2[self.DS],fragments) 
         if strands == 1: return sumByArray(self.fragids1,fragments)
-        if strands == 2:return sumByArray(self.fragids2[self.DS],fragments)
+        if strands == 2: return sumByArray(self.fragids2[self.DS],fragments)
         
         
     def printStats(self):
@@ -924,21 +934,21 @@ class HiCdataset(object):
         """
         
         try: os.remove(filename)
-        except: pass        
-        heatmap = self.buildAllHeatmap(resolution)        
+        except: pass
+        
+        tosave = h5dict(path = filename,mode = "w")        
+        heatmap = self.buildAllHeatmap(resolution)
+        tosave["heatmap"] = heatmap
+        del heatmap         
         singles = self.buildSinglesCoverage(resolution)        
         frags = self.buildFragmetCoverage(resolution)
-        chromosomeStarts = numpy.array(self.genome.chrmStartsBinCont)
-        tosave = h5dict(path = filename,mode = "w")
-        tosave["resolution"] = resolution
-        tosave["heatmap"] = heatmap
+        chromosomeStarts = numpy.array(self.genome.chrmStartsBinCont)        
+        tosave["resolution"] = resolution        
         tosave["singles"] = singles
         tosave["frags"] = frags
         tosave["genomeBinNum"] = self.genome.numBins
+        tosave["genomeIdxToLabel"] = self.genome.idx2label        
         tosave["chromosomeSTarts"] = chromosomeStarts
-        
-
-        
         print "----> Heatmap saved to '%s' at %d resolution" % (filename,resolution)
     
     def saveByChromosomeHeatmap(self,filename,resolution = 10000, includeTrans = False):
@@ -970,9 +980,10 @@ class HiCdataset(object):
         DS = self.DS       #13 bytes per read up to now, 16 total
         mydict = h5dict(filename)
         for chrom in xrange(self.genome.chrmCount):
-            mask = ((chr1 == chrom) + (chr2 == chrom)) * DS  
+            if includeTrans == True:    mask = ((chr1 == chrom) + (chr2 == chrom)) * DS
+            else:   mask = ((chr1 == chrom) * (chr2 == chrom))
             c1,c2,p1,p2 = chr1[mask],chr2[mask],pos1[mask],pos2[mask]
-            mask = c2 == chrom
+            mask = (c2 == chrom) * (c1 != chrom) 
             c1[mask],c2[mask],p1[mask],p2[mask] = c2[mask].copy(), c1[mask].copy(), p2[mask].copy() , p1[mask].copy()
             
             label = numpy.asarray(p1, "int64") * self.genome.numBins

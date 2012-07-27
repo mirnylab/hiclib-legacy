@@ -846,10 +846,12 @@ class binnedData(object):
             returns: numPCs by N matrix 
             Default does iterative correction, then observed over expected. 
             Then iterates IS and OOE 2 more times. Then calculates correlation matrix. 
-            Then calculates PCA of correlation matrix. 
+            Then calculates PCA of correlation matrix.
+            
+        .. note:: Main output of this function is written to self.PCADict  
             
         Returns
-        -------
+        -------        
         corrdict,lengthdict
         Dictionaries with keys for each dataset. 
         Values of corrdict contains an M x numPCs array with correlation coefficient for

@@ -1,10 +1,8 @@
 from hiclib.fragmentHiC import HiCdataset 
 from mirnylib.h5dict import h5dict  
 import os,sys 
-from mirnylib.plotting import mat_img
 import numpy
 from mirnylib.systemutils import setExceptionHook
-from mirnylib.numutils import coarsegrain
 
 if os.path.exists("test-1M.hm"): os.remove("test-1M.hm")
 workingGenome = "hg18"

@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 import hiclib 
 from hiclib.binnedData import binnedData, binnedDataAnalysis
 from hiclib.fragmentHiC import HiCStatistics 
-from hiclib.domainSearch import gradientDescentDomains
 from mirnylib.plotting import mat_img
 
 import scipy.stats  
