@@ -737,8 +737,7 @@ class HiCdataset(object):
             self._setData(name,newdata)
             del newdata              
         self.N = mask.sum()
-        del mask
-        print "rebuilding fragments"    
+        del mask            
         self.rebuildFragments()
         
     def rebuildFragments(self):
