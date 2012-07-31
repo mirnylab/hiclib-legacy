@@ -726,7 +726,8 @@ class HiCdataset(object):
         
         print "          Number of reads changed  %d ---> %d" % (len(mask),mask.sum()),
         length = 0
-        ms = mask.sum()                  
+        ms = mask.sum()
+        assert mask.dtype == numpy.bool                  
         self.N = ms 
         if hasattr(self,"ufragments"): del self.ufragmentlen,self.ufragments  
         for name in self.vectors:
