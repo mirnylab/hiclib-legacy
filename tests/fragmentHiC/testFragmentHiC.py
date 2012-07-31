@@ -26,18 +26,18 @@ def refine_paper(filename,create = True):
         for onename in filename[0]:
             #Parsing individual files
             if not os.path.exists(onename): raise StandardError("path not found: %s" % onename)
-            TR = HiCdataset(onename+"_parsed.frag",genome = genomeFolder,maximumMoleculeLength=500,override = True)             
+            TR = HiCdataset("bla",genome = genomeFolder,maximumMoleculeLength=500,mode = "w",inMemory = True)
             TR.parseInputData(dictLike = onename, enzymeToFillRsites = "HindIII")
             assert len(TR.DS) == 523790
             assert len(TR.ufragments) == 509379
+            TR.save(onename+"_parsed.frag")
               
         
         #Merging files alltogether, applying filters
-        TR = HiCdataset(filename[1]+"_merged.frag",genome = genomeFolder,override = True)
-        TR.merge([i+"_parsed.frag" for i in filename[0]])
-        TR.flush()
+        TR = HiCdataset(filename[1]+"_merged.frag",genome = genomeFolder,mode = "w")
+        TR.merge([i+"_parsed.frag" for i in filename[0]])        
                  
-        TR = HiCdataset(filename[1]+"_refined.frag",genome = genomeFolder,override = True,autoFlush = False) 
+        TR = HiCdataset("refined",genome = genomeFolder,mode = "w",inMemory = True) 
         TR.chunksize = 30000
         #because we do many operations, we disable autoFlush here 
         TR.load(filename[1]+"_merged.frag")
@@ -49,14 +49,7 @@ def refine_paper(filename,create = True):
         TR.filterLarge()
         assert len(TR.DS) == 506081    
         TR.filterExtreme(cutH = 0.005, cutL = 0)
-        assert len(TR.DS) == 490313
-        TR.flush() 
-    else: 
-        #If merging & filters has already been done, just load files
-         
-        TR = HiCdataset(filename[1]+"_working.frag",override = True,genome = genomeFolder)
-        TR.load(filename[1] +"_refined.frag")
-        TR.rebuildFragments()
+        assert len(TR.DS) == 490313         
 
     print "----->Building Raw heatmap at two resolutions"
     
@@ -80,8 +73,7 @@ def refine_paper(filename,create = True):
     print "    Allxall and by chromosome heatmaps are consistent"
     assert  a["heatmap"][::10,::10].sum()  == 12726
     
-    
-    
+        
     print "---->Testing updateGenome method"
     from mirnylib.genome import Genome
     removeChromIDs = numpy.array([0,1,1,1,1]+[0]*17 + [1]+[0])    
@@ -95,8 +87,7 @@ def refine_paper(filename,create = True):
     
 
     print "----->Building RB heatmap"
-    TR = HiCdataset(filename[1] + "_breaks.frag",genome = genomeFolder, override = True)
-    TR.load(filename[1] + "_refined.frag")    
+    
     TR.maskFilter((TR.dists1 > TR.maximumMoleculeLength) + (TR.dists2 > TR.maximumMoleculeLength) * TR.DS)
     
     print len(TR.DS)
@@ -108,9 +99,10 @@ map(refine_paper,
       [(source("test"),
 ), "test","HindIII"]])
 
-os.remove("test_breaks.frag")
+#os.remove("test_breaks.frag")
 os.remove("test-hg18.hdf5_parsed.frag")
 os.remove("test_merged.frag")
-os.remove("test_refined.frag")
+os.remove("test-1M.hm")
+#os.remove("test_refined.frag")
 print "Test finished successfully!"
 

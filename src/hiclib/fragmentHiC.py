@@ -73,7 +73,7 @@ from mirnylib.plotting import mat_img,removeAxes
 
 from mirnylib import numutils  
 from mirnylib.numutils import arrayInArray,  sumByArray, correct, ultracorrect,\
-    uniqueIndex, chunkedUnique
+    uniqueIndex, chunkedUnique, fasterBooleanIndexing
 from mirnylib.systemutils import setExceptionHook
 
 r_ = numpy.r_
@@ -132,15 +132,15 @@ class HiCdataset(object):
                         "strands1":"bool","strands2":"bool",
                         "DS":"bool","SS":"bool"}
         #--------Deprecation warnings-------
-        if override != "deprecated":  
-            warnings.warn(DeprecationWarning("Please use a more intuitive flag 'mode =' instead of 'override ='"))
+        if override != "deprecated":              
+            warnings.warn(UserWarning("Please use a more intuitive flag 'mode =' instead of 'override ='"))
             override = True             
         elif override  == True:
             mode = "w"            
         if autoFlush != "deprecated":
-            warnings.warn(DeprecationWarning("Autoflush was deprecated, inMemory is adviced instead"))
+            warnings.warn(UserWarning("Autoflush was deprecated, inMemory is adviced instead"))
                        
-        #-------Initialization of the genome-----
+        #-------Initialization of the genome and parameters-----
         if type(genome) == str: 
             self.genome = Genome(genomePath = genome, readChrms = ["#","X"])
         else:
@@ -153,7 +153,8 @@ class HiCdataset(object):
 
         self.maximumMoleculeLength = maximumMoleculeLength  #maximum length of a molecule for SS reads        
         self.filename = filename #File to save the data
-        self.chunksize = 5000000   #Chunk size for h5dict operation, external sorting, etc.                              
+        self.chunksize = 5000000   #Chunk size for h5dict operation, external sorting, etc.
+        self.inMemory = inMemory                              
 
         #------Creating filenames, etc---------                 
         if os.path.exists(self.filename) and (mode in ['w','a']):             
@@ -298,7 +299,7 @@ class HiCdataset(object):
              
         
     def flush(self):
-        warnings.warn(DeprecationWarning("Autoflush was deprecated, flush is useless now"))
+        warnings.warn(UserWarning("Autoflush was deprecated, flush is useless now"))
 
     
     def merge(self,filenames):
@@ -321,6 +322,8 @@ class HiCdataset(object):
             for mydict in h5dicts:
                 res.append(mydict[name])
             res = numpy.concatenate(res)
+            self.N = len(res) 
+            if name == "DS": self.DSnum = res.sum()
             self._setData(name,res)
         
         self.rebuildFragments()
@@ -407,7 +410,7 @@ class HiCdataset(object):
             #enzymeToFillRsites has preference over self.genome's enzyme
                 
             print "Filling rsites"            
-            rsitedict = h5dict()  #creating dict to pass to fillRsite's code 
+            rsitedict = h5dict(in_memory = self.inMemory)  #creating dict to pass to fillRsite's code 
             rsitedict["chrms1"] = self.chrms1
             rsitedict["chrms2"] = self.chrms2
             rsitedict["cuts1"] = self.cuts1
@@ -723,6 +726,8 @@ class HiCdataset(object):
         
         print "          Number of reads changed  %d ---> %d" % (len(mask),mask.sum()),
         length = 0
+        ms = mask.sum()                  
+        self.N = ms 
         if hasattr(self,"ufragments"): del self.ufragmentlen,self.ufragments  
         for name in self.vectors:
             data = self._getData(name)
@@ -731,13 +736,14 @@ class HiCdataset(object):
                 length = ld                
             else:
                 if ld != length: 
-                    self.delete()
-            newdata = numpy.asarray(data[mask])
+                    self.delete()            
+            newdata = fasterBooleanIndexing(data,mask,outLen = ms,bounds = False )  #see mirnylib.numutils              
             del data                          
             self._setData(name,newdata)
-            del newdata              
-        self.N = mask.sum()
-        del mask            
+            if name == "DS":                
+                self.DSnum = int(newdata.sum())             
+            del newdata
+        del mask                              
         self.rebuildFragments()
         
     def rebuildFragments(self):
@@ -747,7 +753,7 @@ class HiCdataset(object):
         except:
             past = 0
         ufragids1,ufragids1ind = chunkedUnique(self.fragids1,return_index=True,chunksize = self.chunksize)
-        ufragids2,ufragids2ind = chunkedUnique(self.fragids2[self.DS],return_index=True,chunksize = self.chunksize)
+        ufragids2,ufragids2ind = chunkedUnique(fasterBooleanIndexing(self.fragids2,self.DS,outLen = self.DSnum),return_index=True,chunksize = self.chunksize)
                 
         #Funding unique fragments and unique fragment IDs
         ufragment1len = self.fraglens1[ufragids1ind]
@@ -846,12 +852,11 @@ class HiCdataset(object):
         strings = dups.view("|S16")   #Converting two indices to a single string to run unique
         uids = uniqueIndex(strings)
         del strings, dups                 
-        stay = self.SS
-        putIn = numpy.zeros(Nds,bool)
-        putIn[uids] = True 
-        stay[DS] = putIn 
-        ds = self.DS.sum()
-        print "     Number of DS reads changed - %d ---> %d" % (ds,ds - len(self.DS) + stay.sum()) 
+        stay = self.SS  #mask 
+        putIn = numpy.zeros(Nds,bool)   #mask inside DS mask 
+        putIn[uids] = True               #indexes of unique DS elements
+        stay[DS] = putIn                #filling in mask of all reads        
+        print "     Number of DS reads changed - %d ---> %d" % (Nds,Nds - len(DS) + stay.sum()) 
         del uids
         uflen = len(self.ufragments)
         self.maskFilter(stay)
@@ -876,9 +881,9 @@ class HiCdataset(object):
         if fragments == None: fragments = self.ufragments
                                 
         if strands == "both":  
-            return sumByArray(self.fragids1,fragments) + sumByArray(self.fragids2[self.DS],fragments) 
+            return sumByArray(self.fragids1,fragments) + sumByArray(fasterBooleanIndexing(self.fragids2,self.DS,outLen = self.DSnum),fragments) 
         if strands == 1: return sumByArray(self.fragids1,fragments)
-        if strands == 2: return sumByArray(self.fragids2[self.DS],fragments)
+        if strands == 2: return sumByArray(fasterBooleanIndexing(self.fragids2,self.DS),fragments)
         
         
     def printStats(self):
@@ -906,6 +911,8 @@ class HiCdataset(object):
         length = 0 
         for name in self.vectors:
             data = otherh5dict[name]
+            if name == "DS":
+                self.DSnum = data.sum()
             ld = len(data)
             if length == 0: 
                 length = ld
@@ -917,6 +924,7 @@ class HiCdataset(object):
             self._setData(name,data) 
         print "---->Loaded data from file %s, contains %d reads" % (filename, length)
         self.N = length
+        
         if buildFragments == True: 
             self.rebuildFragments()
             

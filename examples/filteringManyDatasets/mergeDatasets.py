@@ -43,7 +43,7 @@ def refineDataset(filenames,create = True, delete = True ,parseInMemory = True):
     
     filenames[0] is a list of filenames of incoming files 
     filenames[1] is a folder for outgoing file
-    filenames[2] is a working genome, that is output directory
+    filenames[2] is a working genome name, which is also the name of output directory
     
     create : bool, optional 
         If True, parse each file. 
