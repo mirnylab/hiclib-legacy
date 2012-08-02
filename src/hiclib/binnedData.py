@@ -137,10 +137,10 @@ from mirnylib.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector,
 from mirnylib.genome import Genome 
 import numpy as np 
 from math import exp
-from mirnylib.h5dict import h5dict  
-from scipy import weave 
+from mirnylib.h5dict import h5dict   
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt 
+from mirnylib.numutils_new import removeDiagonal, fakeCis
 
 
 
@@ -335,26 +335,9 @@ class binnedData(object):
         m : int, optional 
             Number of bins to remove
         """
-        for i in self.dataDict.keys():
-            data = self.dataDict[i] * 1.             
-            N = len(data)
-            N   #Eclipse warning remover 
-            code = r"""
-            #line 841 "binary_search.py"
-            using namespace std; 
-            for (int i = 0; i < N; i++)    
-            {    
-                for (int j = max(i-m,0); j<min(i+m+1,N); j++)
-                {
-                    data[i*N + j] = 0;
-                }
-            } 
-            """
-            support = """
-            #include <math.h>
-            """
-            weave.inline(code, ['m','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
-            self.dataDict[i] = data
+        for i in self.dataDict.keys():            
+            self.dataDict[i] = np.asarray(self.dataDict[i],dtype = np.double, order = "C")
+            removeDiagonal(self.dataDict[i],m)                         
         self.appliedOperations["RemovedDiagonal"] = True        
         
         
@@ -495,53 +478,11 @@ class binnedData(object):
                 assert mask.shape == self.dataDict.values()[0].shape  #check that mask has correct shape 
                 _mask = np.array(mask,dtype = int, order = "C")
                 _mask[self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]] = 2   #do not fake with cis counts                                             
-            s = np.abs(np.sum(data,axis = 0)) <= 1e-10 
+            s = np.abs(np.sum(data,axis = 0)) <= 1e-10             
             _mask[:,s]= 2
-            _mask[s,:] = 2              
-            N = len(data)
-            N
-            code = r"""
-            #line 310 "binnedData.py"
-            using namespace std; 
-            for (int i = 0; i < N; i++)    
-            {    
-                for (int j = i; j<N; j++)
-                {
-                    if (_mask[i* N + j] == 1)                    
-                    {
-                    while (true) 
-                        {
-                        int r = rand() % 2;                         
-                        if (r == 0)
-                            {                            
-                            int s = rand() % N;
-                            if (_mask[i * N + s] == 0)
-                                {                                
-                                data[i * N + j] = data[i * N + s];
-                                data[j * N + i] = data[i * N + s];
-                                break;
-                                 
-                                }
-                            }
-                        else
-                            {
-                            int s = rand() % N;
-                            if (_mask[j * N + s] == 0)
-                                {
-                                data[i * N + j] = data[j * N + s];
-                                data[j * N + i] = data[j * N + s]; 
-                                break;
-                                }                            
-                            }                        
-                        }
-                    }
-                }
-            } 
-            """
-            support = """
-            #include <math.h>
-            """
-            weave.inline(code, ['_mask','data',"N"], extra_compile_args=['-march=native -malign-double -O3'],support_code =support )
+            _mask[s,:] = 2            
+            _mask = np.asarray(_mask, dtype = np.int64)
+            fakeCis(data,_mask)              
             self.dataDict[key] = data
             self.appliedOperations["RemovedCis"] = True 
             self.appliedOperations["FakedCis"] = True 
@@ -1136,10 +1077,12 @@ class binnedDataAnalysis(binnedData):
 
     
 class experimentalBinnedData(binnedData):
+    
     "Contains some poorly-implemented new features"        
-    def emulateCis(self):
+    def emulateCis(self):        
         """if you want to have fun creating syntetic data, this emulates cis contacts. 
         adjust cis/trans ratio in the C code"""
+        from scipy import weave
         transmap = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]
         len(transmap)
         for i in self.dataDict.keys():
@@ -1174,6 +1117,7 @@ class experimentalBinnedData(binnedData):
     def fakeMissing(self,iterative = True):
         """fakes megabases that have no reads. For cis reads fakes with cis reads at the same distance. For trans fakes with random trans read at the same diagonal. 
         """
+        from scipy import weave
         for i in self.dataDict.keys():
             data = self.dataDict[i] * 1.
             sm = np.sum(data,axis = 0) > 0  

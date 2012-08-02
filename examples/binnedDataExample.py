@@ -83,7 +83,8 @@ def doArmPlot(filename = GM1M,genome = myGenome, mouse = False,**kwargs):
     Tanay.removeDiagonal(1)
     Tanay.removePoorRegions()
     Tanay.truncTrans()
-    Tanay.fakeCis()         
+    Tanay.fakeCis()
+    #mat_img(Tanay.dataDict["GM-all"])         
     #plt.figure(figsize = (3.6,3.6))
     Tanay.averageTransMap("GM-all",**kwargs)
 
@@ -93,7 +94,6 @@ def doArmPlot(filename = GM1M,genome = myGenome, mouse = False,**kwargs):
     for xlabel_i in cb.ax.get_xticklabels(): xlabel_i.set_fontsize(6)    
 
 doArmPlot()
-plt.show() 
 
 def doReconstructedArmPlot(filename = GM1M,genome = myGenome,usePCs = [0,1],mouse = False,**kwargs):
     "Plot an PC2-PC3 interarm map - supp paper figure"    
@@ -171,7 +171,7 @@ def differentArmPlotsWithReconstructedHeatmaps():
         plt.title("From E" + "".join([str(i+1)+", " for i in chromSet])[:-2])
     plt.show() 
 
-differentArmPlotsWithReconstructedHeatmaps()        
+#differentArmPlotsWithReconstructedHeatmaps()        
 
 
 def compareInterarmMaps():
