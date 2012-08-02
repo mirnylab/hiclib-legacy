@@ -135,7 +135,7 @@ from mirnylib.plotting import  removeBorder
 from mirnylib.numutils import PCA, EIG,correct, ultracorrectSymmetricWithVector,\
     isInteger, observedOverExpected, ultracorrect
 from mirnylib.genome import Genome 
-import  numpy
+import numpy as np 
 from math import exp
 from mirnylib.h5dict import h5dict  
 from scipy import weave 
@@ -203,13 +203,13 @@ class binnedData(object):
         self.chromosomeCount = self.genome.chrmCount
         self.chromosomeIndex = self.genome.chrmIdxBinCont
         self.positionIndex = self.genome.posBinCont        
-        self.armIndex = self.chromosomeIndex * 2 + numpy.array(self.positionIndex > self.genome.cntrMids[self.chromosomeIndex],int)
+        self.armIndex = self.chromosomeIndex * 2 + np.array(self.positionIndex > self.genome.cntrMids[self.chromosomeIndex],int)
 
     def _giveMask(self):
         "Returns index of all bins with non-zero read counts"
-        self.mask = numpy.ones(len(self.dataDict.values()[0]),numpy.bool)
+        self.mask = np.ones(len(self.dataDict.values()[0]),np.bool)
         for data in self.dataDict.values():
-            datasum = numpy.sum(data,axis = 0)
+            datasum = np.sum(data,axis = 0)
             datamask = datasum > 0
             self.mask *= datamask
         return self.mask
@@ -222,17 +222,17 @@ class binnedData(object):
 
     def _loadGC(self):        
         "loads GC content at given resolution"
-        self.trackDict["GC"] = numpy.concatenate(self.genome.GCBin)
+        self.trackDict["GC"] = np.concatenate(self.genome.GCBin)
         
     def _checkItertiveCorrectionError(self):
         "internal method for checking if iterative correction might be bad to apply"
         for value in self.dataDict.values():           
              
             if isInteger(value).all() == True:
-                s = numpy.sum(value,axis = 0)
-                sums = numpy.sort(s[s!=0])
+                s = np.sum(value,axis = 0)
+                sums = np.sort(s[s!=0])
                 if sums[0] < 100:
-                    error = int(100. / numpy.sqrt(sums[0]))
+                    error = int(100. / np.sqrt(sums[0]))
                     message1 =  "Lowest 5 sums of an array rows are: " + str(sums[:5])                    
                     warnings.warn("\n%s\nIterative correction will lead to about %d %% relative error for certain columns" % (message1,error))
                     
@@ -240,10 +240,10 @@ class binnedData(object):
                         raise StandardError("Iterative correction is very dangerous. Use force=true to override.") 
                           
             else:
-                s = numpy.sum(value>0,axis = 0)
-                sums = numpy.sort(s[s!=0])
+                s = np.sum(value>0,axis = 0)
+                sums = np.sort(s[s!=0])
                 if sums[0] < min(100,len(value)/2):
-                    error = int(100. / numpy.sqrt(sums[0]))
+                    error = int(100. / np.sqrt(sums[0]))
                     print "Got floating-point array for correction. Rows with 5 least entrees are:",sums[:5]
                     warnings.warn("\nIterative correction might lead to about %d %% relative error for certain columns" % error)
                     if sums[0] < 4: 
@@ -288,7 +288,7 @@ class binnedData(object):
         else:
             alldata = in_data
                              
-        self.dataDict[name] = alldata["heatmap"]        
+        self.dataDict[name] = np.asarray(alldata["heatmap"], dtype = np.double)        
         try: self.singlesDict[name] = alldata["singles"]
         except: print "No SS reads found"
         try: self.fragsDict[name] = alldata["frags"]
@@ -367,13 +367,13 @@ class binnedData(object):
         offset : int 
             Maximum length of group of bins to be removed
         """                
-        diffs = numpy.diff(numpy.array(numpy.r_[False, self._giveMask(), False],int))
-        begins = numpy.nonzero(diffs == 1)[0] 
-        ends = numpy.nonzero(diffs == -1)[0]
+        diffs = np.diff(np.array(np.r_[False, self._giveMask(), False],int))
+        begins = np.nonzero(diffs == 1)[0] 
+        ends = np.nonzero(diffs == -1)[0]
         beginsmask = (ends - begins) <= offset
         newbegins = begins[beginsmask]
         newends = ends[beginsmask]        
-        print "removing %d standalone bins"% numpy.sum(newends - newbegins)
+        print "removing %d standalone bins"% np.sum(newends - newbegins)
         mask = self._giveMask()
         for i in xrange(len(newbegins)): mask[newbegins[i]:newends[i]] = False
         mask2D = mask[:,None] * mask[None,:]        
@@ -398,12 +398,12 @@ class binnedData(object):
         """
         self._checkAppliedOperations(excludedKeys = "RemovedZeros")
         binCutoff = int(self.resolution * sequencedFraction)
-        sequenced = numpy.concatenate(self.genome.mappedBasesBin)
+        sequenced = np.concatenate(self.genome.mappedBasesBin)
         mask = sequenced < binCutoff
-        nzmask = numpy.zeros(len(mask),bool)  #mask of regions with non-zero counts         
+        nzmask = np.zeros(len(mask),bool)  #mask of regions with non-zero counts         
         
         for i in self.dataDict.values():
-            sumData = numpy.sum(i[mask],axis = 1)>0
+            sumData = np.sum(i[mask],axis = 1)>0
             nzmask[mask] = nzmask[mask] + sumData                           
             i[mask,:] = 0
             i[:,mask] = 0 
@@ -421,22 +421,22 @@ class binnedData(object):
         cutoff : int, 0<cutoff<100
             Percent of lowest-counts bins to be removed         
         """
-        statmask = numpy.zeros(len(self.dataDict.values()[0]),numpy.bool)
-        mask = numpy.ones(len(self.dataDict.values()[0]),numpy.bool)
+        statmask = np.zeros(len(self.dataDict.values()[0]),np.bool)
+        mask = np.ones(len(self.dataDict.values()[0]),np.bool)
         if names == None: names =self.dataDict.keys()  
         for i in names:
             data = self.dataDict[i]
-            datasum = numpy.sum(data,axis = 0)            
+            datasum = np.sum(data,axis = 0)            
             datamask = datasum > 0
             mask *= datamask  
-            if coverage == False: countsum = numpy.sum(data,axis = 0)
-            elif coverage == True:   countsum = numpy.sum(data>0,axis = 0)
+            if coverage == False: countsum = np.sum(data,axis = 0)
+            elif coverage == True:   countsum = np.sum(data>0,axis = 0)
             else: raise ValueError("coverage is true or false!")
-            newmask = countsum >= numpy.percentile(countsum[datamask],cutoff)
+            newmask = countsum >= np.percentile(countsum[datamask],cutoff)
             mask *= newmask  
             statmask [(newmask == False) * (datamask == True)] = True
         print "removed %d poor bins", statmask.sum()
-        inds = numpy.nonzero(mask == False) 
+        inds = np.nonzero(mask == False) 
         
         for i in self.dataDict.values(): 
             i[inds,:] = 0
@@ -454,7 +454,7 @@ class binnedData(object):
         for i in self.dataDict.keys():
             data = self.dataDict[i]
             transmask = self.chromosomeIndex[:,None] != self.chromosomeIndex[None,:]
-            lim = numpy.percentile(data[transmask],100.*(1 - high))
+            lim = np.percentile(data[transmask],100.*(1 - high))
             print "dataset %s truncated at %lf" % (i,lim) 
             tdata = data[transmask]
             tdata[tdata > lim] = lim            
@@ -488,14 +488,14 @@ class binnedData(object):
         
         if silent == False: print("All cis counts are substituted with matching trans count")
         for key in self.dataDict.keys():                         
-            data = numpy.asarray(self.dataDict[key],order = "C",dtype = float)
+            data = np.asarray(self.dataDict[key],order = "C",dtype = float)
             if mask == "CisCounts": 
-                _mask =  numpy.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int,order = "C")
+                _mask =  np.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int,order = "C")
             else:
                 assert mask.shape == self.dataDict.values()[0].shape  #check that mask has correct shape 
-                _mask = numpy.array(mask,dtype = int, order = "C")
+                _mask = np.array(mask,dtype = int, order = "C")
                 _mask[self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]] = 2   #do not fake with cis counts                                             
-            s = numpy.abs(numpy.sum(data,axis = 0)) <= 1e-10 
+            s = np.abs(np.sum(data,axis = 0)) <= 1e-10 
             _mask[:,s]= 2
             _mask[s,:] = 2              
             N = len(data)
@@ -572,7 +572,7 @@ class binnedData(object):
             If chromosome end is None, it is treated as length of chromosome. So, use (chr1,0,None,chr2,0,None) to remove inter-chromosomal interaction entirely.          
         """
         self._checkAppliedOperations(excludedKeys = "RemovedZeros")
-        mask = numpy.zeros((self.genome.numBins, self.genome.numBins),int)
+        mask = np.zeros((self.genome.numBins, self.genome.numBins),int)
         resolution = self.genome.resolution           
         
         for i in translocationRegions:
@@ -689,10 +689,10 @@ class binnedData(object):
         if zerosMask != None:
             s = zerosMask
         else:          
-            s = numpy.sum(self._giveMask2D(),axis = 0) > 0
+            s = np.sum(self._giveMask2D(),axis = 0) > 0
             for i in self.dataDict.values():
-                s *= (numpy.sum(i,axis = 0) > 0)
-        indices = numpy.zeros(len(s),int)
+                s *= (np.sum(i,axis = 0) > 0)
+        indices = np.zeros(len(s),int)
         count = 0 
         for i in xrange(len(indices)):
             if s[i] == True:
@@ -700,7 +700,7 @@ class binnedData(object):
                 count +=1
             else: 
                 indices[i] = count
-        indices = numpy.r_[indices,indices[-1] + 1]  
+        indices = np.r_[indices,indices[-1] + 1]  
         N = len(self.positionIndex)
         for i in self.dataDict.keys():
             a = self.dataDict[i]
@@ -732,7 +732,7 @@ class binnedData(object):
         self.genome.setResolution(-1)  
         return s 
 
-    def restoreZeros(self, value = numpy.NAN):
+    def restoreZeros(self, value = np.NAN):
         """Restores zeros that were removed by removeZeros command. 
         
         .. warning:: You can restore zeros only if you used removeZeros once.
@@ -750,20 +750,20 @@ class binnedData(object):
 
         for i in self.dataDict.keys():
             a = self.dataDict[i]            
-            self.dataDict[i] = numpy.zeros((N,N),dtype = a.dtype) * value 
-            tmp = numpy.zeros((N,len(a)),dtype = a.dtype) * value 
+            self.dataDict[i] = np.zeros((N,N),dtype = a.dtype) * value 
+            tmp = np.zeros((N,len(a)),dtype = a.dtype) * value 
             tmp[s,:] = a
             self.dataDict[i][:,s] = tmp                     
         for mydict in self.dicts:
             for key in mydict.keys():
                 a = mydict[key]
-                mydict[key] = numpy.zeros(N,dtype = a.dtype) * value 
+                mydict[key] = np.zeros(N,dtype = a.dtype) * value 
                 mydict[key][s] = a
                         
         for mydict in self.eigDicts:
             for key in mydict.keys():
                 a = mydict[key]
-                mydict[key] = numpy.zeros((len(a),N),dtype = a.dtype) * value 
+                mydict[key] = np.zeros((len(a),N),dtype = a.dtype) * value 
                 mydict[key][:,s] = a
         
         self.genome.setResolution(self.resolution)                                
@@ -869,7 +869,7 @@ class binnedData(object):
                 chrom = ultracorrect(chrom,M=10)
                 chrom = observedOverExpected(chrom)
                 chrom = ultracorrect(chrom,M=10)
-                chrom = numpy.corrcoef(chrom)                
+                chrom = np.corrcoef(chrom)                
                 PCs = PCA(chrom, numPCs)[0]
                 return PCs
                 
@@ -882,7 +882,7 @@ class binnedData(object):
             lengthdict[key] = []
             dataset = self.dataDict[key]
             N = len(dataset)
-            PCArray = numpy.zeros((3,N))
+            PCArray = np.zeros((3,N))
             
             for chrom in xrange(len(self.chromosomeStarts)):                
                 if useArms == False: 
@@ -920,14 +920,14 @@ class binnedData(object):
         """
         data = self.dataDict[filename]
         cismap = self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]        
-        cissums = numpy.sum(cismap * data, axis = 0) 
-        allsums = numpy.sum(data,axis = 0)    
+        cissums = np.sum(cismap * data, axis = 0) 
+        allsums = np.sum(data,axis = 0)    
         if mode == "All":
             cissums += self.singlesDict[filename]
             allsums += self.singlesDict[filename]
         elif mode == "Dummy":
-            sm = numpy.mean(self.singlesDict[filename])
-            fakesm = cissums * sm / numpy.mean(cissums)
+            sm = np.mean(self.singlesDict[filename])
+            fakesm = cissums * sm / np.mean(cissums)
             cissums += fakesm
             allsums += fakesm
         elif mode == "Matrix":
@@ -947,7 +947,7 @@ class binnedDataAnalysis(binnedData):
         "plots scaling of a heatmap,treating arms separately"
         data = self.dataDict[name]
         bins = numutils.logbins(2,self.genome.maxChrmArm/self.resolution,1.17)
-        s = numpy.sum(data,axis = 0) > 0 
+        s = np.sum(data,axis = 0) > 0 
         mask = s[:,None] * s[None,:]
         chroms = []
         masks = []
@@ -971,16 +971,16 @@ class binnedDataAnalysis(binnedData):
                 if low > len(chroms[j]): continue 
                 high2 = min(high,len(chroms[j]))
                 for k in xrange(low,high2):
-                    obs += numpy.sum(numpy.diag(chroms[j],k))
-                    exp += numpy.sum(numpy.diag(masks[j],k))                    
+                    obs += np.sum(np.diag(chroms[j],k))
+                    exp += np.sum(np.diag(masks[j],k))                    
             observed.append(obs)
             expected.append(exp)
-        observed = numpy.array(observed,float)
-        expected = numpy.array(expected,float)
+        observed = np.array(observed,float)
+        expected = np.array(expected,float)
         values = observed/expected
-        bins = numpy.array(bins,float)
+        bins = np.array(bins,float)
         bins2 = 0.5 * (bins[:-1] + bins[1:])
-        norm = numpy.sum(values * (bins[1:] - bins[:-1]) * (self.resolution / float(plotUnit)))
+        norm = np.sum(values * (bins[1:] - bins[:-1]) * (self.resolution / float(plotUnit)))
         args = [self.resolution * bins2 / plotUnit ,values/(1. * norm)]
         if color != None: args.append(color)
         plt.plot(*args, label = label,linewidth = 2)
@@ -988,11 +988,11 @@ class binnedDataAnalysis(binnedData):
 
 
         
-    def averageTransMap(self,name , mycmap = "hot_r",vmin = None,vmax = None):
+    def averageTransMap(self,name , mycmap = "hot_r",**kwargs):
         "plots and returns average inter-chromosomal inter-arm map"
         data = self.dataDict[name]                 
-        avarms = numpy.zeros((80,80))
-        avmasks = numpy.zeros((80,80))
+        avarms = np.zeros((80,80))
+        avmasks = np.zeros((80,80))
         discardCutoff = 10
                 
         
@@ -1040,20 +1040,20 @@ class binnedDataAnalysis(binnedData):
                         arms = data[bx:ex:dx,by:ey:dy]                                                 
                         assert max(arms.shape) <= self.genome.maxChrmArm / self.genome.resolution + 2
                                                 
-                        mx = numpy.sum(arms, axis = 0)
-                        my = numpy.sum(arms, axis = 1)
-                        maskx = mx == 0 
+                        mx = np.sum(arms, axis = 0)
+                        my = np.sum(arms, axis = 1)
+                        maskx = mx == 0
                         masky = my == 0
                         mask = (maskx[None,:] + masky[:,None]) == False                    
-                        maskf = numpy.array(mask,float)
-                        mlenx = (numpy.sum(mask, axis = 0) > 0 ).sum() 
-                        mleny = (numpy.sum(mask, axis = 1) > 0 ).sum()
+                        maskf = np.array(mask,float)
+                        mlenx = (np.abs(np.sum(mask, axis = 0)) > 1e-20 ).sum() 
+                        mleny = (np.abs(np.sum(mask, axis = 1)) > 1e-20 ).sum()
                         
                         if min(mlenx, mleny) < discardCutoff: continue
                                                  
                         
                         add = numutils.zoomOut(arms,avarms.shape)
-                        assert numpy.abs((arms.sum() - add.sum()) / arms.sum()) < 0.02
+                        assert np.abs((arms.sum() - add.sum()) / arms.sum()) < 0.02
                         
                          
                                                                         
@@ -1062,12 +1062,12 @@ class binnedDataAnalysis(binnedData):
                         avmasks += addmask
                           
         
-        avarms /= numpy.mean(avarms)
+        avarms /= np.mean(avarms)
         data = avarms / avmasks
-        data /= numpy.mean(data) 
-        plt.imshow(numpy.log(numutils.trunc(data)),cmap = "jet",interpolation = "nearest",vmin = vmin, vmax = vmax)
+        data /= np.mean(data) 
+        plt.imshow(np.log(numutils.trunc(data)),cmap = "jet",interpolation = "nearest",**kwargs)
         removeBorder()
-        return numpy.log(numutils.trunc(data))
+        return np.log(numutils.trunc(data))
             
     def perArmCorrelation(self,data1,data2,doByArms = []):
         """does inter-chromosomal spearman correlation 
@@ -1110,9 +1110,9 @@ class binnedDataAnalysis(binnedData):
                     value = self.dataDict[i]
                     submatrix = value[self.chromosomeStarts[chrom1]:self.chromosomeEnds[chrom1],
                                       self.chromosomeStarts[chrom2]:self.chromosomeEnds[chrom2]]
-                    masksum = numpy.sum(mask2D[self.chromosomeStarts[chrom1]:self.chromosomeEnds[chrom1],
+                    masksum = np.sum(mask2D[self.chromosomeStarts[chrom1]:self.chromosomeEnds[chrom1],
                                       self.chromosomeStarts[chrom2]:self.chromosomeEnds[chrom2]])
-                    valuesum = numpy.sum(submatrix)
+                    valuesum = np.sum(submatrix)
                     mean = valuesum / masksum
                     submatrix /= mean
  
@@ -1122,9 +1122,9 @@ class binnedDataAnalysis(binnedData):
         values = self.chromosomeIndex[:,None] + self.chromosomeCount * self.chromosomeIndex[None,:]
         values[self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:]] = self.chromosomeCount * self.chromosomeCount - 1 
         #mat_img(values)
-        uv = numpy.sort(numpy.unique(values))[1:-1] 
-        probs = numpy.bincount(values.ravel(),weights = self.dataDict[filename].ravel())
-        counts = numpy.bincount(values.ravel())
+        uv = np.sort(np.unique(values))[1:-1] 
+        probs = np.bincount(values.ravel(),weights = self.dataDict[filename].ravel())
+        counts = np.bincount(values.ravel())
         if returnAll == False: return probs[uv] / counts[uv]
         else: 
             probs[self.chromosomeCount * self.chromosomeCount - 1] = 0 
@@ -1176,9 +1176,9 @@ class experimentalBinnedData(binnedData):
         """
         for i in self.dataDict.keys():
             data = self.dataDict[i] * 1.
-            sm = numpy.sum(data,axis = 0) > 0  
+            sm = np.sum(data,axis = 0) > 0  
             mask = sm[:,None] * sm[None,:]
-            transmask = numpy.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)
+            transmask = np.array(self.chromosomeIndex[:,None] == self.chromosomeIndex[None,:],int)
             #mat_img(transmask)
             N = len(data)
             N,transmask ,mask #to remove warning
@@ -1301,11 +1301,11 @@ class experimentalBinnedData(binnedData):
         
         if self.genome.resolution % 5000 != 0: raise StandardError("Cannot parse wig file at resolution that is not a multiply of 5 kb")
                  
-        vector = numpy.zeros(self.genome.numBins,float)  #resulting array
+        vector = np.zeros(self.genome.numBins,float)  #resulting array
         for chrom,value in enumerate(data):            
-            value = numpy.array(value)            
+            value = np.array(value)            
             if control != None: 
-                chromControl = numpy.asarray(controlData[chrom])
+                chromControl = np.asarray(controlData[chrom])
                 vmask = value != 0 
                 cmask = chromControl != 0
                 keepmask = vmask * cmask
@@ -1320,14 +1320,14 @@ class experimentalBinnedData(binnedData):
             if value.mean() == 0:
                 raise StandardError("Chromosome %s contains zero data in wig file %s" % (self.genome.idx2label[chrom],filename))
             mask = value == 0
-            value[-mask] = numpy.log(value[-mask]) 
+            value[-mask] = np.log(value[-mask]) 
               
-            valuesum = numpy.sum(value,axis = 1)
-            masksum = numpy.sum(mask == False,axis = 1)
+            valuesum = np.sum(value,axis = 1)
+            masksum = np.sum(mask == False,axis = 1)
             valuesum[masksum==0] = 0 
             vmask = valuesum != 0 
             valuesum[vmask] /= masksum[vmask]
-            valuesum[-vmask] = numpy.median(valuesum[vmask])  #setting all unknown points to the median of known points             
+            valuesum[-vmask] = np.median(valuesum[vmask])  #setting all unknown points to the median of known points             
                         
             vector[self.genome.chrmStartsBinCont[chrom]:self.genome.chrmEndsBinCont[chrom]] = valuesum        
         if len(vector) != self.genome.numBins: 
@@ -1342,13 +1342,13 @@ class experimentalBinnedData(binnedData):
         if self.genome.folderName != "hg18": raise StandardError("Erez eigenvector is for hg18 only!")
         folder = os.path.join(erezFolder,"GM-combined.ctgDATA1.ctgDATA1.1000000bp.hm.eigenvector.tab")
         folder2 = os.path.join(erezFolder,"GM-combined.ctgDATA1.ctgDATA1.1000000bp.hm.eigenvector2.tab")
-        eigenvector = numpy.zeros(self.genome.numBins,float)
+        eigenvector = np.zeros(self.genome.numBins,float)
         for chrom in range(1,24):
             filename = folder.replace("DATA1",str(chrom))
             if chrom in [4,5]: 
                 filename = folder2.replace("DATA1",str(chrom))
-            mydata = numpy.array([[float(j) for j in i.split()] for i in open(filename).readlines()])
-            eigenvector[self.genome.chrmStartsBinCont[chrom-1]+ numpy.array(mydata[:,1],int)] = mydata[:,2]
+            mydata = np.array([[float(j) for j in i.split()] for i in open(filename).readlines()])
+            eigenvector[self.genome.chrmStartsBinCont[chrom-1]+ np.array(mydata[:,1],int)] = mydata[:,2]
         self.trackDict["Erez"] = eigenvector            
 
             
@@ -1394,7 +1394,7 @@ class experimentalBinnedData(binnedData):
                 cur += [-1] * 2
         #lenses = [len(i) for i in result]
             
-        domains = numpy.zeros(self.genome.numBins,int)
+        domains = np.zeros(self.genome.numBins,int)
         for i in xrange(self.genome.chrmCount):
             for j in xrange((self.genome.chrmLens[i] / self.resolution)):
                 domains[self.genome.chrmStartsBinCont[i] + j] = result[i][(j * len(result[i])/ ((self.genome.chrmLens[i] /self.resolution))) ]

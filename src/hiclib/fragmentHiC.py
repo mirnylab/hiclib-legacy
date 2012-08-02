@@ -10,7 +10,7 @@ Input data
 
 When used together with iterative mapping, this class can load files from h5dicts created by iterative mapping. 
 
-This method can also input any dictionary-like structure, such as a dictionary, numpy.savez, etc. 
+This method can also input any dictionary-like structure, such as a dictionary, np.savez, etc. 
 The minimal subset of information are positions of two reads, but providing strand informations is adviced.
 
 If restriction fragment assignment is not provided, it will be automatically recalculated.  
@@ -62,7 +62,7 @@ import os,cPickle
 from copy import copy 
 from mirnylib.genome import Genome 
 import hiclib.mapping 
-import numpy
+import numpy as np 
 from numpy import array as na  
 from scipy import stats
 import matplotlib
@@ -76,7 +76,7 @@ from mirnylib.numutils import arrayInArray,  sumByArray, correct, ultracorrect,\
     uniqueIndex, chunkedUnique, fasterBooleanIndexing
 from mirnylib.systemutils import setExceptionHook
 
-r_ = numpy.r_
+r_ = np.r_
 
 def corr(x,y): return stats.spearmanr(x, y)[0]        
 
@@ -170,16 +170,16 @@ class HiCdataset(object):
         self.h5dict = h5dict(self.filename,mode = mode, in_memory = inMemory)
 
     def _setData(self,name,data):
-        "an internal method to save numpy arrays to HDD quickly"
+        "an internal method to save np arrays to HDD quickly"
         if name not in self.vectors.keys():
             raise ValueError("Attept to save data not specified in self.vectors")
-        dtype = numpy.dtype(self.vectors[name])         
-        data = numpy.asarray(data,dtype=dtype)        
+        dtype = np.dtype(self.vectors[name])         
+        data = np.asarray(data,dtype=dtype)        
         self.h5dict[name] = data
 
     
     def _getData(self,name):
-        "an internal method to load numpy arrays from HDD quickly"         
+        "an internal method to load np arrays from HDD quickly"         
         if name not in self.vectors.keys():
             raise ValueError("Attept to load data not specified in self.vectors")
         return self.h5dict[name]                
@@ -222,7 +222,7 @@ class HiCdataset(object):
             exec("self.%s2 = b" % i)
             
     def evaluate(self,expression, internalVariables, externalVariables = {} ,
-                 constants = {"numpy":numpy},
+                 constants = {"np":np},
                  outVariable = "autodetect", 
                  chunkSize = "default"):
         """
@@ -235,7 +235,7 @@ class HiCdataset(object):
         
         .. warning ::   Please avoid passing internal variables as "self.cuts1" - use "cuts1"
         
-        .. warning :: You have to pass all the modules and functions (e.g. numpy) in a "constants" dictionary.  
+        .. warning :: You have to pass all the modules and functions (e.g. np) in a "constants" dictionary.  
         
         Parameters
         ----------
@@ -248,7 +248,7 @@ class HiCdataset(object):
         constants : dict, optional
             Dictionary of constants to be used in the evaluation. 
             Because evaluation happens without namespace, 
-            you should include numpy here if you use it (included by default)  
+            you should include np here if you use it (included by default)  
         out_variable : str or tuple or None, optional 
             Variable to output the data. Either internal variable, or tuple (name,value), where value is an array
             
@@ -282,7 +282,7 @@ class HiCdataset(object):
             
             if outVariable[1] == "ToDefine":  #autodetecting output dtype on the first run if not specified
                 dtype = variables[outVariable[0]].dtype 
-                outVariable = (outVariable[0], numpy.zeros(self.N, dtype))                
+                outVariable = (outVariable[0], np.zeros(self.N, dtype))                
                 
             if type(outVariable) == str:
                 self.h5dict.get_dataset(outVariable)[start:end] = variables[outVariable]
@@ -321,7 +321,7 @@ class HiCdataset(object):
             res = []
             for mydict in h5dicts:
                 res.append(mydict[name])
-            res = numpy.concatenate(res)
+            res = np.concatenate(res)
             self.N = len(res) 
             if name == "DS": self.DSnum = res.sum()
             self._setData(name,res)
@@ -333,7 +333,7 @@ class HiCdataset(object):
         """Inputs data from a dictionary-like object, containing coordinates of the reads. 
         Performs filtering of the reads.   
         
-        A good example of a dict-like object is a numpy.savez 
+        A good example of a dict-like object is a np.savez 
         
         .. warning::  Restriction fragments MUST be specified exactly as in the Genome class.
         
@@ -389,7 +389,7 @@ class HiCdataset(object):
 
         if not (("strands1" in dictLike.keys()) and ("strands2" in dictLike.keys())):
             warnings.warn("No strand information provided, assigning random strands.")
-            t = numpy.random.randint(0,2,self.trackLen)
+            t = np.random.randint(0,2,self.trackLen)
             self.strands1 = t
             self.strands2 = 1-t
             del t
@@ -424,21 +424,21 @@ class HiCdataset(object):
         self.DS = (self.chrms1 >= 0) * (self.chrms2 >=0)   #if we have reads from both chromosomes, we're a DS read
         self.SS = (self.DS == False)
         
-        self.dists1 = numpy.abs(rsitedict["rsites1"] - self.cuts1)
-        self.dists2 = numpy.abs(rsitedict["rsites2"] - self.cuts2)
+        self.dists1 = np.abs(rsitedict["rsites1"] - self.cuts1)
+        self.dists2 = np.abs(rsitedict["rsites2"] - self.cuts2)
         
         self.mids1 = (rsitedict["uprsites1"] + rsitedict["downrsites1"])/2
         self.mids2 = (rsitedict["uprsites2"] + rsitedict["downrsites2"])/2
         
-        self.fraglens1 = numpy.abs((rsitedict["uprsites1"] - rsitedict["downrsites1"]))
-        self.fraglens2 = numpy.abs((rsitedict["uprsites2"] - rsitedict["downrsites2"]))
+        self.fraglens1 = np.abs((rsitedict["uprsites1"] - rsitedict["downrsites1"]))
+        self.fraglens2 = np.abs((rsitedict["uprsites2"] - rsitedict["downrsites2"]))
         
         del rsitedict   #deletes hdf5 file, so it's important 
         
-        self.fragids1 = self.mids1 + numpy.array(self.chrms1,dtype = "int64") * self.fragIDmult
-        self.fragids2 = self.mids2 + numpy.array(self.chrms2,dtype = "int64") * self.fragIDmult 
+        self.fragids1 = self.mids1 + np.array(self.chrms1,dtype = "int64") * self.fragIDmult
+        self.fragids2 = self.mids2 + np.array(self.chrms2,dtype = "int64") * self.fragIDmult 
         
-        distances = numpy.abs(self.mids1 - self.mids2)
+        distances = np.abs(self.mids1 - self.mids2)
         distances[self.chrms1 != self.chrms2] = -1
         self.distances = distances   #distances between restriction fragments
         del distances
@@ -461,7 +461,7 @@ class HiCdataset(object):
         else: mask *= ((self.chrms1 >=0) * (self.chrms2 >=0))   #Has to have both sides mapped
         noUnmapped = mask.sum()
         if noStrand == True: 
-            dist = self.evaluate("a = numpy.abs(cuts1 - cuts2)",["cuts1","cuts2"])  #Can't tell if reads point to each other. 
+            dist = self.evaluate("a = np.abs(cuts1 - cuts2)",["cuts1","cuts2"])  #Can't tell if reads point to each other. 
         else: 
             dist = self.evaluate("a = - cuts1 * (2 * strands1 -1) - cuts2 * (2 * strands2 - 1)",["cuts1","cuts2","strands1","strands2"])  #distance between sites facing each other
                                                                         
@@ -481,13 +481,13 @@ class HiCdataset(object):
             
     def saveFragments(self):
         "saves fragment data to make correct expected estimates after applying a heavy mask"
-        self.ufragmentsOriginal = numpy.array(self.ufragments)
-        self.ufragmentlenOriginal = numpy.array(self.ufragmentlen)        
+        self.ufragmentsOriginal = np.array(self.ufragments)
+        self.ufragmentlenOriginal = np.array(self.ufragmentlen)        
 
     def originalFragments(self):
         "loads original fragments"
-        self.ufragments = numpy.array(self.ufragmentsOriginal)
-        self.ufragmentlen = numpy.array(self.ufragmentlenOriginal)
+        self.ufragments = np.array(self.ufragmentsOriginal)
+        self.ufragmentlen = np.array(self.ufragmentlenOriginal)
         
     def updateGenome(self,newGenome,removeSSreads = "trans", oldGenome = "current"):
         """
@@ -519,12 +519,12 @@ class HiCdataset(object):
         
         if upgrade != None:            
             upgrade[upgrade == -1] = 9999 #to tell old SS reads from new SS reads             
-            chrms1 = numpy.array(self.chrms1, int) 
+            chrms1 = np.array(self.chrms1, int) 
             mask = chrms1>=0
             chrms1[mask] = upgrade[chrms1[mask]]
             self.chrms1 = chrms1
             del chrms1 
-            chrms2 = numpy.array(self.chrms2,int)
+            chrms2 = np.array(self.chrms2,int)
             mask = chrms2 >=0
             chrms2[mask] = upgrade[chrms2[mask]]
             self.chrms2 = chrms2
@@ -558,18 +558,18 @@ class HiCdataset(object):
          may be used for scalings or creating heatmaps"""
         self._buildFragments()        
         fragmentLength = self.ufragmentlen
-        pls = numpy.sort(fragmentLength)
-        pls = numpy.r_[pls,pls[-1]+1]
+        pls = np.sort(fragmentLength)
+        pls = np.r_[pls,pls[-1]+1]
         N = len(fragmentLength)    
-        mysum = numpy.array(self.fragmentSum(),float)
-        self.weights = numpy.ones(N,float)
-        meanSum = numpy.mean(numpy.array(mysum,float))
-        #watch = numpy.zeros(len(mysum),int)
-        for i in numpy.arange(0,0.991,0.01):
+        mysum = np.array(self.fragmentSum(),float)
+        self.weights = np.ones(N,float)
+        meanSum = np.mean(np.array(mysum,float))
+        #watch = np.zeros(len(mysum),int)
+        for i in np.arange(0,0.991,0.01):
             b1,b2 = pls[i*N],pls[(i+0.01)*N]
             p = (b1 <= fragmentLength)* (b2 > fragmentLength)
             #watch[p] += 1                        
-            value = numpy.mean(mysum[p])      
+            value = np.mean(mysum[p])      
             if p.sum() > 0:
                 self.weights[p] =  value / meanSum
             else:
@@ -601,9 +601,9 @@ class HiCdataset(object):
             p2 = self.mids2[mask]
             p1 = na(p1,int)
             p2 = na(p2,int)
-            b1 = numpy.arange(0,max(p1.max()+resolution,p2.max()+resolution),resolution)            
-            hist = numpy.histogram2d(p1,p2,(b1))[0]
-            hist = hist + numpy.transpose(hist)
+            b1 = np.arange(0,max(p1.max()+resolution,p2.max()+resolution),resolution)            
+            hist = np.histogram2d(p1,p2,(b1))[0]
+            hist = hist + np.transpose(hist)
             
         else:
             mask = (self.chrms1 == chromosome) * (self.chrms2 == chromosome2)
@@ -612,15 +612,15 @@ class HiCdataset(object):
             mask = (self.chrms1 == chromosome2) * (self.chrms2 == chromosome)
             p12 = self.mids2[mask]
             p22 = self.mids1[mask]            
-            p1 = numpy.r_[p11,p12]
-            p2 = numpy.r_[p21,p22]            
+            p1 = np.r_[p11,p12]
+            p2 = np.r_[p21,p22]            
             if (len(p1) == 0) or (len(p2) == 0):                 
-                return numpy.zeros((500,500),float) + 0.000001
-            b1 = numpy.arange(0,(p1.max()+resolution),resolution)            
-            b2 = numpy.arange(0,(p2.max()+resolution),resolution)
+                return np.zeros((500,500),float) + 0.000001
+            b1 = np.arange(0,(p1.max()+resolution),resolution)            
+            b2 = np.arange(0,(p2.max()+resolution),resolution)
             l1 = len(b1)
             l2 = len(b2)
-            hist = numpy.histogram2d(p1,p2,(b1,b2))[0]
+            hist = np.histogram2d(p1,p2,(b1,b2))[0]
 
         if chromosome2 == None: chromosome2 = chromosome
         if useRsiteDensity == True:            
@@ -630,21 +630,21 @@ class HiCdataset(object):
             p2 = self.ufragments[m2]  % self.fragIDmult
             p1mod = p1 / resolution
             p2mod = p2 / resolution            
-            myarray = numpy.array(range(numpy.max(p1mod)+1))
+            myarray = np.array(range(np.max(p1mod)+1))
             vec1 =  sumByArray(p1mod,myarray)
-            myarray = numpy.array(range(numpy.max(p2mod)+1))
+            myarray = np.array(range(np.max(p2mod)+1))
             vec2 = sumByArray(p2mod,myarray)
             vec1 = vec1[:l1]
             vec2 = vec2[:l2]
             correction = na(vec1[:,None] * vec2[None,:],float)
-            mask = numpy.logical_or(numpy.isnan(correction), correction == 0) 
+            mask = np.logical_or(np.isnan(correction), correction == 0) 
             correction[mask] = 1 
             hist2 = hist / correction
-            hist2 /= (numpy.mean(hist2[mask==False]) / numpy.mean(hist[mask==False]))
-            if show == True: mat_img(numpy.log(numpy.array(hist2,float) ))
-            else: return numpy.array(hist2 )
-        if show == True: mat_img(numpy.log(numpy.array(hist,float) ))
-        else: return numpy.array(hist)
+            hist2 /= (np.mean(hist2[mask==False]) / np.mean(hist[mask==False]))
+            if show == True: mat_img(np.log(np.array(hist2,float) ))
+            else: return np.array(hist2 )
+        if show == True: mat_img(np.log(np.array(hist,float) ))
+        else: return np.array(hist)
     
     def buildAllHeatmap(self,resolution):
         """Creates an all-by-all heatmap in accordance with mapping provided by 'genome' class
@@ -658,13 +658,13 @@ class HiCdataset(object):
         self.genome.setResolution(resolution)
         dr = self.DS         
         label = self.genome.chrmStartsBinCont[self.chrms1[dr]]
-        label = numpy.asarray(label,dtype = "int64")
+        label = np.asarray(label,dtype = "int64")
         label += self.mids1[dr] / resolution
         label *= self.genome.numBins        
         label += self.genome.chrmStartsBinCont[self.chrms2[dr] ]
         label += self.mids2[dr] / resolution        
         
-        counts = numpy.bincount(label, minlength = self.genome.numBins**2)
+        counts = np.bincount(label, minlength = self.genome.numBins**2)
         if len(counts) > self.genome.numBins**2:
             raise StandardError("\nheatmap exceed length of the genome!!! Check genome")            
             
@@ -679,10 +679,10 @@ class HiCdataset(object):
         self.genome.setResolution(resolution)
         ds = self.DS == False
         if ds.sum() == 0: 
-            return numpy.zeros(self.genome.numBins)                 
+            return np.zeros(self.genome.numBins)                 
         label = self.genome.chrmStartsBinCont[self.chrms1[ds]] + self.mids1[ds] / resolution
-        label = numpy.asarray(label, dtype = "int64")                
-        counts = numpy.bincount(label, minlength = self.genome.numBins)
+        label = np.asarray(label, dtype = "int64")                
+        counts = np.bincount(label, minlength = self.genome.numBins)
         return counts
     
     def buildFragmetCoverage(self,resolution):
@@ -692,7 +692,7 @@ class HiCdataset(object):
         chroms = self.ufragments / self.fragIDmult
         positions = self.ufragments % self.fragIDmult
         label = self.genome.chrmStartsBinCont[chroms ] + positions / resolution
-        counts = numpy.bincount(label, minlength = self.genome.numBins)
+        counts = np.bincount(label, minlength = self.genome.numBins)
         return counts
             
         
@@ -702,15 +702,15 @@ class HiCdataset(object):
         
         Parameters 
         ----------
-        fragments : numpy.array of fragment IDs or bools        
+        fragments : np.array of fragment IDs or bools        
             List of fragments to keep, or their indexes in self.ufragments        
         """        
-        if fragments.dtype == numpy.bool:
+        if fragments.dtype == np.bool:
             self._buildFragments()
             fragments = self.ufragments[fragments]        
         m1 = arrayInArray(self.fragids1,fragments)
         m2 = arrayInArray(self.fragids2,fragments) + self.SS
-        mask = numpy.logical_and(m1,m2)
+        mask = np.logical_and(m1,m2)
         self.maskFilter(mask)
 
     
@@ -727,7 +727,7 @@ class HiCdataset(object):
         print "          Number of reads changed  %d ---> %d" % (len(mask),mask.sum()),
         length = 0
         ms = mask.sum()
-        assert mask.dtype == numpy.bool                  
+        assert mask.dtype == np.bool                  
         self.N = ms 
         if hasattr(self,"ufragments"): del self.ufragmentlen,self.ufragments  
         for name in self.vectors:
@@ -738,10 +738,11 @@ class HiCdataset(object):
             else:
                 if ld != length: 
                     self.delete()            
-            newdata = fasterBooleanIndexing(data,mask,outLen = ms,bounds = False )  #see mirnylib.numutils              
+            newdata = fasterBooleanIndexing(data,mask,outLen = ms,bounds = False )  #see mirnylib.numutils
+            #newdata = data[mask]                          
             del data                          
             self._setData(name,newdata)
-            if name == "DS":                
+            if name == "DS":
                 self.DSnum = int(newdata.sum())             
             del newdata
         del mask                              
@@ -753,6 +754,7 @@ class HiCdataset(object):
             past = len(self.ufragments)        
         except:
             past = 0
+        assert len(self.fragids2) == len(self.DS)
         ufragids1,ufragids1ind = chunkedUnique(self.fragids1,return_index=True,chunksize = self.chunksize)
         ufragids2,ufragids2ind = chunkedUnique(fasterBooleanIndexing(self.fragids2,self.DS,outLen = self.DSnum),return_index=True,chunksize = self.chunksize)
                 
@@ -760,10 +762,10 @@ class HiCdataset(object):
         ufragment1len = self.fraglens1[ufragids1ind]
         ufragment2len = self.fraglens2[self.DS][ufragids2ind]
  
-        uall = numpy.r_[ufragids1,ufragids2]
-        ulen = numpy.r_[ufragment1len,ufragment2len]
+        uall = np.r_[ufragids1,ufragids2]
+        ulen = np.r_[ufragment1len,ufragment2len]
          
-        self.ufragments,ind = numpy.unique(uall, True)        
+        self.ufragments,ind = np.unique(uall, True)        
         self.ufragmentlen = ulen[ind]            
         print "          Fragments number changed -   %d --->  %d" % (past, len(self.ufragments))
         
@@ -782,9 +784,9 @@ class HiCdataset(object):
         self._buildFragments()
         print "----->Extreme fragments filter: remove top %lf, bottom %lf fragments" % (cutH, cutL)
         s  = self.fragmentSum()
-        ss = numpy.sort(s)
+        ss = np.sort(s)
                          
-        valueL, valueH = numpy.percentile(ss, [100. * cutL, 100 * (1. - cutH)])
+        valueL, valueH = np.percentile(ss, [100. * cutL, 100 * (1. - cutH)])
         news = (s >= valueL ) * (s <= valueH)        
         self.fragmentFilter(self.ufragments[news])
         
@@ -821,17 +823,17 @@ class HiCdataset(object):
         
         print "----->Semi-dangling end filter: remove guys who start %d bp near the rsite" % offset
         
-        expression = "mask = (numpy.abs(dists1 - fraglens1) >= offset) * ((numpy.abs(dists2 - fraglens2) >= offset) * DS + SS)"
+        expression = "mask = (np.abs(dists1 - fraglens1) >= offset) * ((np.abs(dists2 - fraglens2) >= offset) * DS + SS)"
         mask = self.evaluate(expression,
                              internalVariables = ["dists1","fraglens1","dists2","fraglens2","SS","DS"],
-                             constants = {"offset":offset,"numpy":numpy}, 
-                             outVariable = ("mask",numpy.zeros(self.N, bool)))
+                             constants = {"offset":offset,"np":np}, 
+                             outVariable = ("mask",np.zeros(self.N, bool)))
         
         #Old code, if something fails, switch to it!!! 
-        #d1 = numpy.abs(self.dists1 - self.fraglens1) >= offset 
-        #d2 = numpy.abs(self.dists2 - self.fraglens2) >= offset 
+        #d1 = np.abs(self.dists1 - self.fraglens1) >= offset 
+        #d2 = np.abs(self.dists2 - self.fraglens2) >= offset 
         #mask =  d1 * (d2 * self.DS + self.SS)         
-        #mask = (numpy.abs(self.dists1 - self.fraglens1) >=offset) * ((numpy.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)                     
+        #mask = (np.abs(self.dists1 - self.fraglens1) >=offset) * ((np.abs(self.dists2 - self.fraglens2) >= offset )* self.DS + self.SS)                     
         self.maskFilter(mask)
         print
         
@@ -842,7 +844,7 @@ class HiCdataset(object):
         print "----->Filtering duplicates in DS reads: "
         DS = self.DS
         Nds = DS.sum()         
-        dups = numpy.zeros((Nds,2),dtype = "int64",order = "C")
+        dups = np.zeros((Nds,2),dtype = "int64",order = "C")
         dups[:,0] = self.chrms1[DS]   #an array to determine unique rows. Eats 16 bytes per DS record 
         dups[:,0] *= self.fragIDmult
         dups[:,0] += self.cuts1[DS]        
@@ -854,7 +856,7 @@ class HiCdataset(object):
         uids = uniqueIndex(strings)
         del strings, dups                 
         stay = self.SS  #mask 
-        putIn = numpy.zeros(Nds,bool)   #mask inside DS mask 
+        putIn = np.zeros(Nds,bool)   #mask inside DS mask 
         putIn[uids] = True               #indexes of unique DS elements
         stay[DS] = putIn                #filling in mask of all reads        
         print "     Number of DS reads changed - %d ---> %d" % (Nds,Nds - len(DS) + stay.sum()) 
@@ -950,7 +952,7 @@ class HiCdataset(object):
         del heatmap         
         singles = self.buildSinglesCoverage(resolution)        
         frags = self.buildFragmetCoverage(resolution)
-        chromosomeStarts = numpy.array(self.genome.chrmStartsBinCont)        
+        chromosomeStarts = np.array(self.genome.chrmStartsBinCont)        
         tosave["resolution"] = resolution        
         tosave["singles"] = singles
         tosave["frags"] = frags
@@ -981,8 +983,8 @@ class HiCdataset(object):
         """
         
         self.genome.setResolution(resolution)                
-        pos1 = self.evaluate("a = numpy.array(mids1 / {res}, dtype = 'int32')".format(res = resolution), "mids1")
-        pos2 = self.evaluate("a = numpy.array(mids2 / {res}, dtype = 'int32')".format(res = resolution), "mids2")
+        pos1 = self.evaluate("a = np.array(mids1 / {res}, dtype = 'int32')".format(res = resolution), "mids1")
+        pos2 = self.evaluate("a = np.array(mids2 / {res}, dtype = 'int32')".format(res = resolution), "mids2")
         chr1 = self.chrms1        
         chr2 = self.chrms2    
         DS = self.DS       #13 bytes per read up to now, 16 total
@@ -994,11 +996,11 @@ class HiCdataset(object):
             mask = (c2 == chrom) * (c1 != chrom) 
             c1[mask],c2[mask],p1[mask],p2[mask] = c2[mask].copy(), c1[mask].copy(), p2[mask].copy() , p1[mask].copy()
             
-            label = numpy.asarray(p1, "int64") * self.genome.numBins
+            label = np.asarray(p1, "int64") * self.genome.numBins
             label += self.genome.chrmStartsBinCont[c2]
             label += p2
             maxLabel = self.genome.chrmLensBin[chrom] * self.genome.numBins
-            counts = numpy.bincount(label, minlength = maxLabel)
+            counts = np.bincount(label, minlength = maxLabel)
             assert len(counts) == maxLabel
             counts.shape = (self.genome.chrmLensBin[chrom],self.genome.numBins)
             if includeTrans == False:
@@ -1027,8 +1029,8 @@ class HiCStatistics(HiCdataset):
             print "multipliing",name
             one = self._getData(name)
             if name in ["mids1","mids2"]:
-                one += numpy.random.randint(0,5*N,len(one))            
-            blowup = numpy.hstack(tuple([one]*N))
+                one += np.random.randint(0,5*N,len(one))            
+            blowup = np.hstack(tuple([one]*N))
             self._setData(name,blowup)
             
     
@@ -1037,19 +1039,19 @@ class HiCStatistics(HiCdataset):
         "please run  plt.legend & plt.show() after calling this for all datasets you want to consider"
         self._buildFragments()     
         fragmentLength = self.ufragmentlen
-        pls = numpy.sort(fragmentLength)
+        pls = np.sort(fragmentLength)
         N = len(fragmentLength)
         sums = []
         sizes = []            
         mysum = self.fragmentSum(None,strands)
     
-        for i in numpy.arange(0,0.98,0.015):
+        for i in np.arange(0,0.98,0.015):
             b1,b2 = pls[i*N],pls[(i+0.015)*N-1]
             p = (b1 < fragmentLength)* (b2 > fragmentLength)
-            value = numpy.mean(mysum[p])            
+            value = np.mean(mysum[p])            
             sums.append(value)
-            sizes.append(numpy.mean(fragmentLength[p]))
-        sums = numpy.array(sums)     
+            sizes.append(np.mean(fragmentLength[p]))
+        sums = np.array(sums)     
         if normalize == True: 
             sums /= sums.mean() 
         plt.plot(sizes,sums,**kwargs)
@@ -1096,7 +1098,7 @@ class HiCStatistics(HiCdataset):
             
         Parameters
         ----------
-        fragids1, fragids2 : numpy.array of fragment IDs, optional 
+        fragids1, fragids2 : np.array of fragment IDs, optional 
             Scaling is calculated only for interactions between fragids1 and fragids2
             If omitted, all fragments are used
             If boolean array is supplied, it serves as a mask for fragments. 
@@ -1132,9 +1134,9 @@ class HiCStatistics(HiCdataset):
         else: allFragments = False  
         if fragids1 == None: fragids1 = self.ufragments
         if fragids2 == None: fragids2 = self.ufragments
-        if fragids1.dtype == numpy.bool: 
+        if fragids1.dtype == np.bool: 
             fragids1 = self.ufragments[fragids1]
-        if fragids2.dtype == numpy.bool:
+        if fragids2.dtype == np.bool:
             fragids2 = self.ufragments[fragids2]
         
         #Calculate regions if not specified 
@@ -1149,13 +1151,13 @@ class HiCStatistics(HiCdataset):
                         max([abs(i[2] - i[3]) for i in regions if len(i) > 3] + [0]),   #rectangular regions
                         max([abs(i[1] - i[4]) for i in regions if len(i) > 3] + [0]))
 
-        regionID = numpy.zeros(len(self.chrms1),numpy.int16) - 1  #Region to which a read belongs             
+        regionID = np.zeros(len(self.chrms1),np.int16) - 1  #Region to which a read belongs             
         chr1 = self.chrms1
         chr2 = self.chrms2
         pos1 = self.mids1
         pos2 = self.mids2
-        fragRegions1 = numpy.zeros(len(fragids1),int) - 1
-        fragRegions2 = numpy.zeros(len(fragids2),int) - 1 
+        fragRegions1 = np.zeros(len(fragids1),int) - 1
+        fragRegions2 = np.zeros(len(fragids2),int) - 1 
         fragch1 =  fragids1 / self.fragIDmult
         fragch2 =  fragids2 / self.fragIDmult
         fragpos1 = fragids1 % self.fragIDmult
@@ -1184,7 +1186,7 @@ class HiCStatistics(HiCdataset):
         del chr1,chr2,pos1,pos2
 
                                         
-        lens = numpy.array(numutils.logbins(mindist,maxdist,1.12),float)+0.1   #bins of lengths        
+        lens = np.array(numutils.logbins(mindist,maxdist,1.12),float)+0.1   #bins of lengths        
         
         positions = []   #arrays to write the result 
         values = []
@@ -1213,19 +1215,19 @@ class HiCStatistics(HiCdataset):
         
          
                     
-        distances = numpy.sort(self.distances[mask2])            
+        distances = np.sort(self.distances[mask2])            
                 
         "calculating fragments lengths for exclusions to expected # of counts"        
         #sorted fragment IDs and lengthes
-        args = numpy.argsort(self.ufragments)
+        args = np.argsort(self.ufragments)
         usort = self.ufragments[args]        
 
         if useWeights == True:   #calculating weights if needed  
             try:      self.weights
             except:   self.calculateWeights()                
             uweights = self.weights[args]   #weights for sorted fragment IDs 
-            weights1 = uweights[numpy.searchsorted(usort,fragids1)]
-            weights2 = uweights[numpy.searchsorted(usort,fragids2)]   #weghts for fragment IDs under  consideration        
+            weights1 = uweights[np.searchsorted(usort,fragids1)]
+            weights2 = uweights[np.searchsorted(usort,fragids2)]   #weghts for fragment IDs under  consideration        
         
         lenmins,lenmaxs  = lens[:-1], lens[1:]        
                  
@@ -1240,38 +1242,38 @@ class HiCStatistics(HiCdataset):
 
             print region 
             
-            mask = numpy.nonzero(fragRegions1  == regionNumber)[0]
-            mask2 = numpy.nonzero(fragRegions2  == regionNumber)[0]  #filtering fragments that correspont to current region             
+            mask = np.nonzero(fragRegions1  == regionNumber)[0]
+            mask2 = np.nonzero(fragRegions2  == regionNumber)[0]  #filtering fragments that correspont to current region             
             if (len(mask) == 0) or (len(mask2) == 0): continue                             
             bp1, bp2 = pos1[mask], pos2[mask2]         #positions of fragments on chromosome
              
-            p2arg = numpy.argsort(bp2)   
+            p2arg = np.argsort(bp2)   
             p2 = bp2[p2arg]           #sorted positions on the second fragment
 
             if excludeNeighbors != None:
                 "calculating excluded fragments (neighbors) and their weights to subtract them later" 
                 excFrag1, excFrag2 = self.genome.getPairsLessThanDistance(fragids1[mask] , fragids2[mask2], excludeNeighbors, enzyme)                                                
-                excDists = numpy.abs(excFrag2 - excFrag1)  #distances between excluded fragment pairs
+                excDists = np.abs(excFrag2 - excFrag1)  #distances between excluded fragment pairs
                 if useWeights == True:        
                     correctionWeights = weights1[numutils.arraySearch(fragids1,excFrag1)]
                     correctionWeights = correctionWeights *  weights2[numutils.arraySearch(fragids2,excFrag2)]   #weights for excluded fragment pairs                        
             if useWeights == True: 
                 w1,w2 = weights1[mask], weights2[mask2]                                  
-                sw2 = numpy.r_[0,numpy.cumsum(w2[p2arg])]    #cumsum for sorted weights on 2 strand                         
+                sw2 = np.r_[0,np.cumsum(w2[p2arg])]    #cumsum for sorted weights on 2 strand                         
             for lenmin,lenmax,index in zip(lenmins,lenmaxs,range(len(lenmins))):
                 
                 "Now calculating actual number of fragment pairs for a length-bin, or weight of all these pairs"                
                 mymin,mymax = bp1 - lenmax, bp1 - lenmin   #calculating boundaries for fragments on a second strand                  
-                val1 = numpy.searchsorted(p2,mymin)  #Calculating indexes on the second strand 
-                val2 = numpy.searchsorted(p2,mymax)
-                if useWeights == False: curcount = numpy.sum(numpy.abs(val1 - val2))   #just # of fragments 
-                else: curcount = numpy.sum(w1 * numpy.abs(sw2[val1] - sw2[val2]))      #(difference in cumsum of weights) * my weight 
+                val1 = np.searchsorted(p2,mymin)  #Calculating indexes on the second strand 
+                val2 = np.searchsorted(p2,mymax)
+                if useWeights == False: curcount = np.sum(np.abs(val1 - val2))   #just # of fragments 
+                else: curcount = np.sum(w1 * np.abs(sw2[val1] - sw2[val2]))      #(difference in cumsum of weights) * my weight 
                 
                 mymin,mymax = bp1 + lenmax, bp1 + lenmin   #repeating the same for 
-                val1 = numpy.searchsorted(p2,mymin)
-                val2 = numpy.searchsorted(p2,mymax)
-                if useWeights == False: curcount += numpy.sum(numpy.abs(val1 - val2))
-                else: curcount += numpy.sum(w1 * numpy.abs(sw2[val1] - sw2[val2]))
+                val1 = np.searchsorted(p2,mymin)
+                val2 = np.searchsorted(p2,mymax)
+                if useWeights == False: curcount += np.sum(np.abs(val1 - val2))
+                else: curcount += np.sum(w1 * np.abs(sw2[val1] - sw2[val2]))
                 
                 if excludeNeighbors != None: #now modifying expected count because of excluded fragments 
                     if useWeights == False: 
@@ -1296,22 +1298,22 @@ class HiCStatistics(HiCdataset):
             beg,end  = lens[i], lens[i+1]
             begs.append(beg)
             ends.append(end)            
-            first,last = tuple(numpy.searchsorted(distances,[beg,end]))             
+            first,last = tuple(np.searchsorted(distances,[beg,end]))             
             mycounts = last - first
             maxcounts = maxcountsall[i]                                     
             positions.append(0.5*(float(beg)+float(end)))
             values.append(mycounts/float(maxcounts))
             rawValues.append(mycounts)
         #print "after"
-        positions = numpy.array(positions)
-        lengthes = numpy.array(ends) - numpy.array(begs)
-        values = numpy.array(values)
+        positions = np.array(positions)
+        lengthes = np.array(ends) - np.array(begs)
+        values = np.array(values)
          
         if normalize == True:
             if normRange == None: 
-                values /= numpy.sum(1. * (lengthes * values) [numpy.logical_not(numpy.isnan(positions * values))])
+                values /= np.sum(1. * (lengthes * values) [np.logical_not(np.isnan(positions * values))])
             else: 
-                values /= numpy.sum(1. * (lengthes * values) [numpy.logical_not(numpy.isnan(positions * values)) * (positions > normRange[0]) * (positions < normRange[1])])
+                values /= np.sum(1. * (lengthes * values) [np.logical_not(np.isnan(positions * values)) * (positions > normRange[0]) * (positions < normRange[1])])
         
         if appendReadCount == True: 
             if "label" in kwargs.keys(): 
@@ -1325,29 +1327,29 @@ class HiCStatistics(HiCdataset):
             mask = self.SS
         else:
             mask = self.DS
-        dists1 = self.fraglens1 - numpy.array(self.dists1,dtype = "int32") 
-        dists2 = self.fraglens2 - numpy.array(self.dists2,dtype = "int32") 
+        dists1 = self.fraglens1 - np.array(self.dists1,dtype = "int32") 
+        dists2 = self.fraglens2 - np.array(self.dists2,dtype = "int32") 
         m = min(dists1.min(),dists2.min())
         if offset < -m: 
             offset = -m
             print "minimum negative distance is %d, larger than offset; offset set to %d" % (m,-m)
         dists1 += offset
         dists2 += offset          
-        myrange = numpy.arange(-offset,length-offset)
+        myrange = np.arange(-offset,length-offset)
         
         plt.subplot(141)
         plt.title("strands1, side 1")
-        plt.plot(myrange,numpy.bincount(5+dists1[mask][self.strands1[mask] == True ])[:length])
+        plt.plot(myrange,np.bincount(5+dists1[mask][self.strands1[mask] == True ])[:length])
         plt.subplot(142)
         plt.title("strands1, side 2")
-        plt.plot(myrange,numpy.bincount(dists2[mask][self.strands1[mask] == True ])[:length])
+        plt.plot(myrange,np.bincount(dists2[mask][self.strands1[mask] == True ])[:length])
         
         plt.subplot(143)
         plt.title("strands2, side 1")
-        plt.plot(myrange,numpy.bincount(dists1[mask][self.strands1[mask] == False ])[:length])
+        plt.plot(myrange,np.bincount(dists1[mask][self.strands1[mask] == False ])[:length])
         plt.subplot(144)
         plt.title("strands2, side 2")
-        plt.plot(myrange,numpy.bincount(dists2[mask][self.strands1[mask] == False ])[:length])
+        plt.plot(myrange,np.bincount(dists2[mask][self.strands1[mask] == False ])[:length])
         
         plt.show()
 
@@ -1377,17 +1379,17 @@ def plotFigure2c():
     TR.load("GM-all.refined")
     hm = TR.buildHeatmap(1, 1, 1000000, False,False)
     TR.calculateWeights()    
-    TR.weights = numpy.ones(len(TR.weights),float)   #if you want to correct just by fragment density, not by length dependence 
+    TR.weights = np.ones(len(TR.weights),float)   #if you want to correct just by fragment density, not by length dependence 
     hm2 = TR.buildHeatmap(1, 1, 1000000, False,weights = True )
-    hm2[numpy.isnan(hm2)] = 0
-    mask = numpy.sum(hm,axis = 0) > 0
+    hm2[np.isnan(hm2)] = 0
+    mask = np.sum(hm,axis = 0) > 0
     """p1-6 are 6 lines to be plotted, below is plotting only"""
-    p1 = numpy.sum(hm, axis = 0)[mask]
-    p3 = numpy.sum(correct(hm),axis = 0)[mask]
-    p5 = numpy.sum(ultracorrect(hm,40),axis = 0)[mask]
-    p4 = numpy.sum(correct(hm2),axis = 0)[mask]
-    p2 = numpy.sum(hm2, axis = 0)[mask]
-    p6 = numpy.sum(ultracorrect(hm2,40),axis = 0)[mask]
+    p1 = np.sum(hm, axis = 0)[mask]
+    p3 = np.sum(correct(hm),axis = 0)[mask]
+    p5 = np.sum(ultracorrect(hm,40),axis = 0)[mask]
+    p4 = np.sum(correct(hm2),axis = 0)[mask]
+    p2 = np.sum(hm2, axis = 0)[mask]
+    p6 = np.sum(ultracorrect(hm2,40),axis = 0)[mask]
     matplotlib.rcParams['font.sans-serif']='Arial'        
     dashstyle = (3,3)    
     plt.figure(figsize = (4,4))
@@ -1450,11 +1452,11 @@ def doSupplementaryCoveragePlot():
         genome = Genome()
         genome.createMapping(resolution)            
         label = genome.chromosomeStarts[TR.ufragments / TR.fragIDmult - 1] + (TR.ufragments % TR.fragIDmult ) / resolution
-        counts = numpy.bincount(label, weights = s1)
-        counts2 = numpy.bincount(label,weights = s2)
+        counts = np.bincount(label, weights = s1)
+        counts2 = np.bincount(label,weights = s2)
         data = cPickle.load(open("GC1M",'rb'))
-        eigenvector = numpy.zeros(genome.chromosomeEnds[-1],float)
-        inds = numpy.argsort(counts)
+        eigenvector = np.zeros(genome.chromosomeEnds[-1],float)
+        inds = np.argsort(counts)
         mask = inds[int(0.02 * len(inds)):]                
         for chrom in range(1,24):
             eigenvector[genome.chromosomeStarts[chrom-1]:genome.chromosomeStarts[chrom-1] + len(data[chrom-1])] = data[chrom-1]

@@ -69,7 +69,7 @@ def correctedScalingPlot():
 
 
 
-def doArmPlot(filename = GM1M,genome = myGenome, mouse = False):
+def doArmPlot(filename = GM1M,genome = myGenome, mouse = False,**kwargs):
     "Plot an single interarm map - paper figure"    
     Tanay = binnedDataAnalysis(1000000,genome)    
     Tanay.simpleLoad(filename,"GM-all")
@@ -85,16 +85,17 @@ def doArmPlot(filename = GM1M,genome = myGenome, mouse = False):
     Tanay.truncTrans()
     Tanay.fakeCis()         
     #plt.figure(figsize = (3.6,3.6))
-    Tanay.averageTransMap("GM-all")
+    Tanay.averageTransMap("GM-all",**kwargs)
 
     #plotting.removeBorder()
     cb = plt.colorbar(orientation = "vertical")
     #cb.set_ticks([-0.05,0.05,0.15])
     for xlabel_i in cb.ax.get_xticklabels(): xlabel_i.set_fontsize(6)    
 
+doArmPlot()
+plt.show() 
 
-
-def doReconstructedArmPlot(filename = GM1M,genome = myGenome,usePCs = [0,1],mouse = False):
+def doReconstructedArmPlot(filename = GM1M,genome = myGenome,usePCs = [0,1],mouse = False,**kwargs):
     "Plot an PC2-PC3 interarm map - supp paper figure"    
     Tanay = binnedDataAnalysis(1000000,genome)    
     Tanay.simpleLoad(filename,"GM-all")
@@ -120,12 +121,13 @@ def doReconstructedArmPlot(filename = GM1M,genome = myGenome,usePCs = [0,1],mous
     proj = reduce(lambda x,y:x+y,[PCs[i][:,None] * PCs[i][None,:] * eigenvalues[i] for i in xrange(len(PCs))])
     mask = PCs[0] != 0 
     mask = mask[:,None] * mask[None,:] 
-    
-    proj[mask] += (2 * abs(proj.min()) ) 
+    data = Tanay.dataDict["GM-all"]
+    datamean = numpy.mean(data[mask])
+    proj[mask] += datamean
     Tanay.dataDict["BLA"] = proj        
-    Tanay.averageTransMap("BLA")
+    Tanay.averageTransMap("BLA",**kwargs)     
     cb = plt.colorbar(orientation = "vertical")
-    for xlabel_i in cb.ax.get_xticklabels(): xlabel_i.set_fontsize(6)
+    for xlabel_i in cb.ax.get_xticklabels(): xlabel_i.set_fontsize(6) 
 
 
 
@@ -148,27 +150,29 @@ def differentArmPlotsWithReconstructedHeatmaps():
     "Many reconstructed heatmaps - supp paper figure"
     plt.figure(figsize = (8,8))        
     plt.subplot(531)
-    doArmPlot("../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm","../../data/hg18")
-    plt.title("hg18, Lieberman 2009")
+    doArmPlot("../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm","../../data/hg18",vmin = -0.05, vmax = 0.15)
+    plt.title("Human HiC 2009")
     plt.subplot(532)          
-    doArmPlot("../../tcc/hg18/tcc-HindIII-hg18-1M.hm","../../data/hg18")
-    plt.title("hg18, Kalhor 2011")
+    doArmPlot("../../tcc/hg18/tcc-HindIII-hg18-1M.hm","../../data/hg18",vmin = -0.15, vmax = 0.3)
+    plt.title("Human TCC 2011")
     plt.subplot(533)
-    doArmPlot("../../mouse/data/combined/mouse_all-1M.hm","../../data/mm9",mouse = True )
-    plt.title("mm9, McCord 2012")
+    doArmPlot("../../mouse/data/combined/mouse_all-1M.hm","../../data/mm9",mouse = True ,vmin = -0.15, vmax = 0.15)
+    plt.title("Mouse 2012")
         
     for num,chromSet in enumerate([[0],[1],[2],[1,2]]):
         plt.subplot(5,3,3*num+4)
-        doReconstructedArmPlot("../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm","../../data/hg18",chromSet)
-        plt.title("From Eig(s) " + "".join([str(i+1)+", " for i in chromSet])[:-2])
+        doReconstructedArmPlot("../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm","../../data/hg18",chromSet,vmin = -0.05, vmax = 0.15)
+        plt.title("From E" + "".join([str(i+1)+", " for i in chromSet])[:-2])
         plt.subplot(5,3,3*num+5)          
-        doReconstructedArmPlot("../../tcc/hg18/tcc-HindIII-hg18-1M.hm","../../data/hg18",chromSet)
-        plt.title("From Eig(s) " + "".join([str(i+1)+", " for i in chromSet])[:-2])
+        doReconstructedArmPlot("../../tcc/hg18/tcc-HindIII-hg18-1M.hm","../../data/hg18",chromSet,vmin = -0.15, vmax = 0.3)
+        plt.title("From E" + "".join([str(i+1)+", " for i in chromSet])[:-2])
         plt.subplot(5,3,3*num+6)
-        doReconstructedArmPlot("../../mouse/data/combined/mouse_all-1M.hm","../../data/mm9",chromSet,mouse = True)
-        plt.title("From Eig(s) " + "".join([str(i+1)+", " for i in chromSet])[:-2])
+        doReconstructedArmPlot("../../mouse/data/combined/mouse_all-1M.hm","../../data/mm9",chromSet,mouse = True , vmin = -0.15, vmax = 0.15)
+        plt.title("From E" + "".join([str(i+1)+", " for i in chromSet])[:-2])
     plt.show() 
-        
+
+differentArmPlotsWithReconstructedHeatmaps()        
+
 
 def compareInterarmMaps():
     "plots witn 8 inetrarm maps - paper supplement figure"
@@ -988,6 +992,8 @@ def compareMouseWithGenomicFeatures():
     Tanay.doEig()
     Tanay.restoreZeros()        
     E1 = Tanay.EigDict["mouse"][0]
+    #setExceptionHook()
+    #0/0
     cPickle.dump(E1,open("mouseEV.pkl",'w'))
     
     """
@@ -1015,7 +1021,7 @@ def compareMouseWithGenomicFeatures():
     for key in keys:
         print "%s %.3lf %.3lf" % (key,cr(Tanay.trackDict["GC"],Tanay.trackDict[key])[0],cr(E1,Tanay.trackDict[key])[0])   
      
- 
+compareMouseWithGenomicFeatures() 
 
 def calculateTanayCorrelation():
     "Calculates correlation between datasets, smoothed in a Tanay way"
