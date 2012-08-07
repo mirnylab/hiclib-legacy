@@ -833,7 +833,7 @@ class binnedData(object):
                     begs = (self.chromosomeStarts[chrom],self.centromerePositions[chrom])
                     ends = (self.centromerePositions[chrom],self.chromosomeEnds[chrom])
             
-                for end,beg in zip(ends,begs):                    
+                for end,beg in map(None,ends,begs):                    
                     if end-beg < 5: continue
                     chrom = dataset[beg:end,beg:end]
                     GC = self.trackDict["GC"][beg:end]

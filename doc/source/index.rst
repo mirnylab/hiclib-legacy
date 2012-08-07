@@ -44,17 +44,18 @@ The libarary is written in Python, an easy-to-learn human-friendly programming l
 
 Installation
 ------------
-This library will work only on Linux/Unix based systems. 
 
-.. note:: Windows support is not currently possible because of the usage of weave.inline function to inline C++ code.
-	MacOS was reported to work with weave.inline. It requires gcc and additional compiler directives
-	for each call of weave.inline in both mirnylib and hiclib.
 
-To install the library, please run install_linux.py in the hiclib/src directory. 
+.. note:: Library was tested only under Linux environment, but is in principle platform-independent.
+Windows/MAC users should take care of  Cython and corresponding C compiler themselves. 
+
+To install the library under linux, please run install_linux.py in the hiclib/src directory. 
 This will add hiclib to PYTHONPATH (in .bashrc & .bash_profile), what will make 
 hiclib library accessible from any folder of the computer. 
 You can then import hiclib sub-modules as "import hiclib.binnedData", etc. 
 (don't forget to restart bash in order to apply the changes made by install_linux.py).
+Windows/MAC users should add this directory to PYTHONPATH manually. 
+
 
 Requirements
 ------------

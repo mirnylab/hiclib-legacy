@@ -131,6 +131,7 @@ class HiCdataset(object):
                         "cuts1":"int32","cuts2":"int32",           #precise location of cut-site 
                         "strands1":"bool","strands2":"bool",
                         "DS":"bool","SS":"bool"}
+        
         #--------Deprecation warnings-------
         if override != "deprecated":              
             warnings.warn(UserWarning("Please use a more intuitive flag 'mode =' instead of 'override ='"))
@@ -138,7 +139,7 @@ class HiCdataset(object):
         elif override  == True:
             mode = "w"            
         if autoFlush != "deprecated":
-            warnings.warn(UserWarning("Autoflush was deprecated, inMemory is adviced instead"))
+            warnings.warn(UserWarning("Autoflush was deprecated, inMemory is adviced instead when memory is not an issue"))
                        
         #-------Initialization of the genome and parameters-----
         if type(genome) == str: 
@@ -170,7 +171,7 @@ class HiCdataset(object):
         self.h5dict = h5dict(self.filename,mode = mode, in_memory = inMemory)
 
     def _setData(self,name,data):
-        "an internal method to save np arrays to HDD quickly"
+        "an internal method to save numpy arrays to HDD quickly"
         if name not in self.vectors.keys():
             raise ValueError("Attept to save data not specified in self.vectors")
         dtype = np.dtype(self.vectors[name])         
@@ -179,7 +180,7 @@ class HiCdataset(object):
 
     
     def _getData(self,name):
-        "an internal method to load np arrays from HDD quickly"         
+        "an internal method to load numpy arrays from HDD quickly"         
         if name not in self.vectors.keys():
             raise ValueError("Attept to load data not specified in self.vectors")
         return self.h5dict[name]                
@@ -248,7 +249,7 @@ class HiCdataset(object):
         constants : dict, optional
             Dictionary of constants to be used in the evaluation. 
             Because evaluation happens without namespace, 
-            you should include np here if you use it (included by default)  
+            you should include numpy here if you use it (included by default)  
         out_variable : str or tuple or None, optional 
             Variable to output the data. Either internal variable, or tuple (name,value), where value is an array
             
@@ -333,7 +334,7 @@ class HiCdataset(object):
         """Inputs data from a dictionary-like object, containing coordinates of the reads. 
         Performs filtering of the reads.   
         
-        A good example of a dict-like object is a np.savez 
+        A good example of a dict-like object is a numpy.savez 
         
         .. warning::  Restriction fragments MUST be specified exactly as in the Genome class.
         
@@ -702,7 +703,7 @@ class HiCdataset(object):
         
         Parameters 
         ----------
-        fragments : np.array of fragment IDs or bools        
+        fragments : numpy.array of fragment IDs or bools        
             List of fragments to keep, or their indexes in self.ufragments        
         """        
         if fragments.dtype == np.bool:
@@ -1260,7 +1261,7 @@ class HiCStatistics(HiCdataset):
             if useWeights == True: 
                 w1,w2 = weights1[mask], weights2[mask2]                                  
                 sw2 = np.r_[0,np.cumsum(w2[p2arg])]    #cumsum for sorted weights on 2 strand                         
-            for lenmin,lenmax,index in zip(lenmins,lenmaxs,range(len(lenmins))):
+            for lenmin,lenmax,index in map(None,lenmins,lenmaxs,range(len(lenmins))):
                 
                 "Now calculating actual number of fragment pairs for a length-bin, or weight of all these pairs"                
                 mymin,mymax = bp1 - lenmax, bp1 - lenmin   #calculating boundaries for fragments on a second strand                  
