@@ -278,7 +278,8 @@ def compareCorrelationOfEigenvectors():
     """Plot correlation figure with eigenvector correlation between datasets
     paper figure """
     Tanay = binnedDataAnalysis(1000000, "../../../data/hg18")
-    Tanay.simpleLoad("../../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm", "Erez")
+    Tanay.simpleLoad("../../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm",
+                     "Erez")
     Tanay.simpleLoad("../../../ErezPaperData/hg18/GM-NcoI-hg18-1M.hm", "NcoI")
     Tanay.simpleLoad("../../../tcc/hg18/tcc-HindIII-hg18-1M.hm", "TCC")
     Tanay.removeDiagonal()
@@ -548,7 +549,8 @@ def compareWithGenomicFeatures():
     "Gm12878Control.wig"
 
     for key in datasets.keys():
-        datasets[key] = os.path.join("../../../histoneMarks/hg18", datasets[key])
+        datasets[key] = os.path.join("../../../histoneMarks/hg18",
+                                     datasets[key])
         datasets[key] = (datasets[key], controlFile)
     datasets["DNAse"] = ("../../../histoneMarks/hg18/wgEncodeUwDnaseSeqRaw"\
     "SignalRep1Gm06990.bigWig", None)
@@ -678,7 +680,8 @@ def plotCorrelationAtDifferentBinning():
 
             FR3 = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
                                          override=False, inMemory=True)
-            FR3.load("../../../ErezPaperData/hg18/GM-HindIII-hg18_refined.frag")
+            FR3.load("../../../ErezPaperData/hg18/GM-HindIII-hg18"\
+                     "_refined.frag")
 
             FR2 = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
                                          override=False, inMemory=True)
@@ -695,7 +698,8 @@ def plotCorrelationAtDifferentBinning():
 #
 #            FR2 = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
 #                                         override=False, inMemory=True)
-#            FR2.load("../../../ErezPaperData/hg18/GM-HindIII-hg18_refined.frag")
+#            FR2.load("../../../ErezPaperData/hg18/G"\
+#                    "M-HindIII-hg18_refined.frag")
             #-------end corss-check code ---------------------------------
             #--------Filter only trans DS reads-----------------
             FR.maskFilter(FR.DS * (FR.chrms1 != FR.chrms2))
@@ -1045,7 +1049,8 @@ def compareMouseWithGenomicFeatures():
     for key in datasets.keys():
         mark = os.path.join("../../../histoneMarks/mm9", datasets[key][0])
         if datasets[key][1] is not None:
-            control = os.path.join("../../../histoneMarks/mm9", datasets[key][1])
+            control = os.path.join("../../../histoneMarks/mm9",
+                                   datasets[key][1])
         else:
             control = None
         datasets[key] = (mark, control)
@@ -1108,7 +1113,8 @@ def compareMouseWithGenomicFeatures():
 def calculateTanayCorrelation():
     "Calculates correlation between datasets, smoothed in a Tanay way"
     BD = binnedData(1000000, "../../../data/hg18")
-    BD.simpleLoad("../../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm", "HindIII")
+    BD.simpleLoad("../../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm",
+                  "HindIII")
     BD.simpleLoad("../../../ErezPaperData/hg18/GM-NcoI-hg18-1M.hm", "NcoI")
 
     def tanaySmooth(matrix):

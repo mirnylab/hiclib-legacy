@@ -309,7 +309,7 @@ class binnedData(object):
         in_data : str or dict-like
             h5dict filename or dictionary-like object with input data
         name : str
-            Key of the dataset in self.dataDict
+            Key under which to store dataset in self.dataDict
 
         """
         if type(in_data) == str:
@@ -343,7 +343,14 @@ class binnedData(object):
 
     def export(self, name, out_filename):
         """
-        Exports
+        Exports current heatmaps and SS files to an h5dict.
+
+        Parameters
+        ----------
+        name : str
+            Key for the dataset to export
+        out_filename : str
+            Where to export
         """
 
         if name not in self.dataDict:
@@ -377,7 +384,8 @@ class binnedData(object):
         self.appliedOperations["RemovedDiagonal"] = True
 
     def removeStandalone(self, offset=3):
-        """removes standalone bins (groups of less-than-offset bins)
+        """removes standalone groups of bins
+        (groups of less-than-offset bins)
 
         Parameters
         ----------
@@ -502,6 +510,9 @@ class binnedData(object):
         with random trans counts.
         If extra mask is supplied, it is used instead of cis counts.
 
+        This method draws fake contact once.
+        Use fakeCis() for iterative self-consistent faking of cis.
+
         Parameters
         ----------
         mask : NxN boolean array or "CisCounts"
@@ -533,7 +544,6 @@ class binnedData(object):
             self.dataDict[key] = data
             self.appliedOperations["RemovedCis"] = True
             self.appliedOperations["FakedCis"] = True
-            #mat_img(data)
 
     def fakeCis(self):
         """This method fakes cis contacts in an interative way
@@ -559,7 +569,7 @@ class binnedData(object):
         translocationRegions: list of tuples
             List of tuples (chr1,start1,end1,chr2,start2,end2),
             masking a high-count region around visible translocation.
-            If chromosome end is None, it is treated as length of chromosome.
+            If end1/end2 is None, it is treated as length of chromosome.
             So, use (chr1,0,None,chr2,0,None) to remove inter-chromosomal
             interaction entirely.
         """
@@ -604,6 +614,8 @@ class binnedData(object):
             Keys of datasets to be corrected. By default, all are corrected.
         M : int, optional
             Number of iterations to perform.
+        force : bool, optional
+            Ignore warnings and pre-requisite filters
         """
 
         if force == False:
@@ -629,7 +641,7 @@ class binnedData(object):
         M : int, optional
             Number of iterations to perform.
         force : bool, optional
-            Force current operation
+            Ignore warnings and pre-requisite filters
         """
 
         if force == False:
@@ -655,7 +667,14 @@ class binnedData(object):
 
     def removeChromosome(self, chromNum):
         """removes certain chromosome from all tracks and heatmaps,
-        setting all values to zero """
+        setting all values to zero
+
+        Parameters
+        ----------
+
+        chromNum : int
+            Number of chromosome to be removed
+        """
         beg = self.genome.chrmStartsBinCont[chromNum]
         end = self.genome.chrmEndsBinCont[chromNum]
         for i in self.dataDict.values():
@@ -672,7 +691,14 @@ class binnedData(object):
 
     def removeZeros(self, zerosMask=None):
         """removes bins with zero counts
-        keeps chromosome starts, ends, etc. consistent"""
+        keeps chromosome starts, ends, etc. consistent
+        Parameters
+        ----------
+        zerosMask : length N array or None, optional
+            If provided, this method removes a defined set of bins
+            By default, it removes bins with zero # counts.
+
+        """
         if zerosMask is not None:
             s = zerosMask
         else:

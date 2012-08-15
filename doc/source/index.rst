@@ -140,7 +140,12 @@ These scripts can be applied to any Hi-C data with minimal modification.
 
 To perform iterative mapping, use examples/iterative_mapping.py scipt. 
 
-To combine data from multiple sequencing lanes, filter all lanes together (including filtering duplicates), and write out heatmaps, use examples/filteringManyDataests. You can modify genome files location inside the script, and provide mapping output files in the datasets.tsv file. By default, this script saves heatmaps for all replicas of an experiments, then for each experiment combines all replicas together and saves combined heatmaps.
+To combine data from multiple sequencing lanes, filter all lanes together (including filtering duplicates), and write out heatmaps. 
+You can do it using examples/filteringManyDataests. 
+You can modify genome files location inside the script, and provide mapping output files in the datasets.tsv file. 
+By default, this script saves heatmaps for all replicas of an experiments, then for each experiment combines all replicas together and saves combined heatmaps.
+
+To perform iterative correction and eigenvector expansion, use example scripts (example/iterativeCorrectionEigenvectorExpansion)
 
 
 Contents
