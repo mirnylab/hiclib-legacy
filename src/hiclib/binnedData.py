@@ -1157,7 +1157,7 @@ class experimentalBinnedData(binnedData):
 
     "Contains some poorly-implemented new features"
     def emulateCis(self):
-        """if you want to have fun creating syntetic data, 
+        """if you want to have fun creating syntetic data,
         this emulates cis contacts. adjust cis/trans ratio in the C code"""
         from scipy import weave
         transmap = self.chromosomeIndex[:,

@@ -30,29 +30,29 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 genomeVersion = "hg18"
-myGenome = "../../data/%s" % genomeVersion
+myGenome = "../../../data/%s" % genomeVersion
 
-GM1M = "../../ErezPaperData/%s/GM-HindIII-%s-1M.hm" % (
+GM1M = "../../../ErezPaperData/%s/GM-HindIII-%s-1M.hm" % (
     genomeVersion, genomeVersion)
-GM1MNcoI = "../../ErezPaperData/%s/GM-NcoI-%s-1M.hm" % (
+GM1MNcoI = "../../../ErezPaperData/%s/GM-NcoI-%s-1M.hm" % (
     genomeVersion, genomeVersion)
-GM200k = "../../ErezPaperData/%s/GM-HindIII-%s-200k.hm" % (
+GM200k = "../../../ErezPaperData/%s/GM-HindIII-%s-200k.hm" % (
     genomeVersion, genomeVersion)
-GM200kBreaks = "../../ErezPaperData/%s/GM-HindIII-%s-200k-breaks.hm" % (
+GM200kBreaks = "../../../ErezPaperData/%s/GM-HindIII-%s-200k-breaks.hm" % (
     genomeVersion, genomeVersion)
-GM1MBreaks = "../../ErezPaperData/%s/GM-HindIII-%s-1M-breaks.hm" % (
+GM1MBreaks = "../../../ErezPaperData/%s/GM-HindIII-%s-1M-breaks.hm" % (
     genomeVersion, genomeVersion)
-GM200kNcoI = "../../ErezPaperData/%s/GM-NcoI-%s-200k.hm" % (
+GM200kNcoI = "../../../ErezPaperData/%s/GM-NcoI-%s-200k.hm" % (
     genomeVersion, genomeVersion)
-GMFrag = "../../ErezPaperData/%s/GM-NcoI-%s_refined.frag" % (
+GMFrag = "../../../ErezPaperData/%s/GM-NcoI-%s_refined.frag" % (
     genomeVersion, genomeVersion)
 
-tcc1M = "../../tcc/%s/tcc-HindIII-%s-1M.hm" % (genomeVersion, genomeVersion)
-tcc200k = "../../tcc/%s/tcc-HindIII-%s-200k.hm" % (
+tcc1M = "../../../tcc/%s/tcc-HindIII-%s-1M.hm" % (genomeVersion, genomeVersion)
+tcc200k = "../../../tcc/%s/tcc-HindIII-%s-200k.hm" % (
     genomeVersion, genomeVersion)
-workingFile1 = "../../ErezPaperData/working1"
-workingFile2 = "../../ErezPaperData/working2"
-workingFile3 = "../../ErezPaperData/working3"
+workingFile1 = "../../../ErezPaperData/working1"
+workingFile2 = "../../../ErezPaperData/working2"
+workingFile3 = "../../../ErezPaperData/working3"
 
 
 def correctedScalingPlot():
@@ -106,7 +106,7 @@ def doArmPlot(filename=GM1M, genome=myGenome, mouse=False, **kwargs):
     for xlabel_i in cb.ax.get_xticklabels():
         xlabel_i.set_fontsize(6)
 
-doArmPlot()
+#doArmPlot()
 
 
 def doReconstructedArmPlot(filename=GM1M, genome=myGenome,
@@ -153,15 +153,15 @@ def differentArmPlots():
     "Different inetrarm maps - supp figure"
     plt.figure(figsize=(6, 6))
     plt.subplot(221)
-    doArmPlot("../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm",
-              "../../data/hg18")
+    doArmPlot("../../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm",
+              "../../../data/hg18")
     plt.title("Human, Hi-C, Lieberman 2009")
     plt.subplot(222)
-    doArmPlot("../../tcc/hg18/tcc-HindIII-hg18-1M.hm", "../../data/hg18")
+    doArmPlot("../../../tcc/hg18/tcc-HindIII-hg18-1M.hm", "../../../data/hg18")
     plt.title("Human, TCC, Kalhor 2011")
     plt.subplot(223)
-    doArmPlot("../../mouse/data/combined/mouse_all-1M.hm",
-              "../../data/mm9", mouse=True)
+    doArmPlot("../../../mouse/data/combined/mouse_all-1M.hm",
+              "../../../data/mm9", mouse=True)
     plt.title("Mouse, Hi-C, McCord 2012")
     plt.show()
 
@@ -170,35 +170,35 @@ def differentArmPlotsWithReconstructedHeatmaps():
     "Many reconstructed heatmaps - supp paper figure"
     plt.figure(figsize=(8, 8))
     plt.subplot(531)
-    doArmPlot("../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm",
-              "../../data/hg18", vmin=-0.05, vmax=0.15)
+    doArmPlot("../../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm",
+              "../../../data/hg18", vmin=-0.05, vmax=0.15)
     plt.title("Human HiC 2009")
     plt.subplot(532)
-    doArmPlot("../../tcc/hg18/tcc-HindIII-hg18-1M.hm",
-              "../../data/hg18", vmin=-0.15, vmax=0.3)
+    doArmPlot("../../../tcc/hg18/tcc-HindIII-hg18-1M.hm",
+              "../../../data/hg18", vmin=-0.15, vmax=0.3)
     plt.title("Human TCC 2011")
     plt.subplot(533)
-    doArmPlot("../../mouse/data/combined/mouse_all-1M.hm",
-              "../../data/mm9", mouse=True, vmin=-0.15, vmax=0.15)
+    doArmPlot("../../../mouse/data/combined/mouse_all-1M.hm",
+              "../../../data/mm9", mouse=True, vmin=-0.15, vmax=0.15)
     plt.title("Mouse 2012")
 
     for num, chromSet in enumerate([[0], [1], [2], [1, 2]]):
         plt.subplot(5, 3, 3 * num + 4)
-        doReconstructedArmPlot("../../ErezPaperData/hg18/"\
+        doReconstructedArmPlot("../../../ErezPaperData/hg18/"\
         "GM-HindIII-hg18-1M.hm",
-                               "../../data/hg18", chromSet,
+                               "../../../data/hg18", chromSet,
                                vmin=-0.05, vmax=0.15)
         plt.title("From E" + "".join([str(i + 1) +
                                       ", " for i in chromSet])[:-2])
         plt.subplot(5, 3, 3 * num + 5)
-        doReconstructedArmPlot("../../tcc/hg18/tcc-HindIII-hg18-1M.hm",
-                               "../../data/hg18", chromSet,
+        doReconstructedArmPlot("../../../tcc/hg18/tcc-HindIII-hg18-1M.hm",
+                               "../../../data/hg18", chromSet,
                                vmin=-0.15, vmax=0.3)
         plt.title("From E" + "".join([str(i + 1) +
                                       ", " for i in chromSet])[:-2])
         plt.subplot(5, 3, 3 * num + 6)
-        doReconstructedArmPlot("../../mouse/data/combined/mouse_all-1M.hm",
-                               "../../data/mm9", chromSet, mouse=True,
+        doReconstructedArmPlot("../../../mouse/data/combined/mouse_all-1M.hm",
+                               "../../../data/mm9", chromSet, mouse=True,
                                 vmin=-0.15, vmax=0.15)
         plt.title("From E" + "".join([str(i + 1) +
                                       ", " for i in chromSet])[:-2])
@@ -277,10 +277,10 @@ def compareInterarmMaps():
 def compareCorrelationOfEigenvectors():
     """Plot correlation figure with eigenvector correlation between datasets
     paper figure """
-    Tanay = binnedDataAnalysis(1000000, "../../data/hg18")
-    Tanay.simpleLoad("../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm", "Erez")
-    Tanay.simpleLoad("../../ErezPaperData/hg18/GM-NcoI-hg18-1M.hm", "NcoI")
-    Tanay.simpleLoad("../../tcc/hg18/tcc-HindIII-hg18-1M.hm", "TCC")
+    Tanay = binnedDataAnalysis(1000000, "../../../data/hg18")
+    Tanay.simpleLoad("../../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm", "Erez")
+    Tanay.simpleLoad("../../../ErezPaperData/hg18/GM-NcoI-hg18-1M.hm", "NcoI")
+    Tanay.simpleLoad("../../../tcc/hg18/tcc-HindIII-hg18-1M.hm", "TCC")
     Tanay.removeDiagonal()
     Tanay.removePoorRegions()
     Tanay.removeZeros()
@@ -544,16 +544,16 @@ def compareWithGenomicFeatures():
                 "H3K4me2": "wgEncodeBroadChipSeqSignalGm12878H3k4me2.wig",
                 "H3K9ac": "wgEncodeBroadChipSeqSignalGm12878H3k9ac.wig"
                 }
-    controlFile = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignal"\
+    controlFile = "../../../histoneMarks/hg18/wgEncodeBroadChipSeqSignal"\
     "Gm12878Control.wig"
 
     for key in datasets.keys():
-        datasets[key] = os.path.join("../../histoneMarks/hg18", datasets[key])
+        datasets[key] = os.path.join("../../../histoneMarks/hg18", datasets[key])
         datasets[key] = (datasets[key], controlFile)
-    datasets["DNAse"] = ("../../histoneMarks/hg18/wgEncodeUwDnaseSeqRawSignal"\
-    "Rep1Gm06990.bigWig", None)
+    datasets["DNAse"] = ("../../../histoneMarks/hg18/wgEncodeUwDnaseSeqRaw"\
+    "SignalRep1Gm06990.bigWig", None)
     keys = datasets.keys()
-    Tanay.loadErezEigenvector1MB("../../ErezPaperData/eigenvectors")
+    Tanay.loadErezEigenvector1MB("../../../ErezPaperData/eigenvectors")
     for key in keys:
         Tanay.loadWigFile(datasets[key][0], key, control=datasets[key][1])
     Tanay.removeChromosome(22)
@@ -590,7 +590,7 @@ def compareWithGenomicFeatures():
             0], "%lf\t" % c2[0], "%lf" % c3[0]
     print
 
-compareWithGenomicFeatures()
+#compareWithGenomicFeatures()
 
 
 def plotTanayGenomicFeature():
@@ -600,15 +600,15 @@ def plotTanayGenomicFeature():
     Tanay.simpleLoad(GM1M, "GM-all")
     Tanay.loadTanayDomains()
 
-    Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeUwDnaseSeqRawSignal"\
+    Tanay.loadWigFile("../../../histoneMarks/hg18/wgEncodeUwDnaseSeqRawSignal"\
     "Rep1Gm06990.bigWig", label="feature")
-    #Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignal"\
+    #Tanay.loadWigFile("../../../histoneMarks/hg18/wgEncodeBroadChipSeqSignal"\
     #"Gm12878H3k9ac.wig", label = "feature",
-    #control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignal"\
+    #control = "../../../histoneMarks/hg18/wgEncodeBroadChipSeqSignal"\
     #"Gm12878Control.wig")
-    #Tanay.loadWigFile("../../histoneMarks/hg18/wgEncodeBroadChipSeqSignal"\
+    #Tanay.loadWigFile("../../../histoneMarks/hg18/wgEncodeBroadChipSeqSignal"\
     #"Gm12878H3k4me3.wig", label = "feature",
-    #control = "../../histoneMarks/hg18/wgEncodeBroadChipSeqSignal"\
+    #control = "../../../histoneMarks/hg18/wgEncodeBroadChipSeqSignal"\
     #"Gm12878Control.wig")
 
     Tanay.removeDiagonal()
@@ -672,30 +672,30 @@ def plotCorrelationAtDifferentBinning():
     if create == True:
         if cache == True:
             #-------------------standard version code-----------------
-            FR = fragmentHiC.HiCdataset("bla", "../../data/hg18",
+            FR = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
                                         override=False, inMemory=True)
-            FR.load("../../ErezPaperData/hg18/GM-HindIII-hg18_refined.frag")
+            FR.load("../../../ErezPaperData/hg18/GM-HindIII-hg18_refined.frag")
 
-            FR3 = fragmentHiC.HiCdataset("bla", "../../data/hg18",
+            FR3 = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
                                          override=False, inMemory=True)
-            FR3.load("../../ErezPaperData/hg18/GM-HindIII-hg18_refined.frag")
+            FR3.load("../../../ErezPaperData/hg18/GM-HindIII-hg18_refined.frag")
 
-            FR2 = fragmentHiC.HiCdataset("bla", "../../data/hg18",
+            FR2 = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
                                          override=False, inMemory=True)
-            FR2.load("../../ErezPaperData/hg18/GM-NcoI-hg18_refined.frag")
+            FR2.load("../../../ErezPaperData/hg18/GM-NcoI-hg18_refined.frag")
 
             #----------------------cross-check code----------------
-#            FR = fragmentHiC.HiCdataset("bla", "../data/hg18",
+#            FR = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
 #                                        override=False, inMemory=True)
-#            FR.load("../ErezPaperData/hg18/GM-NcoI-hg18_refined.frag")
+#            FR.load("../../../ErezPaperData/hg18/GM-NcoI-hg18_refined.frag")
 #
-#            FR3 = fragmentHiC.HiCdataset("bla", "../data/hg18",
+#            FR3 = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
 #                                         override=False, inMemory=True)
-#            FR3.load("../ErezPaperData/hg18/GM-NcoI-hg18_refined.frag")
+#            FR3.load("../../../ErezPaperData/hg18/GM-NcoI-hg18_refined.frag")
 #
-#            FR2 = fragmentHiC.HiCdataset("bla", "../data/hg18",
+#            FR2 = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
 #                                         override=False, inMemory=True)
-#            FR2.load("../ErezPaperData/hg18/GM-HindIII-hg18_refined.frag")
+#            FR2.load("../../../ErezPaperData/hg18/GM-HindIII-hg18_refined.frag")
             #-------end corss-check code ---------------------------------
             #--------Filter only trans DS reads-----------------
             FR.maskFilter(FR.DS * (FR.chrms1 != FR.chrms2))
@@ -724,28 +724,28 @@ def plotCorrelationAtDifferentBinning():
             FR2.maskFilter(mask2)
             FR3.maskFilter(mask3)
 
-            FR.save("../../tcc/working/cache1")
-            FR2.save("../../tcc/working/cache2")
-            FR3.save("../../tcc/working/cache3")
+            FR.save("../../../tcc/working/cache1")
+            FR2.save("../../../tcc/working/cache2")
+            FR3.save("../../../tcc/working/cache3")
         else:
-            FR = fragmentHiC.HiCdataset("bla", "../../data/hg18",
+            FR = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
                                         override=False, inMemory=True)
-            FR.load("../../tcc/working/cache1")
+            FR.load("../../../tcc/working/cache1")
 
-            FR3 = fragmentHiC.HiCdataset("bla", "../../data/hg18",
+            FR3 = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
                                          override=False, inMemory=True)
-            FR3.load("../../tcc/working/cache3")
+            FR3.load("../../../tcc/working/cache3")
 
-            FR2 = fragmentHiC.HiCdataset("bla", "../../data/hg18",
+            FR2 = fragmentHiC.HiCdataset("bla", "../../../data/hg18",
                                          override=False, inMemory=True)
-            FR2.load("../../tcc/working/cache2")
+            FR2.load("../../../tcc/working/cache2")
 
         for size in sizes:
-            FR.saveHeatmap("../../tcc/working/HindIII_%d.hm" %
+            FR.saveHeatmap("../../../tcc/working/HindIII_%d.hm" %
                            size, size * 1000000)
-            FR2.saveHeatmap("../../tcc/working/NcoI_%d.hm" %
+            FR2.saveHeatmap("../../../tcc/working/NcoI_%d.hm" %
                             size, size * 1000000)
-            FR3.saveHeatmap("../../tcc/working/control_%d.hm" %
+            FR3.saveHeatmap("../../../tcc/working/control_%d.hm" %
                             size, size * 1000000)
 
     p1 = []
@@ -755,10 +755,10 @@ def plotCorrelationAtDifferentBinning():
     evs = []
     for size in sizes:
 
-        BD = binnedDataAnalysis(size * 1000000, "../../data/hg18")
-        BD.simpleLoad("../../tcc/working/HindIII_%d.hm" % size, "HindIII")
-        BD.simpleLoad("../../tcc/working/NcoI_%d.hm" % size, "NcoI")
-        BD.simpleLoad("../../tcc/working/control_%d.hm" % size, "control")
+        BD = binnedDataAnalysis(size * 1000000, "../../../data/hg18")
+        BD.simpleLoad("../../../tcc/working/HindIII_%d.hm" % size, "HindIII")
+        BD.simpleLoad("../../../tcc/working/NcoI_%d.hm" % size, "NcoI")
+        BD.simpleLoad("../../../tcc/working/control_%d.hm" % size, "control")
         BD.removeDiagonal()
         BD.removePoorRegions(cutoff=2)
         BD.removeCis()
@@ -822,10 +822,10 @@ def plotSixHeatmaps():
     "Plots 6 heatmaps to a correlation supplementary figure"
     plt.figure(figsize=(3, 3))
     for size in [10]:
-        BD = binnedDataAnalysis(size * 1000000, "../../data/hg18")
-        BD.simpleLoad("../../tcc/working/HindIII_%d.hm" % size, "HindIII")
-        BD.simpleLoad("../../tcc/working/NcoI_%d.hm" % size, "NcoI")
-        BD.simpleLoad("../../tcc/working/control_%d.hm" % size, "control")
+        BD = binnedDataAnalysis(size * 1000000, "../../../data/hg18")
+        BD.simpleLoad("../../../tcc/working/HindIII_%d.hm" % size, "HindIII")
+        BD.simpleLoad("../../../tcc/working/NcoI_%d.hm" % size, "NcoI")
+        BD.simpleLoad("../../../tcc/working/control_%d.hm" % size, "control")
         BD.removeDiagonal()
         BD.removePoorRegions(cutoff=5)
         BD.removeZeros()
@@ -880,11 +880,11 @@ def plotSixHeatmaps():
         plt.show()
 
 
-def heatmapFromHotFragments(dataset="../../mouse/data/combined/\
-                    mouse1_merged.frag",
-                    workingFile="../../tcc/working/workingMouse.frag",
-                    cacheFile="../../tcc/working/workingMouseFiltered.frag",
-                    genomeFolder="../../data/mm9",
+def heatmapFromHotFragments(dataset="../../../mouse/data/combined/"\
+                    "mouse1_merged.frag",
+                    workingFile="../../../tcc/working/workingMouse.frag",
+                    cacheFile="../../../tcc/working/workingMouseFiltered.frag",
+                    genomeFolder="../../../data/mm9",
                     label=""):
     mirnylib.systemutils.setExceptionHook()
 
@@ -925,11 +925,11 @@ def heatmapFromHotFragments(dataset="../../mouse/data/combined/\
     plt.show()
 
 
-def plotCisToTransHotFragments(dataset="../../mouse/data/combined/\
-                   mouse1_merged.frag",
-                   workingFile="../../tcc/working/workingMouse.frag",
-                   cacheFile="../../tcc/working/workingMouseFiltered.frag",
-                   genomeFolder="../../data/mm9", label=None):
+def plotCisToTransHotFragments(dataset="../../../mouse/data/combined/"\
+                   "mouse1_merged.frag",
+                   workingFile="../../../tcc/working/workingMouse.frag",
+                   cacheFile="../../../tcc/working/workingMouseFiltered.frag",
+                   genomeFolder="../../../data/mm9", label=None):
     mirnylib.systemutils.setExceptionHook()
     if not os.path.exists(cacheFile):
         print "caching parsed data"
@@ -983,39 +983,39 @@ def doAllPlotsForHotFragments():
     plotCisToTransHotFragments(label="Mouse, 2012")  # mouse by default
     heatmapFromHotFragments(label="(Mouse, 2012)")
 
-    plotCisToTransHotFragments(dataset="../../tcc/hg18/\
-               tcc-HindIII-hg18_merged.frag",
-               workingFile="../../tcc/working/workingTcc.frag",
-               cacheFile="../../tcc/working/workingTccFiltered.frag",
-               genomeFolder="../../data/hg18",
+    plotCisToTransHotFragments(dataset="../../../tcc/hg18/"\
+               "tcc-HindIII-hg18_merged.frag",
+               workingFile="../../../tcc/working/workingTcc.frag",
+               cacheFile="../../../tcc/working/workingTccFiltered.frag",
+               genomeFolder="../../../data/hg18",
                label="Kalhor, 2011")
 
-    heatmapFromHotFragments(dataset="../../tcc/hg18/\
-                tcc-HindIII-hg18_merged.frag",
-                workingFile="../../tcc/working/workingTcc.frag",
-                cacheFile="../../tcc/working/workingTccFiltered.frag",
-                genomeFolder="../../data/hg18",
+    heatmapFromHotFragments(dataset="../../../tcc/hg18/"\
+                "tcc-HindIII-hg18_merged.frag",
+                workingFile="../../../tcc/working/workingTcc.frag",
+                cacheFile="../../../tcc/working/workingTccFiltered.frag",
+                genomeFolder="../../../data/hg18",
                 label="(Kalhor, 2011)")
 
-    plotCisToTransHotFragments(dataset="../../ErezPaperData/hg18\
-                /GM-HindIII-hg18_merged.frag",
-                workingFile="../../tcc/working/workingErez.frag",
-                cacheFile="../../tcc/working/workingErezFiltered.frag",
-                genomeFolder="../../data/hg18",
+    plotCisToTransHotFragments(dataset="../../../ErezPaperData/hg18"\
+                "/GM-HindIII-hg18_merged.frag",
+                workingFile="../../../tcc/working/workingErez.frag",
+                cacheFile="../../../tcc/working/workingErezFiltered.frag",
+                genomeFolder="../../../data/hg18",
                 label="Lieberman, 2009")
 
-    heatmapFromHotFragments(dataset="../../ErezPaperData/hg18/\
-                GM-HindIII-hg18_merged.frag",
-                workingFile="../../tcc/working/workingErez.frag",
-                cacheFile="../../tcc/working/workingErezFiltered.frag",
-                genomeFolder="../../data/hg18",
+    heatmapFromHotFragments(dataset="../../../ErezPaperData/hg18/"\
+                "GM-HindIII-hg18_merged.frag",
+                workingFile="../../../tcc/working/workingErez.frag",
+                cacheFile="../../../tcc/working/workingErezFiltered.frag",
+                genomeFolder="../../../data/hg18",
                 label="(Lieberman, 2009)")
 
 
 def compareMouseWithGenomicFeatures():
     mirnylib.systemutils.setExceptionHook()
-    Tanay = experimentalBinnedData(1000000, "../../data/mm9")
-    Tanay.simpleLoad("../../mouse/data/combined/mouse_all-1M.hm", "mouse")
+    Tanay = experimentalBinnedData(1000000, "../../../data/mm9")
+    Tanay.simpleLoad("../../../mouse/data/combined/mouse_all-1M.hm", "mouse")
     Tanay.fakeTranslocations([(0, 0, None, 12, 52000000, None),
                               (4, 45000000, None, 12, 0, 30000000),
                               (9, 0, 50000000, 12, 0, 35000000)])
@@ -1043,9 +1043,9 @@ def compareMouseWithGenomicFeatures():
                 }
 
     for key in datasets.keys():
-        mark = os.path.join("../../histoneMarks/mm9", datasets[key][0])
+        mark = os.path.join("../../../histoneMarks/mm9", datasets[key][0])
         if datasets[key][1] is not None:
-            control = os.path.join("../../histoneMarks/mm9", datasets[key][1])
+            control = os.path.join("../../../histoneMarks/mm9", datasets[key][1])
         else:
             control = None
         datasets[key] = (mark, control)
@@ -1102,14 +1102,14 @@ def compareMouseWithGenomicFeatures():
                                           Tanay.trackDict[key])[0],
                                   cr(E1, Tanay.trackDict[key])[0])
 
-compareMouseWithGenomicFeatures()
+#compareMouseWithGenomicFeatures()
 
 
 def calculateTanayCorrelation():
     "Calculates correlation between datasets, smoothed in a Tanay way"
-    BD = binnedData(1000000, "../../data/hg18")
-    BD.simpleLoad("../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm", "HindIII")
-    BD.simpleLoad("../../ErezPaperData/hg18/GM-NcoI-hg18-1M.hm", "NcoI")
+    BD = binnedData(1000000, "../../../data/hg18")
+    BD.simpleLoad("../../../ErezPaperData/hg18/GM-HindIII-hg18-1M.hm", "HindIII")
+    BD.simpleLoad("../../../ErezPaperData/hg18/GM-NcoI-hg18-1M.hm", "NcoI")
 
     def tanaySmooth(matrix):
         matrix = numpy.array(matrix, dtype="double")
