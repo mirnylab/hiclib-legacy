@@ -46,8 +46,8 @@ Installation
 ------------
 
 
-.. note:: Library was tested only under Linux environment, but is in principle platform-independent.
-Windows/MAC users should take care of  Cython and corresponding C compiler themselves. 
+.. note:: Library was tested only under Linux environment, but is in principle platform-independent with some adjustments.
+Windows/MAC users should take care of  Cython and corresponding C compiler themselves.
 
 To install the library under linux, please run install_linux.py in the hiclib/src directory. 
 This will add hiclib to PYTHONPATH (in .bashrc & .bash_profile), what will make 
@@ -67,14 +67,15 @@ Both libraries are library not compatible with python 2.5 and python 3.x, but wo
 
 However, it might require a newer versions of python packages (specifically numpy and scipy), than those available with python 2.6-equipped linux distributions (e.g. Ubuntu 10.04 LTS, ubuntu 11.04+ works fine!).
 
-Hiclib requires the following python libraries: joblib, h5py, pysam, numpy, scipy, matplotlib, biopython, bx-python (preferably from bitbucket repo by james_taylor)
+Hiclib requires the following python libraries: cython (0.16+), joblib (0.6.3+), h5py, pysam, numpy(1.6+) , scipy, matplotlib, biopython, bx-python (preferably from bitbucket repo by james_taylor)
 
-Hiclib requires following non-python binaries to be installed: samtools. 
+Hiclib requires following non-python binaries to be installed: samtools
 
 If you're upgrading numpy/scipy/matplotlib using pip (pip install --upgrade numpy), be sure to delete/replace the original package. 
 Often pip installs new package to a different location, and python still loads the old copy as it looks there first.
-You might need to specifically delete files corresponding to the original package, as running "apt-get remove python-numpy" might take down a significant number of packages. Locations of files can be determined from the python console by >>>print numpy.__file__, and version by >>>print numpy.__version__. 
+You might need to specifically delete files corresponding to the original package, as running "apt-get remove python-numpy" might take down a significant number of packages. Locations of files can be determined from the python console by >>>print numpy.__file__, and version by >>>print numpy.__version__.
 
+Obsolete versions of certain packages may lead to unpredicted errors. Please refer to troubleshooting guide for a list of known errors! 
          
 Hardware requirements
 ---------------------
@@ -107,7 +108,7 @@ It uses HDF5 to store and access the data, and can be viewed using external HDF5
 It stores data in a compressed format. For small datasets, it can be initialized to hold data in memory only.
 
 .. warning:: H5dict is not equivalent to dict, as it does not provide direct references to arrays on an HDD. 
-	For example ``>>> a = h5dict["myarray"] >>> a[0] = 1`` will not change the array in h5dict. You would need to run ``>>> h5dict["myarray"] = a`` to commit the change to the hard disk.  If you want to edit a part of an array, you can get a direct h5py dataset using ``>>> h5dict.get_dataset``
+	For example ``>>> a = h5dict["myarray"] >>> a[0] = 1`` will not change the array on the hdd. You would need to run ``>>> h5dict["myarray"] = a`` to commit the change to the hard disk.  If you want to edit a part of an array, you can get a direct h5py dataset using ``>>> h5dict.get_dataset``
 
 H5dict file can be converted to txt format or matlab format using a small utilities
 h5dictToTxt.py and h5dictToMat.py. Both utilities are a part of mirnylib repository.
@@ -154,6 +155,7 @@ Contents
    mapping_tutorial
    fragment 
    binneddata
+   troubleshooting
 
 
 Indices and tables

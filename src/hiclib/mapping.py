@@ -2,20 +2,24 @@
 mapping - map raw Hi-C reads to a genome
 ========================================
 '''
-import os, sys
+import os
+import sys
 import re
 import glob
 import gzip
 import subprocess
-import tempfile, atexit
+import tempfile
+import atexit
 import logging
 import warnings
 import numpy as np
-import Bio.SeqIO, Bio.Seq, Bio.Restriction
+import Bio.SeqIO
+import Bio.Seq
+import Bio.Restriction
 import pysam
 
-import mirnylib.h5dict 
-import mirnylib.genome  
+import mirnylib.h5dict
+import mirnylib.genome
 
 ##TODO: write some autodetection of chromosome lengthes base on genome folder
 ##TODO: throw an exception if no chromosomes found in chromosome folder
@@ -24,7 +28,8 @@ import mirnylib.genome
 
 logging.basicConfig(level=logging.NOTSET)
 
-def _detect_quality_coding_scheme(in_fastq, num_entries = 10000):
+
+def _detect_quality_coding_scheme(in_fastq, num_entries=10000):
     in_file = open(in_fastq)
     max_ord = 0
     min_ord = 256
@@ -37,7 +42,7 @@ def _detect_quality_coding_scheme(in_fastq, num_entries = 10000):
         if not line.startswith('@'):
             raise Exception('%s does not comply with the FASTQ standards.')
 
-        fastq_entry = [line, in_file.readline(), 
+        fastq_entry = [line, in_file.readline(),
                        in_file.readline(), in_file.readline()]
         min_ord = min(min_ord, min(ord(j) for j in fastq_entry[3].strip()))
         max_ord = max(max_ord, max(ord(j) for j in fastq_entry[3].strip()))
@@ -46,21 +51,23 @@ def _detect_quality_coding_scheme(in_fastq, num_entries = 10000):
 
     return min_ord, max_ord
 
+
 def _gzopen(path):
     if path.endswith('.gz'):
         return gzip.open(path)
     else:
         return open(path)
 
+
 def _line_count(path):
     '''Count the number of lines in a file. The function was posted by
     Mikola Kharechko on Stackoverflow.
     '''
 
-    f = open(path)                  
+    f = open(path)
     lines = 0
     buf_size = 1024 * 1024
-    read_f = f.read # loop optimization
+    read_f = f.read  # loop optimization
 
     buf = read_f(buf_size)
     while buf:
@@ -69,14 +76,15 @@ def _line_count(path):
 
     return lines
 
+
 def _chunk_file(in_path, out_basename, max_num_lines):
-    '''Slice lines from a large file. 
+    '''Slice lines from a large file.
     The line numbering is as in Python slicing notation.
     '''
     num_lines = _line_count(in_path)
     if num_lines <= max_num_lines:
-        return [in_path,]
-    
+        return [in_path, ]
+
     out_paths = []
 
     for i, line in enumerate(open(in_path)):
@@ -87,6 +95,7 @@ def _chunk_file(in_path, out_basename, max_num_lines):
         out_file.write(line)
 
     return out_paths
+
 
 def _filter_fastq(ids, in_fastq, out_fastq):
     '''Filter FASTQ sequences by their IDs.
@@ -105,7 +114,7 @@ def _filter_fastq(ids, in_fastq, out_fastq):
             raise Exception(
                 '{0} does not comply with the FASTQ standards.'.format(in_fastq))
 
-        fastq_entry = [line, in_file.readline(), 
+        fastq_entry = [line, in_file.readline(),
                        in_file.readline(), in_file.readline()]
         read_id = line.split()[0][1:]
         if read_id.endswith('/1') or read_id.endswith('/2'):
@@ -113,8 +122,9 @@ def _filter_fastq(ids, in_fastq, out_fastq):
         if read_id in ids:
             out_file.writelines(fastq_entry)
 
+
 def _filter_unmapped_fastq(in_fastq, in_sam, nonunique_fastq):
-    '''Read raw sequences from **in_fastq** and alignments from 
+    '''Read raw sequences from **in_fastq** and alignments from
     **in_sam** and save the non-uniquely aligned and unmapped sequences
     to **unique_sam**.
     '''
@@ -124,12 +134,13 @@ def _filter_unmapped_fastq(in_fastq, in_sam, nonunique_fastq):
     for read in samfile:
         tags_dict = dict(read.tags)
         read_id = read.qname
-        # If exists, the option 'XS' contains the score of the second 
+        # If exists, the option 'XS' contains the score of the second
         # best alignment. Therefore, its presence means non-unique alignment.
         if 'XS' in tags_dict or read.is_unmapped:
             nonunique_ids.add(read_id)
 
     _filter_fastq(nonunique_ids, in_fastq, nonunique_fastq)
+
 
 def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
                       min_seq_len, len_step, **kwargs):
@@ -137,19 +148,19 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml
     Iterative mapping accounts for the modification of fragments' sequences
     due to ligation.
-   
+
     The algorithm of iterative correction:
 
     1. Truncate the sequences to the first N = **min_seq_len** base pairs,
        starting at the **seq_start** position.
     2. Map the sequences using bowtie2.
     3. Store the uniquely mapped sequences in a SAM file at **out_sam_path**.
-    4. Go to the step 1, increase the truncation length N by **len_step** base 
+    4. Go to the step 1, increase the truncation length N by **len_step** base
        pairs, and map the non-mapped and non-uniquely mapped sequences,
        ...
        Stop when the 3' end of the truncated sequence reaches the **seq_end**
        position.
-       
+
     Parameters
     ----------
 
@@ -157,10 +168,10 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         The path to the bowtie2 executable.
 
     bowtie_index_path : str
-        The path to the bowtie2 genome index. Since the index consists of 
-        several files with the different suffices (e.g., hg18.1.bt2, 
+        The path to the bowtie2 genome index. Since the index consists of
+        several files with the different suffices (e.g., hg18.1.bt2,
         hg18.2.bt.2), provide only the common part (hg18).
-        
+
     fastq_path : str
         The path to the input FASTQ or gzipped FASTQ file.
 
@@ -184,8 +195,8 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         Extra command-line flags for Bowtie2. Default is ''.
 
     max_reads_per_chunk : int, optional
-        If positive then split input into several chunks with 
-        `max_reads_per_chunk` each and map them separately. Use for large 
+        If positive then split input into several chunks with
+        `max_reads_per_chunk` each and map them separately. Use for large
         datasets and low-memory machines.
 
     temp_dir : str, optional
@@ -193,7 +204,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         supplied by the OS.
 
     bash_reader : str, optional
-        A bash application to read the input onto the bash pipe. The default 
+        A bash application to read the input onto the bash pipe. The default
         value is None, that is the app is autodetected by the extension (i.e.
         cat for .fastq, gunzip for .gz).
 
@@ -219,12 +230,12 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         else:
             bash_reader = 'cat'
 
-    reading_command = bash_reader.split() + [fastq_path,]
+    reading_command = bash_reader.split() + [fastq_path, ]
 
     output_is_bam = (out_sam_path.split('.')[-1].lower() == 'bam')
     bamming_command = ['samtools', 'view', '-bS', '-'] if output_is_bam else []
 
-    # Split input files if required and apply iterative mapping to each 
+    # Split input files if required and apply iterative mapping to each
     # segment separately.
     if max_reads_per_chunk > 0:
         kwargs['max_reads_per_chunk'] = -1
@@ -234,43 +245,45 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             max_reads_per_chunk * 4)
         for i, fastq_chunk_path in enumerate(chunked_files):
             iterative_mapping(
-                bowtie_path, bowtie_index_path, fastq_chunk_path, 
-                out_sam_path + '.%d' % (i+1), min_seq_len, len_step,
+                bowtie_path, bowtie_index_path, fastq_chunk_path,
+                out_sam_path + '.%d' % (i + 1), min_seq_len, len_step,
                 **kwargs)
 
             # Delete chunks only if the file was really chunked.
             if len(chunked_files) > 1:
                 os.remove(fastq_chunk_path)
-        return 
+        return
 
     # Convert input relative arguments to the absolute length scale.
-    reading_process = subprocess.Popen(reading_command, 
+    reading_process = subprocess.Popen(reading_command,
                                        stdout=subprocess.PIPE)
     reading_process.stdout.readline()
     raw_seq_len = len(reading_process.stdout.readline().strip())
     reading_process.terminate()
 
-    if (seq_start < 0 
-        or seq_start > raw_seq_len 
+    if (seq_start < 0
+        or seq_start > raw_seq_len
         or (seq_end and seq_end > raw_seq_len)):
         raise Exception('An incorrect trimming region is supplied: [%d, %d), '
                         'the raw sequence length is %d' % (
                             seq_start, seq_end, raw_seq_len))
     local_seq_end = min(raw_seq_len, seq_end) if seq_end else raw_seq_len
 
-    if min_seq_len <= local_seq_end - seq_start: 
+    if min_seq_len <= local_seq_end - seq_start:
         trim_5 = seq_start
         trim_3 = raw_seq_len - seq_start - min_seq_len
         local_out_sam = out_sam_path + '.' + str(min_seq_len)
         mapping_command = [
-            bowtie_path, '-x', bowtie_index_path, '-q', '-', 
+            bowtie_path, '-x', bowtie_index_path, '-q', '-',
             '-5', str(trim_5), '-3', str(trim_3), '-p', str(nthreads)
             ] + bowtie_flags.split()
 
-        logging.info('Fastq reading command: {0}'.format(' '.join(reading_command)))
+        logging.info('Fastq reading command: {0}'.format(
+            ' '.join(reading_command)))
         logging.info('Mapping command: {0}'.format(' '.join(mapping_command)))
         if bamming_command:
-            logging.info('Output formatting command: {0}'.format(' '.join(bamming_command)))
+            logging.info('Output formatting command: {0}'.format(
+                ' '.join(bamming_command)))
 
         pipeline = []
         try:
@@ -278,17 +291,17 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
                 subprocess.Popen(reading_command, stdout=subprocess.PIPE))
             if bamming_command:
                 pipeline.append(
-                    subprocess.Popen(mapping_command, 
+                    subprocess.Popen(mapping_command,
                                      stdin=pipeline[-1].stdout,
                                      stdout=subprocess.PIPE))
 
                 pipeline.append(
-                    subprocess.Popen(bamming_command, 
+                    subprocess.Popen(bamming_command,
                                      stdin=pipeline[-1].stdout,
                                      stdout=open(local_out_sam, 'w')))
             else:
                 pipeline.append(
-                    subprocess.Popen(mapping_command, 
+                    subprocess.Popen(mapping_command,
                                      stdin=pipeline[-1].stdout,
                                      stdout=open(local_out_sam, 'w')))
             pipeline[-1].wait()
@@ -300,7 +313,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         # Check if the next iteration is required.
         if len_step <= 0:
             return
-        if min_seq_len + len_step > local_seq_end - seq_start: 
+        if min_seq_len + len_step > local_seq_end - seq_start:
             return
 
         # Recursively go to the next iteration.
@@ -311,14 +324,15 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             temp_dir, os.path.split(fastq_path)[1] + '.%d' % min_seq_len)
         _filter_unmapped_fastq(fastq_path, local_out_sam, unmapped_fastq_path)
 
-        iterative_mapping(bowtie_path, bowtie_index_path, unmapped_fastq_path, 
+        iterative_mapping(bowtie_path, bowtie_index_path, unmapped_fastq_path,
                           out_sam_path,
-                          min_seq_len = min_seq_len + len_step, 
+                          min_seq_len=min_seq_len + len_step,
                           len_step=len_step, **kwargs)
 
         os.remove(unmapped_fastq_path)
-     
-def fill_rsites(lib, genome_db, enzyme_name=None, min_frag_size = None):
+
+
+def fill_rsites(lib, genome_db, enzyme_name=None, min_frag_size=None):
     '''Assign the mapped reads to the restriction fragments.
 
     Parameters
@@ -334,16 +348,16 @@ def fill_rsites(lib, genome_db, enzyme_name=None, min_frag_size = None):
     enzyme_name : str
         A name of the restriction enzyme. The full list of possible names
         can be found in Bio.Restriction.AllEnzymes.
-        
+
     min_frag_size : int
         The minimal distance between a cut site and a restriction site.
         If the actual distance is less than minimal then the ultra-sonic
         fragment is assigned to the next restriction fragment in the direction
         of the read.
     '''
-   
+
     if isinstance(genome_db, str):
-        genome_db = mirnylib.genome.Genome(genome_db)        
+        genome_db = mirnylib.genome.Genome(genome_db)
     assert isinstance(genome_db, mirnylib.genome.Genome)
 
     if len(lib['chrms1']) == 0:
@@ -351,11 +365,12 @@ def fill_rsites(lib, genome_db, enzyme_name=None, min_frag_size = None):
 
     if enzyme_name is None:
         if not genome_db.hasEnzyme():
-            raise Exception('Set a restriction enzyme in the genome object or ' 
-                            'supply its name')        
+            raise Exception('Set a restriction enzyme in the genome object or '
+                            'supply its name')
     else:
         if enzyme_name not in Bio.Restriction.AllEnzymes:
-            raise Exception('Enzyme is not found in the library: %s' % (enzyme_name,))
+            raise Exception('Enzyme is not found in the library: %s' %
+                (enzyme_name,))
         genome_db.setEnzyme(enzyme_name)
 
     rsite_size = eval('len(Bio.Restriction.%s.site)' % genome_db.enzymeName)
@@ -363,28 +378,29 @@ def fill_rsites(lib, genome_db, enzyme_name=None, min_frag_size = None):
         _min_frag_size = rsite_size / 2.0
     else:
         _min_frag_size = min_frag_size
-        
+
     _find_rfrags_inplace(lib, genome_db, _min_frag_size, 1)
     _find_rfrags_inplace(lib, genome_db, _min_frag_size, 2)
 
     return lib
 
+
 def _find_rfrags_inplace(lib, genome, min_frag_size, side):
-    '''Private: assign mapped reads to restriction fragments by 
+    '''Private: assign mapped reads to restriction fragments by
     their 5' end position.
     '''
-    assert isinstance(genome,mirnylib.genome.Genome) #make Pydev happy
+    assert isinstance(genome, mirnylib.genome.Genome)  # make Pydev happy
     side = str(side)
-     
 
-    chrms = lib['chrms' + side]   #setting to zero chromosomes that are over the limit of the genome
+    chrms = lib['chrms' + side]
+        #setting to zero chromosomes that are over the limit of the genome
     removeMask = chrms >= genome.chrmCount
-    chrms[removeMask] = -1         
-    lib['chrms' + side] = chrms 
+    chrms[removeMask] = -1
+    lib['chrms' + side] = chrms
     cuts = lib['cuts' + side]
-    cuts[removeMask] = -1 
+    cuts[removeMask] = -1
     lib['cuts' + side] = cuts
-    
+
     rfragIdxs = np.zeros(len(chrms), dtype=np.int64)
     uprsites = np.zeros(len(chrms), dtype=np.int64)
     rsites = np.zeros(len(chrms), dtype=np.int64)
@@ -396,21 +412,19 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     uprsites[chrms == -1] = -1
     downrsites[chrms == -1] = -1
 
-    
-            
-    badCuts = np.nonzero(cuts >= genome.chrmLens[chrms])[0]  
+    badCuts = np.nonzero(cuts >= genome.chrmLens[chrms])[0]
     if len(badCuts) > 0:
         maxDev = np.max(cuts[badCuts] - genome.chrmLens[chrms[badCuts]])
         warnings.warn(
             ('\nDetermined many ({0}) reads that map after the end of chromosome!'
-             '\n Maximum deviation is {1} bp ').format(len(badCuts), maxDev))   
-        if maxDev > 50: 
-            raise StandardError("Deviation is too large. Probably, genome mismatch.")     
-        cuts[badCuts] = genome.chrmLens[chrms[badCuts]]-1
-    if len(badCuts) > 10000: 
+             '\n Maximum deviation is {1} bp ').format(len(badCuts), maxDev))
+        if maxDev > 50:
+            raise StandardError("Deviation is too large. Probably, genome mismatch.")
+        cuts[badCuts] = genome.chrmLens[chrms[badCuts]] - 1
+    if len(badCuts) > 10000:
         raise StandardError("Determined too many (%s) reads that map after "
                             "the end of chromosome!" % len(badCuts))
-            
+
     strands = lib['strands' + side]
     for chrm_idx in xrange(genome.chrmCount):
         all_rsites = np.r_[0, genome.rsites[chrm_idx]]
@@ -419,8 +433,9 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
         # Find the indexes of the restriction fragment...
         rfragIdxs[idxs] = np.searchsorted(all_rsites, cuts[idxs]) - 1
         uprsites[idxs] = all_rsites[rfragIdxs[idxs]]
-        downrsites[idxs] = all_rsites[rfragIdxs[idxs] + 1] 
-        rsites[idxs] = np.where(strands[idxs], downrsites[idxs], uprsites[idxs])
+        downrsites[idxs] = all_rsites[rfragIdxs[idxs] + 1]
+        rsites[idxs] = np.where(
+            strands[idxs], downrsites[idxs], uprsites[idxs])
 
         too_close = (np.abs(rsites[idxs] - cuts[idxs]) <= min_frag_size)
         too_close_idxs = np.where(idxs)[0][too_close]
@@ -429,7 +444,7 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
         downrsites[too_close_idxs] = all_rsites[rfragIdxs[too_close_idxs] + 1]
         rsites[too_close_idxs] = np.where(
             strands[too_close_idxs],
-            downrsites[too_close_idxs], 
+            downrsites[too_close_idxs],
             uprsites[too_close_idxs])
 
     lib['rfragIdxs' + side] = rfragIdxs
@@ -437,8 +452,9 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     lib['downrsites' + side] = downrsites
     lib['rsites' + side] = rsites
 
+
 def _parse_ss_sams(sam_basename, out_dict, genome_db,
-                   max_seq_len = -1, reverse_complement=False):
+                   max_seq_len=-1, reverse_complement=False):
     """Parse SAM files with single-sided reads.
     """
     def _for_each_unique_read(sam_basename, genome_db, action):
@@ -448,14 +464,14 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
 
         for sam_path in sam_paths:
             samfile = pysam.Samfile(sam_path)
-            
+
             # Make Bowtie's chromosome tids -> genome_db indices dictionary.
             tid2idx = {}
             for i in xrange(len(samfile.lengths)):
                 chrm_rname = samfile.getrname(i)
                 chrm_label = genome_db._extractChrmLabel(chrm_rname)
                 tid2idx[i] = genome_db.label2idx[chrm_label]
-            
+
             for read in samfile:
                 # Skip non-mapped reads...
                 if read.is_unmapped:
@@ -468,8 +484,8 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
                 else:
                     # Convert Bowtie's chromosome tids to genome_db indices.
                     read.tid = tid2idx[read.tid]
-                    # ...or those not belonging to the target chromosome. 
-                    action(read) 
+                    # ...or those not belonging to the target chromosome.
+                    action(read)
 
     # Calculate reads statistics.
     def _count_stats(read):
@@ -485,24 +501,24 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
     _count_stats.num_reads = 0
     _for_each_unique_read(sam_basename, genome_db, _count_stats)
     sam_stats = {'id_len': _count_stats.id_len,
-                 'seq_len':_count_stats.seq_len,
-                 'num_reads':_count_stats.num_reads}
+                 'seq_len': _count_stats.seq_len,
+                 'num_reads': _count_stats.num_reads}
     logging.info(
         'Parsing SAM files with basename {0}, # of reads: {1}'.format(
             sam_basename, sam_stats['num_reads']))
     if max_seq_len > 0:
         sam_stats['seq_len'] = min(max_seq_len, sam_stats['seq_len'])
 
-    if sam_stats['num_reads'] ==0:
+    if sam_stats['num_reads'] == 0:
         out_dict.update(
-            {'chrms':[], 'strands':[], 'cuts':[], 'seqs':[], 'ids':[]})
+            {'chrms': [], 'strands': [], 'cuts': [], 'seqs': [], 'ids': []})
         return out_dict
 
     # Read and save each type of data separately.
     def _write_to_array(read, array, value):
         array[_write_to_array.i] = value
         _write_to_array.i += 1
-    
+
     # ...chromosome ids
     buf = np.zeros((sam_stats['num_reads'],), dtype=np.int8)
     _write_to_array.i = 0
@@ -524,9 +540,10 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
         action=
             lambda read: _write_to_array(read, buf, read.pos + (len(read.seq) if read.is_reverse else 0)))
     out_dict['cuts'] = buf
-    
+
     # ...sequences
-    buf = np.zeros((sam_stats['num_reads'],), dtype='|S%d' % sam_stats['seq_len'])
+    buf = np.zeros(
+        (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['seq_len'])
     _write_to_array.i = 0
     _for_each_unique_read(sam_basename, genome_db,
         action=
@@ -534,7 +551,8 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
     out_dict['seqs'] = buf
 
     # and ids.
-    buf = np.zeros((sam_stats['num_reads'],), dtype='|S%d' % sam_stats['id_len'])
+    buf = np.zeros(
+        (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['id_len'])
     _write_to_array.i = 0
     _for_each_unique_read(sam_basename, genome_db,
         action=lambda read: _write_to_array(read, buf, read.qname))
@@ -542,15 +560,16 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
 
     return out_dict
 
+
 def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
-              max_seq_len = -1, reverse_complement=False, keep_ids=False):
+              max_seq_len=-1, reverse_complement=False, keep_ids=False):
     '''Parse SAM/BAM files with HiC reads.
 
     Parameters
     ----------
 
     sam_basename1 : str
-        A basename of SAM files with the mapped sequences of the first 
+        A basename of SAM files with the mapped sequences of the first
         side of Hi-C molecules.
 
     sam_basename2 : str
@@ -565,8 +584,8 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
         to convert Bowtie chromosome indices to internal indices.
 
     max_seq_len : int
-        The length the sequences are truncated to before saving 
-        into the library. The default value is -1, i.e. the sequences are 
+        The length the sequences are truncated to before saving
+        into the library. The default value is -1, i.e. the sequences are
         not truncated.
 
     reverse_complement : bool
@@ -576,9 +595,9 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
     keep_ids : bool
         If True then the IDs of reads are stored. False by default.
     '''
-    
+
     if isinstance(genome_db, str):
-        genome_db = mirnylib.genome.Genome(genome_db)        
+        genome_db = mirnylib.genome.Genome(genome_db)
     assert isinstance(genome_db, mirnylib.genome.Genome)
 
     # Parse the single-sided reads.
@@ -603,7 +622,7 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
             (sam_basename1, sam_basename2))
 
     # Pair single-sided reads and write into the output.
-    for i in [1,2]:
+    for i in [1, 2]:
         sorting = np.searchsorted(all_ids, ss_lib[i]['ids'])
         for key in ss_lib[i].keys():
             # Create empty arrays if input is empty.
@@ -612,18 +631,18 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
                 continue
 
             # Don't save ids and seqs if not requested.
-            if key=='ids' and not keep_ids:
+            if key == 'ids' and not keep_ids:
                 continue
-            if key=='seq' and not max_seq_len:
+            if key == 'seq' and not max_seq_len:
                 continue
 
             # The default value is -1 for an undefined cut site and chromosome
             # and 0 for other data.
-            if key=='cuts' or key=='chrms':
-                buf = -1 * np.ones(shape=tot_num_reads, 
+            if key == 'cuts' or key == 'chrms':
+                buf = -1 * np.ones(shape=tot_num_reads,
                                    dtype=ss_lib[i].value_dtype(key))
             else:
-                buf = np.zeros(shape=tot_num_reads, 
+                buf = np.zeros(shape=tot_num_reads,
                                dtype=ss_lib[i].value_dtype(key))
 
             buf[sorting] = ss_lib[i][key]
@@ -637,4 +656,3 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
     out_dict['misc'] = misc_dict
 
     return out_dict
-
