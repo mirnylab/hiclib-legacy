@@ -338,6 +338,7 @@ class binnedData(object):
             print "Genome length mismatch!!!"
             print "source genome", len(alldata["heatmap"])
             print "our genome", self.genome.numBins
+            print "Check for readChrms parameter when you identify the genome"
             raise StandardError("Genome size mismatch! ")
 
     def export(self, name, out_filename):
@@ -460,7 +461,7 @@ class binnedData(object):
             newmask = countsum >= np.percentile(countsum[datamask], cutoff)
             mask *= newmask
             statmask[(newmask == False) * (datamask == True)] = True
-        print "removed %d poor bins", statmask.sum()
+        print "removed {} poor bins".format(statmask.sum())
         inds = np.nonzero(mask == False)
 
         for i in self.dataDict.values():

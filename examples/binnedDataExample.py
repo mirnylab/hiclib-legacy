@@ -134,7 +134,7 @@ def doReconstructedArmPlot(filename=GM1M, genome=myGenome,
     PCs = Tanay.EigDict["GM-all"][usePCs]
     eigenvalues = Tanay.eigEigenvalueDict["GM-all"][usePCs]
 
-    proj = reduce(lambda x, y: x + y, 
+    proj = reduce(lambda x, y: x + y,
                   [PCs[i][:, None] * PCs[i][None, :] * \
                    eigenvalues[i] for i in xrange(len(PCs))])
     mask = PCs[0] != 0
