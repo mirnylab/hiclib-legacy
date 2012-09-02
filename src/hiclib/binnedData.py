@@ -307,7 +307,9 @@ class binnedData(object):
         ----------
 
         in_data : str or dict-like
-            h5dict filename or dictionary-like object with input data
+            h5dict filename or dictionary-like object with input data,
+            stored under the key "heatmap", and a vector of SS reads,
+            stored under the key "singles".
         name : str
             Key under which to store dataset in self.dataDict
 

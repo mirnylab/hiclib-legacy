@@ -47,7 +47,8 @@ Installation
 
 
 .. note:: Library was tested only under Linux environment, but is in principle platform-independent with some adjustments.
-Windows/MAC users should take care of  Cython and corresponding C compiler themselves.
+
+Windows/MAC users should take care of  Cython and corresponding C compiler themselves. Mapping is not be windows-compatible. 
 
 To install the library under linux, please run install_linux.py in the hiclib/src directory. 
 This will add hiclib to PYTHONPATH (in .bashrc & .bash_profile), what will make 
@@ -57,42 +58,50 @@ You can then import hiclib sub-modules as "import hiclib.binnedData", etc.
 Windows/MAC users should add this directory to PYTHONPATH manually. 
 
 
+
 Requirements
 ------------
 
 You will need mirnylib library to use this library. 
 Mirnylib library is publicly available at https://bitbucket.org/mirnylab/mirnylib. 
 
-Both libraries are library not compatible with python 2.5 and python 3.x, but work fine with python 2.6, 2.7.
+.. note:: Failure during installation of mirnylib often means that cython is not up to date. 
 
-However, it might require a newer versions of python packages (specifically numpy and scipy), than those available with python 2.6-equipped linux distributions (e.g. Ubuntu 10.04 LTS, ubuntu 11.04+ works fine!).
+Both libraries are not compatible with python 2.5 and python 3.x, but work fine with python 2.6, 2.7.
+
+However, it might require a newer versions of python packages (specifically numpy and scipy), than those available with python 2.6-equipped linux distributions (e.g. Ubuntu 10.04 LTS, ubuntu 11.04+ is mostly fine). 
 
 Hiclib requires the following python libraries: cython (0.16+), joblib (0.6.3+), h5py, pysam, numpy(1.6+) , scipy, matplotlib, biopython, bx-python (preferably from bitbucket repo by james_taylor)
 
 Hiclib requires following non-python binaries to be installed: samtools
 
-If you're upgrading numpy/scipy/matplotlib using pip (pip install --upgrade numpy), be sure to delete/replace the original package. 
+If you're upgrading numpy/scipy/matplotlib/cython using pip (pip install --upgrade numpy), be sure to delete/replace the original package.
 Often pip installs new package to a different location, and python still loads the old copy as it looks there first.
-You might need to specifically delete files corresponding to the original package, as running "apt-get remove python-numpy" might take down a significant number of packages. Locations of files can be determined from the python console by >>>print numpy.__file__, and version by >>>print numpy.__version__.
+First attempt to remove original package using apt-get remove or aptitude remove.
+However, if this asks you to remove a ton of dependent packages, you need to specifically delete files corresponding to the original package. 
+Current version and location of package files can be determined from the python console 
+by executing, e.g., >>>print numpy.__version__. and >>>print numpy.__file__
 
-Obsolete versions of certain packages may lead to unpredicted errors. Please refer to troubleshooting guide for a list of known errors! 
+Obsolete versions of certain packages may lead to unpredicted errors. 
+Please refer to troubleshooting guide for a list of known errors! 
          
 Hardware requirements
 ---------------------
 
 Fragment-based analysis uses HDD to store all the information about the reads. 
 However, at each point in time a few individual tracks are loaded to RAM to perform certain analysis. 
-Memory requirements for this part can be estimated as 20-40 bytes per read, dependent on the number of filters used. 
-For example, a 400 mln read Hi-C dataset will require no more than 20GB RAM. 
+Memory requirements for this part can be estimated as 20-30 bytes per read, dependent on the number of filters used. 
+For example, a 500 mln read Hi-C dataset will require no more than 16GB RAM. 
 We're working on rewriting the core of the library to consume less memory. 
-If you found a bottleneck, which can be easily fixed, please let us know and we'll fix it. 
+If you found a bottleneck, which can be easily fixed, please let us know and we'll fix it.
 
-Binned data analysis uses RAM to store all the heatmaps. Application of certain filters will create a copy of a heatmap, one at a time, even if multiple datasets are loaded. 
+Binned data analysis uses RAM to store all the heatmaps.
+Application of certain filters will create a copy of a heatmap, one at a time, even if multiple datasets are loaded. 
 For example, working with 3 datasets at 200-kb resolution will require: 
 (3 GB/200kb)^2 * (8 bytes per float64) * (3 datasets + 1 extra) = 8 GB RAM
 
 Timewise, fragment-based correction of a dataset is relatively quick, being about an hour for 500 million raw reads.
-Binned data analysis performance depends on resolution only, usually being of the order of seconds for 1M-resolution analysis, and scaling as (1/resolution^2), 
+Binned data analysis performance depends on resolution only, usually being of the order of seconds for 1M-resolution analysis, and scaling as (1/resolution^2),
 reaching few minutes for 200kb resolution, and tens minutes for 100kb. 
 
 Overall, time-limiting step is mapping, and it's the only part of the code that is well-paralellized.
@@ -128,7 +137,8 @@ It stores all the data in an h5dict, and modifies it as the analysis goes.
 
 An example script shows how  fragment-level analysis can be used to merge multiple datasets together, filter them and save heatmaps to an h5dict.
 
-Heatmaps and vectors of SS reads are then passed to a binnedData class, that can be used to further filter the Hi-C data,
+Heatmaps and vectors of SS reads are then exported by fragment-level analysis to an h5dict, that can be passe to a binnedData class. 
+BinnedData class will load this h5dict, or any other dict-like object,
 perform multiple types of iterative correction and eigenvector expansion, and compare results with different genomic tracks.
 
 
