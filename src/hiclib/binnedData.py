@@ -1,3 +1,50 @@
+# Copyright (C) 2010-2012 Leonid Mirny lab (mirnylab.mit.edu)
+# Code written by: Maksim Imakaev (imakaev@mit.edu)
+# Copyright-related contact: Leonid Mirny (leonid@mit.edu)
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted for academic users only, provided that the
+# conditions listed below are met.
+#
+# All other users may use this software for evaluation purposes only.
+# Modifications, redistribution and commercial use of this software is
+# permitted only with written permission of Leonid Mirny.
+#
+#  **List of conditions for academic users**
+#
+# 1. The User must be a faculty member, student or researcher of a
+#    degree-granting institution, and must use this software for the main
+#    purpose of non-profit scientific research.
+#
+# 2. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#
+# 3. Redistributions in binary form must reproduce the above
+#    copyright notice, this list of conditions and the following
+#    disclaimer in the documentation and/or other materials provided
+#    with the distribution.
+#
+# 4. The name of the author may not be used to endorse or promote
+#    products derived from this software without specific prior
+#    written permission.
+#
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS
+# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# **End copyright part**
+
+#TODO:(MI) Distribute licence to other parts of the code
+#once approved by Leonid
+
 """
 Binned data - analysis of HiC, binned to resolution.
 
@@ -151,7 +198,8 @@ import warnings
 from mirnylib.plotting import removeBorder
 from mirnylib.numutils import PCA, EIG, correct, \
     ultracorrectSymmetricWithVector, isInteger, \
-    observedOverExpected, ultracorrect
+    observedOverExpected, ultracorrect, adaptiveSmoothing, fillDiagonal, \
+    removeDiagonals
 from mirnylib.genome import Genome
 import numpy as np
 from math import exp
@@ -159,6 +207,7 @@ from mirnylib.h5dict import h5dict
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt
 from mirnylib.numutils import removeDiagonalImpl, fakeCisImpl
+from mirnylib.systemutils import setExceptionHook
 
 
 class binnedData(object):
@@ -250,7 +299,7 @@ class binnedData(object):
         might be bad to apply"""
         for value in self.dataDict.values():
 
-            if isInteger(value).all() == True:
+            if isInteger(value) == True:
                 s = np.sum(value, axis=0)
                 sums = np.sort(s[s != 0])
                 if sums[0] < 100:
@@ -299,6 +348,37 @@ class binnedData(object):
             print "Adviced operations:", advicedKeys
             print "Applied operations:", self.appliedOperations
             warnings.warn("\nNot all adviced filters applied")
+
+    def _recoverOriginalReads(self, key):
+        """Attempts to recover original read counts from the data
+        If data is integer, returns data.
+        If not, attepts to revert iterative correction
+        and return original copy.
+
+        This method does not modify the dataset!
+        """
+        data = self.dataDict[key]
+        if "Corrected" not in self.appliedOperations:
+            if isInteger(data):
+                return data
+            else:
+                warnings.warn("Data was not corrected, but is not integer")
+                return None
+        else:
+            if key not in self.biasDict:
+                warnings.warn("Correction was applied, "
+                              "but bias information is missing!")
+                return None
+            bias = self.biasDict[key]
+
+            data1 = data * bias[:, None]
+            data1 *= bias[None, :]
+            if isInteger(data1):
+                return data1
+            else:
+                warnings.warn("Attempted recovery of reads, but "
+                              "data is not integer")
+                return None
 
     def simpleLoad(self, in_data, name):
         """Loads data from h5dict file or dict-like object
@@ -402,8 +482,9 @@ class binnedData(object):
         for i in self.dataDict.keys():
             self.dataDict[i] = np.asarray(
                 self.dataDict[i], dtype=np.double, order="C")
-            removeDiagonalImpl(self.dataDict[i], m)
+            removeDiagonals(self.dataDict[i], m)
         self.appliedOperations["RemovedDiagonal"] = True
+        self.removedDiagonalValue = m
 
     def removeStandalone(self, offset=3):
         """removes standalone groups of bins
@@ -425,8 +506,9 @@ class binnedData(object):
         for i in xrange(len(newbegins)):
             mask[newbegins[i]:newends[i]] = False
         mask2D = mask[:, None] * mask[None, :]
+        antimask = np.nonzero(mask2D.flat == False)[0]
         for i in self.dataDict.values():
-            i[mask2D == False] = 0
+            i[antimask] = 0
         self.appliedOperations["RemovedStandalone"] = True
 
     def removeBySequencedCount(self, sequencedFraction=0.5):
@@ -639,7 +721,6 @@ class binnedData(object):
         force : bool, optional
             Ignore warnings and pre-requisite filters
         """
-        #TODO:(MIU) Urgent: Rewrite using bias return, add biases
         if force == False:
             self._checkItertiveCorrectionError()
             self._checkAppliedOperations(advicedKeys=[
@@ -652,6 +733,8 @@ class binnedData(object):
                 self.dataDict[i], M=M)
             self.dataDict[i] = data
             self.biasDict[i] = bias
+            if i in self.singlesDict:
+                self.singlesDict[i] /= bias
         self.appliedOperations["Corrected"] = True
 
     def iterativeCorrectWithSS(self, names=None, M=55, force=False):
@@ -687,6 +770,120 @@ class binnedData(object):
             self.biasDict[i] = nbias
 
         self.appliedOperations["Corrected"] = True
+
+    def adaptiveSmoothing(self, smoothness, useOriginalReads="try",
+                                 names=None, rawReadDict=None):
+        """
+        Performs adaptive smoothing of Hi-C datasets.
+
+        Adaptive smoothing attempts to smooth low-count, "sparce" part
+        of a Hi-C matrix, while keeping the contrast in a high-count
+        "diagonal" part of the matrix.
+
+        It does it by blurring each bin pair value into a gaussian, which
+        should encoumpass at least **smoothness** raw reads. However, only
+        half of reads from each bin pair is counted into this gaussian, while
+        full reads from neighboring bin pairs are counted.
+
+        To summarize:
+
+        If a bin pair contains #>2*smoothness reads, it is kept intact.
+
+        If a bin pair contains #<2*smoothness reads, reads around bin pair
+        are counted, and a bin pair is smoothed to a circle (gaussian),
+        containing smoothness - (#/2) reads.
+
+        A standalone read in a sparce part of a matrix is smoothed to a
+        circle (gaussian) that encoumpasses smoothness reads.
+
+        .. note::
+            This algorithm can smooth any heatmap, e.g. corrected one.
+            However, ideally it needs to know raw reads to correctly leverage
+            the contribution from different bins.
+            By default, it attempts to recover raw reads. However, it
+            can do so only after single iterative correction.
+            If used after fakeCis method, it won't use raw reads, unless
+            provided externally.
+
+        .. warning::
+            Note that if you provide raw reads externally, you would need
+            to make a copy of dataDict prior to filtering the data,
+            not just a reference to it. Like
+            >>>for i in keys: dataCopy[i] = self.dataDict[i].copy()
+
+        Parameters
+        ----------
+
+        smoothness : float, positive. Often >1.
+            Parameter of smoothness as described above
+
+        useOriginalReads : bool or "try"
+            If True, requires to recover original reads for smoothness
+            If False, treats heatmap data as reads
+            If "try", attempts to recover original reads;
+            otherwise proceeds with heatmap data.
+        rawReadDict : dict
+            A copy of self.dataDict with raw reads
+
+        """
+        if names is None:
+            names = self.dataDict.keys()
+        mask2D = self._giveMask2D()
+
+        #If diagonal was removed, we should remember about it!
+        if hasattr(self, "removedDiagonalValue"):
+            removeDiagonals(mask2D, self.removedDiagonalValue)
+
+        for name in names:
+            data = self.dataDict[name]
+
+            if useOriginalReads is not False:
+                if rawReadDict is not None:
+                    #raw reads provided externally
+                    reads = rawReadDict[name]
+                else:
+                    #recovering raw reads
+                    reads = self._recoverOriginalReads(name)
+
+                if reads is None:
+                    #failed to recover reads
+                    if useOriginalReads == True:
+                        raise RuntimeError("Cannot recover original reads!")
+            else:
+                #raw reads were not requested
+                reads = None
+
+            if reads is None:
+                reads = data  # Feed this to adaptive smoothing            
+
+            smoothed = np.zeros_like(data, dtype=float)
+            N = self.chromosomeCount
+            for i in xrange(N):
+                for j in xrange(N):
+                    st1 = self.chromosomeStarts[i]
+                    st2 = self.chromosomeStarts[j]
+                    end1 = self.chromosomeEnds[i]
+                    end2 = self.chromosomeEnds[j]
+                    cur = data[st1:end1, st2:end2]
+                    curReads = reads[st1:end1, st2:end2]
+                    curMask = mask2D[st1:end1, st2:end2]
+
+                    s = adaptiveSmoothing(matrix=cur,
+                                         parameter=smoothness,
+                                         alpha=0.5,
+                                         mask=curMask,
+                                         originalCounts=curReads)
+                    smoothed[st1:end1, st2:end2] = s
+            self.dataDict[name] = smoothed
+        self.appliedOperations["Smoothed"] = True
+
+
+
+
+
+
+
+
 
     def removeChromosome(self, chromNum):
         """removes certain chromosome from all tracks and heatmaps,
