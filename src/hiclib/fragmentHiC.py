@@ -223,6 +223,11 @@ class HiCdataset(object):
                                   os.path.split(self.filename)[0])
 
         self.h5dict = h5dict(self.filename, mode=mode, in_memory=inMemory)
+        try:
+            self.DSNum = self.DS.sum()
+        except:
+            pass
+
 
     def _setData(self, name, data):
         "an internal method to save numpy arrays to HDD quickly"
