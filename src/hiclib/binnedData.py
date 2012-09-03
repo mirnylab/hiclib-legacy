@@ -206,7 +206,7 @@ from math import exp
 from mirnylib.h5dict import h5dict
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt
-from mirnylib.numutils import removeDiagonalImpl, fakeCisImpl
+from mirnylib.numutils import  fakeCisImpl
 from mirnylib.systemutils import setExceptionHook
 
 
