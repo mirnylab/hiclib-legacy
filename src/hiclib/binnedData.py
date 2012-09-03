@@ -45,6 +45,8 @@
 #TODO:(MI) Distribute licence to other parts of the code
 #once approved by Leonid
 
+#TODO:(MIU) Write tests for this module!
+
 """
 Binned data - analysis of HiC, binned to resolution.
 
@@ -410,11 +412,11 @@ class binnedData(object):
             self.fragsDict[name] = alldata["frags"]
         except:
             pass
-
-        if self.resolution != alldata["resolution"]:
-            print "resolution mismatch!!!"
-            print "--------------> Bye <-------------"
-            raise StandardError("Resolution mismatch! ")
+        if "resolution" in alldata:
+            if self.resolution != alldata["resolution"]:
+                print "resolution mismatch!!!"
+                print "--------------> Bye <-------------"
+                raise StandardError("Resolution mismatch! ")
 
         if self.genome.numBins != len(alldata["heatmap"]):
             print "Genome length mismatch!!!"
