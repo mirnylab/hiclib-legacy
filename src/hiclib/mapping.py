@@ -23,7 +23,6 @@ import mirnylib.genome
 
 ##TODO: write some autodetection of chromosome lengthes base on genome folder
 ##TODO: throw an exception if no chromosomes found in chromosome folder
-
 ##TODO: fix #-to-ID correspondence for other species.
 
 logging.basicConfig(level=logging.NOTSET)

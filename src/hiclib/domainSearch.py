@@ -29,7 +29,7 @@ class gradientDescentDomains:
         """
         "Unwrapping" function that reverts wrapping
         """
-        return numpy.sign(x) * ((numpy.abs(x) + 1.) ** \
+        return numpy.sign(x) * ((numpy.abs(x) + 1.) **
                                 (1. / self.wrapPower) - 1)
 
     def diffWrap(self, x):
@@ -102,8 +102,9 @@ class gradientDescentDomains:
         gradient = self.gradientFunction
         scipy.optimize.fmin_cg(energy,
                                numpy.r_[(numpy.random.random(self.N) + 0.5),
-                                    numpy.random.random(self.N) * 0.2 - 0.1],
-                                    gradient, gtol=0.5, maxiter=400)
+                                        numpy.random.random(
+                                            self.N) * 0.2 - 0.1],
+                               gradient, gtol=0.5, maxiter=400)
 
         #g = scipy.optimize.fmin_cg(self.funExp,
         #numpy.random.random(2 * self.N)+0.5,self.gradientExp, gtol=1)

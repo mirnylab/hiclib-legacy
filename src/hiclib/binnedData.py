@@ -149,8 +149,8 @@ import os
 from mirnylib import numutils
 import warnings
 from mirnylib.plotting import removeBorder
-from mirnylib.numutils import PCA, EIG, correct,\
-    ultracorrectSymmetricWithVector, isInteger,\
+from mirnylib.numutils import PCA, EIG, correct, \
+    ultracorrectSymmetricWithVector, isInteger, \
     observedOverExpected, ultracorrect
 from mirnylib.genome import Genome
 import numpy as np
@@ -222,8 +222,8 @@ class binnedData(object):
         self.chromosomeIndex = self.genome.chrmIdxBinCont
         self.positionIndex = self.genome.posBinCont
         self.armIndex = self.chromosomeIndex * 2 + \
-        np.array(self.positionIndex > self.genome.cntrMids
-                 [self.chromosomeIndex], int)
+            np.array(self.positionIndex > self.genome.cntrMids
+                     [self.chromosomeIndex], int)
 
     def _giveMask(self):
         "Returns index of all bins with non-zero read counts"
@@ -255,7 +255,7 @@ class binnedData(object):
                 sums = np.sort(s[s != 0])
                 if sums[0] < 100:
                     error = int(100. / np.sqrt(sums[0]))
-                    message1 = "Lowest 5 sums of an array rows are: " +\
+                    message1 = "Lowest 5 sums of an array rows are: " + \
                         str(sums[:5])
                     warnings.warn("\n%s\nIterative correction will lead to \
                     about %d %% relative error for certain columns" %
@@ -343,7 +343,7 @@ class binnedData(object):
             print "Check for readChrms parameter when you identify the genome"
             raise StandardError("Genome size mismatch! ")
 
-    def export(self, name, out_filename):
+    def export(self, name, outFilename, byChromosome=False, **kwargs):
         """
         Exports current heatmaps and SS files to an h5dict.
 
@@ -351,22 +351,42 @@ class binnedData(object):
         ----------
         name : str
             Key for the dataset to export
-        out_filename : str
+        outFilename : str
             Where to export
+        byChromosome : bool or "cis" or "all"
+            save by chromosome heatmaps.
+            Ignore SS reads. 
+            True means "all"
         """
+        if "out_filename" in kwargs.keys():
+            raise ValueError("out_filename replaced with outFilename!")
 
         if name not in self.dataDict:
             raise ValueError("No data {name}".format(name=name))
         toexport = {}
-        toexport["heatmap"] = self.dataDict[name]
-        if name in self.singlesDict:
-            toexport["singles"] = self.singlesDict[name]
-        if name in self.fragsDict:
-            toexport["frags"] = self.fragsDict[name]
+        if byChromosome is False:
+            toexport["heatmap"] = self.dataDict[name]
+            if name in self.singlesDict:
+                toexport["singles"] = self.singlesDict[name]
+            if name in self.fragsDict:
+                toexport["frags"] = self.fragsDict[name]
+
+        else:
+            hm = self.dataDict[name]
+            for i in xrange(self.genome.chrmCount):
+                for j in xrange(self.genome.chrmCount):
+                    if (byChromosome == "cis") and (i != j):
+                        continue
+                    st1 = self.chromosomeStarts[i]
+                    end1 = self.chromosomeEnds[i]
+                    st2 = self.chromosomeStarts[j]
+                    end2 = self.chromosomeEnds[j]
+                    toexport["heatmap{0} {1}".format(i, j)] = hm[st1:end1,
+                                                                 st2:end2]
 
         toexport["resolution"] = self.resolution
         toexport["genome"] = self.genome.folderName
-        myh5dict = h5dict(out_filename, mode="w")
+        myh5dict = h5dict(outFilename, mode="w")
         myh5dict.update(toexport)
 
     def removeDiagonal(self, m=1):
@@ -438,8 +458,8 @@ class binnedData(object):
             nzmask[mask] = nzmask[mask] + sumData
             i[mask, :] = 0
             i[:, mask] = 0
-        print "Removing %d bins with <%lf %% coverage by sequenced reads" %\
-        ((nzmask > 0).sum(), 100 * sequencedFraction)
+        print "Removing %d bins with <%lf %% coverage by sequenced reads" % \
+            ((nzmask > 0).sum(), 100 * sequencedFraction)
         self.appliedOperations["RemovedUnsequenced"] = True
         pass
 
@@ -531,12 +551,12 @@ class binnedData(object):
         for key in self.dataDict.keys():
             data = np.asarray(self.dataDict[key], order="C", dtype=float)
             if mask == "CisCounts":
-                _mask = np.array(self.chromosomeIndex[:, None] == \
+                _mask = np.array(self.chromosomeIndex[:, None] ==
                                  self.chromosomeIndex[None, :], int, order="C")
             else:
                 assert mask.shape == self.dataDict.values()[0].shape
                 _mask = np.array(mask, dtype=int, order="C")
-                _mask[self.chromosomeIndex[:, None] == \
+                _mask[self.chromosomeIndex[:, None] ==
                       self.chromosomeIndex[None, :]] = 2
             s = np.abs(np.sum(data, axis=0)) <= 1e-10
             _mask[:, s] = 2
@@ -619,7 +639,7 @@ class binnedData(object):
         force : bool, optional
             Ignore warnings and pre-requisite filters
         """
-
+        #TODO:(MIU) Urgent: Rewrite using bias return, add biases
         if force == False:
             self._checkItertiveCorrectionError()
             self._checkAppliedOperations(advicedKeys=[
@@ -628,9 +648,10 @@ class binnedData(object):
         if names is None:
             names = self.dataDict.keys()
         for i in names:
-            self.dataDict[i] = ultracorrectSymmetricWithVector(
-                self.dataDict[i], M=M)[0]
-
+            data, dummy, bias = ultracorrectSymmetricWithVector(
+                self.dataDict[i], M=M)
+            self.dataDict[i] = data
+            self.biasDict[i] = bias
         self.appliedOperations["Corrected"] = True
 
     def iterativeCorrectWithSS(self, names=None, M=55, force=False):
@@ -658,12 +679,12 @@ class binnedData(object):
         for i in names:
             data = self.dataDict[i]
             vec = self.singlesDict[i]
-            ndata, nvec = ultracorrectSymmetricWithVector(data, vec, M=M)
+            ndata, nvec, nbias = ultracorrectSymmetricWithVector(data, vec, M=M)
             self.dataDict[i] = ndata
             self.singlesDict[i] = nvec
             vec[nvec == 0] = 1
             nvec[nvec == 0] = 1
-            self.biasDict[i] = (vec / nvec)
+            self.biasDict[i] = nbias
 
         self.appliedOperations["Corrected"] = True
 
@@ -1146,14 +1167,14 @@ class binnedDataAnalysis(binnedData):
             for chrom2 in xrange(self.chromosomeCount):
                 for i in self.dataDict.keys():
                     value = self.dataDict[i]
-                    submatrix = value[self.chromosomeStarts[chrom1]:\
+                    submatrix = value[self.chromosomeStarts[chrom1]:
                                       self.chromosomeEnds[chrom1],
-                                      self.chromosomeStarts[chrom2]:\
+                                      self.chromosomeStarts[chrom2]:
                                       self.chromosomeEnds[chrom2]]
                     masksum = np.sum(
-                        mask2D[self.chromosomeStarts[chrom1]:\
+                        mask2D[self.chromosomeStarts[chrom1]:
                                self.chromosomeEnds[chrom1],
-                               self.chromosomeStarts[chrom2]:\
+                               self.chromosomeStarts[chrom2]:
                                self.chromosomeEnds[chrom2]])
                     valuesum = np.sum(submatrix)
                     mean = valuesum / masksum
@@ -1271,7 +1292,7 @@ class experimentalBinnedData(binnedData):
             for s in xrange(5):
                 s  # to remove warning
                 weave.inline(code, ['transmask', 'mask', 'data', "N"],
-                             extra_compile_args=['-march=native'\
+                             extra_compile_args=['-march=native'
                                                    ' -malign-double -O3'],
                              support_code=support)
                 data = correct(data)
@@ -1306,8 +1327,6 @@ class experimentalBinnedData(binnedData):
         Import from fixedStep wig files is very fast,
         however is not the most reliable.
 
-        TODO: rewrite parser to support any resolution.
-
         for VariableStep files use wigToBigWig utility to convert
         them to bigWig format first.
         To use it you will also need to have fetchChromSizes script.
@@ -1328,6 +1347,7 @@ class experimentalBinnedData(binnedData):
         fixed my issue # 39 :)
         https://bitbucket.org/james_taylor/bx-python/overview
         """
+        #TODO:(MI) rewrite parser to support any resolution.
 
         filename = os.path.abspath(filename)
 
@@ -1387,7 +1407,7 @@ class experimentalBinnedData(binnedData):
                 if max(vmasksum, cmasksum) / (1. * min(vmasksum, cmasksum)) \
                 > 1.3:
                     warnings.warn("\nBig deviation: number of non-zero \
-                    data points: %s, control points:%s." \
+                    data points: %s, control points:%s."
                     % (vmasksum, cmasksum))
                 value[-keepmask] = 0
                 value[keepmask] = value[keepmask] / chromControl[keepmask]
@@ -1422,9 +1442,9 @@ class experimentalBinnedData(binnedData):
             raise StandardError("Erez eigenvector is only at 1MB resolution")
         if self.genome.folderName != "hg18":
             raise StandardError("Erez eigenvector is for hg18 only!")
-        folder = os.path.join(erezFolder, "GM-combined.ctgDATA1.ctgDATA1."\
+        folder = os.path.join(erezFolder, "GM-combined.ctgDATA1.ctgDATA1."
         "1000000bp.hm.eigenvector.tab")
-        folder2 = os.path.join(erezFolder, "GM-combined.ctgDATA1.ctgDATA1."\
+        folder2 = os.path.join(erezFolder, "GM-combined.ctgDATA1.ctgDATA1."
         "1000000bp.hm.eigenvector2.tab")
         eigenvector = np.zeros(self.genome.numBins, float)
         for chrom in range(1, 24):
@@ -1486,6 +1506,6 @@ class experimentalBinnedData(binnedData):
         for i in xrange(self.genome.chrmCount):
             for j in xrange((self.genome.chrmLens[i] / self.resolution)):
                 domains[self.genome.chrmStartsBinCont[i] + j] = \
-                result[i][(j * len(result[i]) / ((self.genome.chrmLens[i] /\
+                result[i][(j * len(result[i]) / ((self.genome.chrmLens[i] /
                                                    self.resolution)))]
         self.trackDict['TanayDomains'] = domains
