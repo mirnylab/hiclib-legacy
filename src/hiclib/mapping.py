@@ -1,3 +1,21 @@
+# Copyright (C) 2010-2012 Leonid Mirny lab (mirnylab.mit.edu)
+# Code written by: Anton Goloborodko (golobor@mit.edu)
+# For questions regarding using and/or distributing this code
+# please contact Leonid Mirny (leonid@mit.edu)
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS
+# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
 '''
 mapping - map raw Hi-C reads to a genome
 ========================================
@@ -453,7 +471,7 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
 
 
 def _parse_ss_sams(sam_basename, out_dict, genome_db,
-                   max_seq_len=-1, reverse_complement=False):
+                   max_seq_len= -1, reverse_complement=False):
     """Parse SAM files with single-sided reads.
     """
     def _for_each_unique_read(sam_basename, genome_db, action):
@@ -561,7 +579,7 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
 
 
 def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
-              max_seq_len=-1, reverse_complement=False, keep_ids=False):
+              max_seq_len= -1, reverse_complement=False, keep_ids=False):
     '''Parse SAM/BAM files with HiC reads.
 
     Parameters

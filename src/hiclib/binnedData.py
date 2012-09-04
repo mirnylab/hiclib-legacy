@@ -1,33 +1,7 @@
 # Copyright (C) 2010-2012 Leonid Mirny lab (mirnylab.mit.edu)
 # Code written by: Maksim Imakaev (imakaev@mit.edu)
-# Copyright-related contact: Leonid Mirny (leonid@mit.edu)
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted for academic users only, provided that the
-# conditions listed below are met.
-#
-# All other users may use this software for evaluation purposes only.
-# Modifications, redistribution and commercial use of this software is
-# permitted only with written permission of Leonid Mirny.
-#
-#  **List of conditions for academic users**
-#
-# 1. The User must be a faculty member, student or researcher of a
-#    degree-granting institution, and must use this software for the main
-#    purpose of non-profit scientific research.
-#
-# 2. Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-#
-# 3. Redistributions in binary form must reproduce the above
-#    copyright notice, this list of conditions and the following
-#    disclaimer in the documentation and/or other materials provided
-#    with the distribution.
-#
-# 4. The name of the author may not be used to endorse or promote
-#    products derived from this software without specific prior
-#    written permission.
-#
+# For questions regarding using and/or distributing this code
+# please contact Leonid Mirny (leonid@mit.edu)
 #
 # THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS
 # OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -40,10 +14,8 @@
 # WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# **End copyright part**
 
-#TODO:(MI) Distribute licence to other parts of the code
-#once approved by Leonid
+
 
 #TODO:(MIU) Write tests for this module!
 
@@ -437,7 +409,7 @@ class binnedData(object):
             Where to export
         byChromosome : bool or "cis" or "all"
             save by chromosome heatmaps.
-            Ignore SS reads. 
+            Ignore SS reads.
             True means "all"
         """
         if "out_filename" in kwargs.keys():
@@ -856,7 +828,7 @@ class binnedData(object):
                 reads = None
 
             if reads is None:
-                reads = data  # Feed this to adaptive smoothing            
+                reads = data  # Feed this to adaptive smoothing
 
             smoothed = np.zeros_like(data, dtype=float)
             N = self.chromosomeCount
@@ -878,14 +850,6 @@ class binnedData(object):
                     smoothed[st1:end1, st2:end2] = s
             self.dataDict[name] = smoothed
         self.appliedOperations["Smoothed"] = True
-
-
-
-
-
-
-
-
 
     def removeChromosome(self, chromNum):
         """removes certain chromosome from all tracks and heatmaps,
