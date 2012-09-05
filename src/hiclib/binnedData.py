@@ -683,7 +683,8 @@ class binnedData(object):
         """
         self.iterativeCorrectWithoutSS(names, M=1)
 
-    def iterativeCorrectWithoutSS(self, names=None, M=50, force=False):
+    def iterativeCorrectWithoutSS(self, names=None, M=None, force=False,
+                                  tolerance=1e-5):
         """performs iterative correction without SS
 
         Parameters
@@ -704,14 +705,15 @@ class binnedData(object):
             names = self.dataDict.keys()
         for i in names:
             data, dummy, bias = ultracorrectSymmetricWithVector(
-                self.dataDict[i], M=M)
+                self.dataDict[i], M=M, tolerance=tolerance)
             self.dataDict[i] = data
             self.biasDict[i] = bias
             if i in self.singlesDict:
                 self.singlesDict[i] /= bias
         self.appliedOperations["Corrected"] = True
 
-    def iterativeCorrectWithSS(self, names=None, M=55, force=False):
+    def iterativeCorrectWithSS(self, names=None, M=55, force=False,
+                               tolerance=1e-5):
         """performs iterative correction with SS
 
         Parameters
@@ -736,7 +738,9 @@ class binnedData(object):
         for i in names:
             data = self.dataDict[i]
             vec = self.singlesDict[i]
-            ndata, nvec, nbias = ultracorrectSymmetricWithVector(data, vec, M=M)
+            ndata, nvec, nbias = ultracorrectSymmetricWithVector(data,
+                                                     vec, M=M,
+                                                     tolerance=tolerance)
             self.dataDict[i] = ndata
             self.singlesDict[i] = nvec
             vec[nvec == 0] = 1
@@ -1470,7 +1474,7 @@ class experimentalBinnedData(binnedData):
         names : list of str or None, optional
             Keys of datasets to be corrected. By default, all are corrected.
         """
-
+        self.appliedOperations["Corrected"] = True
         if names is None:
             names = self.dataDict.keys()
         self.transmap = self.chromosomeIndex[:,
@@ -1479,7 +1483,7 @@ class experimentalBinnedData(binnedData):
         for i in names:
             data = self.dataDict[i]
             self.dataDict[i], self.biasDict[i] = \
-            numutils.ultracorrectSymmetricByMask(data, self.transmap, 50)
+            numutils.ultracorrectSymmetricByMask(data, self.transmap, M=None)
             try:
                 self.singlesDict[i] /= self.biasDict[i]
             except:

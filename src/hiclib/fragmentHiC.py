@@ -832,8 +832,10 @@ class HiCdataset(object):
 
         Parameters
         ----------
-        Resolution : int
+        resolution : int
             Resolution of a heatmap
+        countDiagonalReads : "once" or "twice"
+            How many times to count reads in the diagonal bin
         """
         #8 bytes per record + heatmap
         self.genome.setResolution(resolution)
@@ -1154,7 +1156,12 @@ class HiCdataset(object):
         Parameters
         ----------
         filename : str
+            Filename of the output h5dict
         resolution : int
+            Resolution of an all-by-all heatmap
+        countDiagonalReads : "once" or "twice"
+            How many times to count reads in the diagonal bin
+        
         """
 
         try:
@@ -1189,8 +1196,8 @@ class HiCdataset(object):
         where chromosomes are zero-based,
         and there is one space between numbers.
 
-        .. warning :: Chromosomes are zero-based.
-        Only "chr3" means one-based in this package.
+        .. warning :: Chromosome numbers are always zero-based.
+        Only "chr3" labels are one-based in this package.
 
         Parameters
         ----------
@@ -1201,6 +1208,8 @@ class HiCdataset(object):
             Resolution to save heatmaps
         includeTrans : bool, optional
             Build inter-chromosomal heatmaps (default: False)
+        countDiagonalReads : "once" or "twice"
+            How many times to count reads in the diagonal bin
 
         """
         if countDiagonalReads.lower() not in ["once", "twice"]:
@@ -1219,6 +1228,7 @@ class HiCdataset(object):
                 mask = ((chr1 == chrom) + (chr2 == chrom)) * DS
             else:
                 mask = ((chr1 == chrom) * (chr2 == chrom))
+
             c1, c2, p1, p2 = chr1[mask], chr2[mask], pos1[mask], pos2[mask]
             mask = (c2 == chrom) * (c1 != chrom)
             c1[mask], c2[mask], p1[mask], p2[mask] = c2[mask].copy(), c1[
