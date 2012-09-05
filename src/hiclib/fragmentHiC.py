@@ -498,6 +498,7 @@ class HiCdataset(object):
         else:
             self.chrms1 = a - 1
             self.chrms2 = dictLike["chrms2"] - 1
+        self.N = len(self.chrms1)
         del a
 
         self.cuts1 = dictLike["cuts1"]
