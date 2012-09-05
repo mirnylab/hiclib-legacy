@@ -2,7 +2,7 @@ from hiclib.fragmentHiC import HiCdataset
 from mirnylib.h5dict import h5dict
 import os
 import sys
-import numpy
+import numpy as np
 from mirnylib.systemutils import setExceptionHook
 
 if os.path.exists("test-1M.hm"):
@@ -29,6 +29,7 @@ def refine_paper(filename, create=True):
             if not os.path.exists(onename):
                 raise StandardError("path not found: %s" % onename)
             TR = HiCdataset("bla", genome=genomeFolder, maximumMoleculeLength=500, mode="w", inMemory=True)
+            print "\nTesting loading new data without rsite information    "
             TR.parseInputData(dictLike=onename,
                               enzymeToFillRsites="HindIII")
             assert len(TR.DS) == 523790
@@ -42,23 +43,34 @@ def refine_paper(filename, create=True):
 
         TR = HiCdataset("refined", genome=genomeFolder,
                         mode="w", inMemory=True)
+
+        print "\nTesting chunking during all tests"
         TR.chunksize = 30000
         #because we do many operations, we disable autoFlush here
         TR.load(filename[1] + "_merged.frag")
+
+        print "\nTesting Rsite filter"
         TR.filterRsiteStart(offset=5)
         assert len(TR.DS) == 509248
+
+        print "\nTesting duplicate filter"
         TR.filterDuplicates()
         assert len(TR.DS) == 508892
-        #TR.save(filename[1]+".dat")
+
+        print "\nTesting small/large and extreme fragment filter"
         TR.filterLarge()
         assert len(TR.DS) == 506081
         TR.filterExtreme(cutH=0.005, cutL=0)
         assert len(TR.DS) == 490313
 
-    print "----->Building Raw heatmap at two resolutions"
+
+    #-------------------------------------------
+    print "Testing allxall and by-chromosome heatmap counting diagonal twice"
 
     TR.printStats()
-    TR.saveHeatmap(filename[1] + "-1M.hm", 1000000)
+    print "----> saving allxall heatmap"
+    TR.saveHeatmap(filename[1] + "-1M.hm", 1000000,
+                   countDiagonalReads="twice")
     a = h5dict(filename[1] + "-1M.hm")
     st, end = TR.genome.chrmStartsBinCont[1], TR.genome.chrmEndsBinCont[1]
     st2, end2 = TR.genome.chrmStartsBinCont[2], TR.genome.chrmEndsBinCont[2]
@@ -67,18 +79,45 @@ def refine_paper(filename, create=True):
     setExceptionHook()
     print "----> saving by chromosome heatmap"
     TR.saveByChromosomeHeatmap(
-        filename[1] + "-1M.hm", resolution=1000000, includeTrans=True)
+        filename[1] + "-1M.hm", resolution=1000000, includeTrans=True,
+        countDiagonalReads="twice")
 
     b = h5dict(filename[1] + "-1M.hm")["1 1"]
     bb = h5dict(filename[1] + "-1M.hm")["1 2"]
     assert (b - chrom1).sum() == 0
+    print "Cis heatmap consistent"
     assert (bb - chrom12).sum() == 0
-    print "    Allxall and by chromosome heatmaps are consistent"
+    print 'Trans heatmap consistent'
     assert  a["heatmap"][::10, ::10].sum() == 12726
+    print "Heatmap sum correct\n"
 
-    print "---->Testing updateGenome method"
+    #---------------------------------
+    print "Testing allxall and by-chromosome heatmap counting diagonal once"
+
+    TR.saveHeatmap(filename[1] + "-1M.hm", 1000000,
+                   countDiagonalReads="once")
+    Ta = h5dict(filename[1] + "-1M.hm")
+    st, end = TR.genome.chrmStartsBinCont[1], TR.genome.chrmEndsBinCont[1]
+    st2, end2 = TR.genome.chrmStartsBinCont[2], TR.genome.chrmEndsBinCont[2]
+    chrom1 = Ta["heatmap"][st:end, st:end]
+    chrom12 = Ta["heatmap"][st:end, st2:end2]
+    setExceptionHook()
+    print "----> saving by chromosome heatmap"
+    TR.saveByChromosomeHeatmap(
+        filename[1] + "-1M.hm", resolution=1000000, includeTrans=True,
+        countDiagonalReads="once")
+
+    Tb = h5dict(filename[1] + "-1M.hm")["1 1"]
+    Tbb = h5dict(filename[1] + "-1M.hm")["1 2"]
+    assert (Tb - chrom1).sum() == 0
+    assert (Tbb - chrom12).sum() == 0
+    assert ((Tb + np.diag(np.diag(Tb))) == b).all()
+    print "Diagonal counting methods are consistent\n"
+
+    #------------------------------
+    print "Testing updateGenome method"
     from mirnylib.genome import Genome
-    removeChromIDs = numpy.array([0, 1, 1, 1, 1] + [0] * 17 + [1] + [0])
+    removeChromIDs = np.array([0, 1, 1, 1, 1] + [0] * 17 + [1] + [0])
     #print ((removeChromIDs[TR.chrms1] == 1) + (removeChromIDs[TR.chrms2] == 1) ).sum()
     t = ((removeChromIDs[TR.chrms1] == 1) * (removeChromIDs[TR.chrms2] == 1)).sum() + ((removeChromIDs[TR.chrms1] == 1) * (TR.chrms2 == -1)).sum()
     newGenome = Genome(genomePath=genomeFolder, readChrms=["2",
@@ -87,14 +126,6 @@ def refine_paper(filename, create=True):
     assert  len(TR.DS) == t
 
     a = h5dict(filename[1] + "-1M.hm")["heatmap"]
-
-    print "----->Building RB heatmap"
-
-    TR.maskFilter((TR.dists1 > TR.maximumMoleculeLength) + (TR.dists2 >
-                                                            TR.maximumMoleculeLength) * TR.DS)
-
-    print len(TR.DS)
-    assert len(TR.DS) == 16848
 
 
 map(refine_paper,

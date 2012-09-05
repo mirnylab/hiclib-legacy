@@ -105,7 +105,7 @@ from mirnylib.h5dict import h5dict
 from mirnylib.plotting import mat_img
 from mirnylib import numutils
 from mirnylib.numutils import arrayInArray, sumByArray, \
-    uniqueIndex, chunkedUnique, fasterBooleanIndexing
+    uniqueIndex, chunkedUnique, fasterBooleanIndexing, fillDiagonal
 
 r_ = np.r_
 
@@ -826,7 +826,7 @@ class HiCdataset(object):
         else:
             return np.array(hist)
 
-    def buildAllHeatmap(self, resolution):
+    def buildAllHeatmap(self, resolution, countDiagonalReads="Once"):
         """Creates an all-by-all heatmap in accordance with mapping
         provided by 'genome' class
 
@@ -854,6 +854,13 @@ class HiCdataset(object):
         for i in xrange(len(counts)):
             counts[i, i:] += counts[i:, i]
             counts[i:, i] = counts[i, i:]
+        if countDiagonalReads.lower() == "once":
+            diag = np.diag(counts)
+            fillDiagonal(counts, diag / 2)
+        elif countDiagonalReads.lower() == "twice":
+            pass
+        else:
+            raise ValueError("Bad value for countDiagonalReads")
         return counts
 
     def buildSinglesCoverage(self, resolution):
@@ -1139,7 +1146,8 @@ class HiCdataset(object):
         if buildFragments == True:
             self.rebuildFragments()
 
-    def saveHeatmap(self, filename, resolution=1000000):
+    def saveHeatmap(self, filename, resolution=1000000,
+                    countDiagonalReads="Once"):
         """
         Saves heatmap to filename at given resolution.
 
@@ -1155,7 +1163,7 @@ class HiCdataset(object):
             pass
 
         tosave = h5dict(path=filename, mode="w")
-        heatmap = self.buildAllHeatmap(resolution)
+        heatmap = self.buildAllHeatmap(resolution, countDiagonalReads)
         tosave["heatmap"] = heatmap
         del heatmap
         singles = self.buildSinglesCoverage(resolution)
@@ -1171,7 +1179,8 @@ class HiCdataset(object):
             filename, resolution)
 
     def saveByChromosomeHeatmap(self, filename, resolution=10000,
-                                includeTrans=False):
+                                includeTrans=False,
+                                countDiagonalReads="Once"):
         """
         Saves chromosome by chromosome heatmaps to h5dict.
         This method is not as memory demanding as saving allxall heatmap.
@@ -1194,7 +1203,8 @@ class HiCdataset(object):
             Build inter-chromosomal heatmaps (default: False)
 
         """
-
+        if countDiagonalReads.lower() not in ["once", "twice"]:
+            raise ValueError("Bad value for countDiagonalReads")
         self.genome.setResolution(resolution)
         pos1 = self.evaluate("a = np.array(mids1 / {res}, dtype = 'int32')"
                              .format(res=resolution), "mids1")
@@ -1231,6 +1241,8 @@ class HiCdataset(object):
                                self.genome.chrmEndsBinCont[chrom2]]
                 if chrom == chrom2:
                     mymap = mymap + mymap.T
+                    if countDiagonalReads.lower() == "once":
+                        fillDiagonal(mymap, np.diag(mymap).copy() / 2)
                 mydict["%d %d" % (chrom, chrom2)] = mymap
         return
 
