@@ -623,17 +623,22 @@ class binnedData(object):
             self.appliedOperations["RemovedCis"] = True
             self.appliedOperations["FakedCis"] = True
 
-    def fakeCis(self):
+    def fakeCis(self, force=False):
         """This method fakes cis contacts in an interative way
         It is done to achieve faking cis contacts that is
         independent of normalization of the data.
+
+        Parameters
+        ----------
+        Force : bool (optional)
+            Set this to avoid checks for iterative correction
         """
         self.removeCis()
-        self.iterativeCorrectWithoutSS(M=5)
+        self.iterativeCorrectWithoutSS(M=5, force=force)
         self.fakeCisOnce(silent=True)
-        self.iterativeCorrectWithoutSS(M=5)
+        self.iterativeCorrectWithoutSS(M=5, force=force)
         self.fakeCisOnce(silent=True)
-        self.iterativeCorrectWithoutSS(M=10)
+        self.iterativeCorrectWithoutSS(M=10, force=force)
         print("All cis counts are substituted with faked counts")
         print("Data is iteratively corrected as a part of faking cis counts")
 
