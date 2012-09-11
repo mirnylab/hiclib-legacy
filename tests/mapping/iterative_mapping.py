@@ -31,7 +31,7 @@ print "Starting mapping.."
 mapping.iterative_mapping(
     bowtie_path=bowtieBinPath,
     bowtie_index_path=bowtieIndexPath,
-    fastq_path="test.fastq",
+    fastq_path="test.fastq.gz",
     out_sam_path='1.bam',
         min_seq_len=25,
         len_step=5,
@@ -47,7 +47,7 @@ mapping.iterative_mapping(
 mapping.iterative_mapping(
     bowtie_path=bowtieBinPath,
     bowtie_index_path=bowtieIndexPath,
-    fastq_path='test.fastq',
+    fastq_path='test.fastq.gz',
     out_sam_path='2.bam',
     min_seq_len=25,
     len_step=5,
