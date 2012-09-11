@@ -66,15 +66,13 @@ A quick list of what you will need:
 
 * Get this library, get mirnylab/mirnylib from bitbucket, install a list of packages below
 
-* Get fasta files for the genome of interest + gap table from Genome Browser (see Genome class documentation below)
+* Get fasta files for the genome of interest (.fa) and a gap table from Genome Browser (saved as gap.txt), place them in one folder.
 
-* Get bowtie2 mapping tool 
+* Get bowtie2 mapping tool and bowtie index for the genome of interest
 
-* Run tests for mapping and FragmentHiC 
+* Edit tests for mapping and FragmentHiC, put above folders there and make sure they run
 
 * Only then try a real dataset 
-
-
 
 You will need mirnylib library to use this library. 
 Mirnylib library is publicly available at https://bitbucket.org/mirnylab/mirnylib. 
