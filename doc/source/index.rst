@@ -62,6 +62,20 @@ Windows/MAC users should add this directory to PYTHONPATH manually.
 Requirements
 ------------
 
+A quick list of what you will need: 
+
+* Get this library, get mirnylab/mirnylib from bitbucket, install a list of packages below
+
+* Get fasta files for the genome of interest + gap table from Genome Browser (see Genome class documentation below)
+
+* Get bowtie2 mapping tool 
+
+* Run tests for mapping and FragmentHiC 
+
+* Only then try a real dataset 
+
+
+
 You will need mirnylib library to use this library. 
 Mirnylib library is publicly available at https://bitbucket.org/mirnylab/mirnylib. 
 
@@ -73,7 +87,7 @@ However, it might require a newer versions of python packages (specifically nump
 
 Hiclib requires the following python libraries: cython (0.16+), joblib (0.6.3+), h5py, pysam, numpy(1.6+) , scipy, matplotlib, biopython, bx-python (preferably from bitbucket repo by james_taylor)
 
-Hiclib requires following non-python binaries to be installed: samtools
+Hiclib requires following non-python binaries to be installed: samtools, bowtie2
 
 If you're upgrading numpy/scipy/matplotlib/cython using pip (pip install --upgrade numpy), be sure to delete/replace the original package.
 Often pip installs new package to a different location, and python still loads the old copy as it looks there first.
