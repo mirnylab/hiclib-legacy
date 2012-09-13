@@ -1,4 +1,4 @@
-from mirnylib.hic import mapping
+from hiclib import mapping
 from mirnylib.h5dict import h5dict
 
 # A. Map the reads iteratively.
