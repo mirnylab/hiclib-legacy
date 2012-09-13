@@ -486,22 +486,24 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
             for i in xrange(len(samfile.lengths)):
                 chrm_rname = samfile.getrname(i)
                 chrm_label = genome_db._extractChrmLabel(chrm_rname)
-                tid2idx[i] = genome_db.label2idx[chrm_label]
+                if chrm_label in genome_db.label2idx:
+                    tid2idx[i] = genome_db.label2idx[chrm_label]
 
             for read in samfile:
-                # Skip non-mapped reads...
+                # Skip non-mapped reads.
                 if read.is_unmapped:
                     continue
 
-                # ...non-uniquely aligned...
+                # Skip non-uniquely aligned.
                 for tag in read.tags:
                     if tag[0] == 'XS':
                         break
                 else:
                     # Convert Bowtie's chromosome tids to genome_db indices.
-                    read.tid = tid2idx[read.tid]
-                    # ...or those not belonging to the target chromosome.
-                    action(read)
+                    # Skip chromosomes that are not in the genome.
+                    if read.tid in tid2idx:
+                        read.tid = tid2idx[read.tid]
+                        action(read)
 
     # Calculate reads statistics.
     def _count_stats(read):
