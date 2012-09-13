@@ -43,8 +43,7 @@ import mirnylib.genome
 ##TODO: throw an exception if no chromosomes found in chromosome folder
 ##TODO: fix #-to-ID correspondence for other species.
 
-logging.basicConfig(level=logging.NOTSET)
-
+log = logging.getLogger(__name__)
 
 def _detect_quality_coding_scheme(in_fastq, num_entries=10000):
     in_file = open(in_fastq)
@@ -295,11 +294,11 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             '-5', str(trim_5), '-3', str(trim_3), '-p', str(nthreads)
             ] + bowtie_flags.split()
 
-        logging.info('Fastq reading command: {0}'.format(
+        log.info('Fastq reading command: {0}'.format(
             ' '.join(reading_command)))
-        logging.info('Mapping command: {0}'.format(' '.join(mapping_command)))
+        log.info('Mapping command: {0}'.format(' '.join(mapping_command)))
         if bamming_command:
-            logging.info('Output formatting command: {0}'.format(
+            log.info('Output formatting command: {0}'.format(
                 ' '.join(bamming_command)))
 
         pipeline = []
@@ -334,7 +333,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             return
 
         # Recursively go to the next iteration.
-        logging.info('Save unique aligments and send the '
+        log.info('Save unique aligments and send the '
                      'non-unique ones to the next iteration')
 
         unmapped_fastq_path = os.path.join(
@@ -520,7 +519,7 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
     sam_stats = {'id_len': _count_stats.id_len,
                  'seq_len': _count_stats.seq_len,
                  'num_reads': _count_stats.num_reads}
-    logging.info(
+    log.info(
         'Parsing SAM files with basename {0}, # of reads: {1}'.format(
             sam_basename, sam_stats['num_reads']))
     if max_seq_len > 0:
@@ -622,11 +621,11 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
     ss_lib[1] = mirnylib.h5dict.h5dict()
     ss_lib[2] = mirnylib.h5dict.h5dict()
 
-    logging.info('Parse the first side of the reads from %s' % sam_basename1)
+    log.info('Parse the first side of the reads from %s' % sam_basename1)
     _parse_ss_sams(sam_basename1, ss_lib[1], genome_db,
                    1 if not max_seq_len else max_seq_len, reverse_complement)
 
-    logging.info('Parse the second side of the reads from %s' % sam_basename2)
+    log.info('Parse the second side of the reads from %s' % sam_basename2)
     _parse_ss_sams(sam_basename2, ss_lib[2], genome_db,
                    1 if not max_seq_len else max_seq_len, reverse_complement)
 
@@ -634,7 +633,7 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
     all_ids = np.unique(np.concatenate((ss_lib[1]['ids'], ss_lib[2]['ids'])))
     tot_num_reads = all_ids.shape[0]
     if tot_num_reads == 0:
-        logging.warning(
+        log.warning(
             'The SAM files %s and %s do not contain unique double sided reads' %
             (sam_basename1, sam_basename2))
 
