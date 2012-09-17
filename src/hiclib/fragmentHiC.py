@@ -1012,11 +1012,14 @@ class HiCdataset(object):
         print
 
     def filterRsiteStart(self, offset=5):
-        """removes reads that start within x bp near rsite
+        """Removes reads that start within x bp near rsite
+
         Parameters
         ----------
+
         offset : int
             Number of bp to exclude next to rsite, not including offset
+
         """
 
         #TODO:(MI) fix this so that it agrees with the definition.

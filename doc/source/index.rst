@@ -176,12 +176,12 @@ Contents
 .. toctree::
    :maxdepth: 3
    
-
    glossary   
    genome
-   mapping_tutorial
+   mapping
    fragment 
    binneddata
+   tutorial
    troubleshooting
 
 

@@ -32,7 +32,7 @@ When working with multiple datasets, all the filters will be synchronized,
 so only bins present in all datasets will be considered for the analysis.
 Removal of bins from one dataset will remove them from the others.
 E.g. removing 1% of bins with lowest # of count might remove more than 1% of
- total bins, when working with 2 or more datasets.
+total bins, when working with 2 or more datasets.
 
 Class has significant knowledge about filters that have been applied.
 If an essential filter was not applied, it will throw an exception;
@@ -110,19 +110,19 @@ from previous groups, if any.
 Examples of the logic are below:
 
 * First, apply filters that don't depend on counts,
-i.e. remove diagonal and low-coverage bins.
+  i.e. remove diagonal and low-coverage bins.
 
 * Second, remove regions with poor coverage;
-do this before chaiging heatmaps with other filters.
+  do this before chaiging heatmaps with other filters.
 
 * Fake translocations before truncating trans, as translocations are very
-high-count regions, and truncTrans will truncate them, not actuall trans reads
+  high-count regions, and truncTrans will truncate them, not actuall trans reads
 
 * Faking reads currently requires zeros to be removed.
-This will be changed later
+  This will be changed later
 
 * Fake cis counts after truncating trans, so that they don't get faked with
-extremely high-count outliers in a trans-map
+  extremely high-count outliers in a trans-map
 
 * Perform iterative correction after all the filters are applied
 
@@ -160,10 +160,6 @@ Besides that, filter dependencies are:
 Other filter dependencies, including adviced but not required filters, will be
 issied as warnings during runtime of a program.
 
-API Documentation
------------------
-
----------------------------------------------------------------
 """
 
 import os
@@ -887,8 +883,10 @@ class binnedData(object):
     def removeZeros(self, zerosMask=None):
         """removes bins with zero counts
         keeps chromosome starts, ends, etc. consistent
+
         Parameters
         ----------
+
         zerosMask : length N array or None, optional
             If provided, this method removes a defined set of bins
             By default, it removes bins with zero # counts.
