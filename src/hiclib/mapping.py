@@ -563,8 +563,7 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
     return out_dict
 
 
-def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
-              max_seq_len= -1, reverse_complement=False, keep_ids=False):
+def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, **kwargs):
     '''Parse SAM/BAM files with HiC reads.
 
     Parameters
@@ -585,18 +584,41 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
         A path to a folder with FASTA files or a genome object. It is used
         to convert Bowtie chromosome indices to internal indices.
 
-    max_seq_len : int
+    max_seq_len : int, optional
         The length the sequences are truncated to before saving
         into the library. The default value is -1, i.e. the sequences are
         not truncated.
 
-    reverse_complement : bool
+    reverse_complement : bool, optional
         If True then the sequences of reads on the reversed strand will be
         reverse complemented. False by default.
 
-    keep_ids : bool
+    keep_ids : bool, optional
         If True then the IDs of reads are stored. False by default.
+
+    enzyme_name : str, optional
+        If specified, assign the reads to the restriction fragments with 
+        the fill_rsites() function.
+
+        The name of the restriction enzyme. The full list of possible names
+        can be found in Bio.Restriction.AllEnzymes. If 'auto' and genome_db
+        has an enzyme set then use this enzyme.
+
+    min_frag_size : int, optional
+        The minimal distance between a cut site and a restriction site. 
+        Used only if enzyme_name is specified.
+
+        If the actual distance is less or equal than minimal then the ultra-sonic
+        fragment is assigned to the next restriction fragment in the direction
+        of the read. Default is None, which means it is set to a half
+        of the length of the restriction motif.
     '''
+
+    max_seq_len = kwargs.get('max_seq_len', -1)
+    reverse_complement = kwargs.get('reverse_complement', False)
+    keep_ids = kwargs.get('keep_ids', False)
+    enzyme_name = kwargs.get('enzyme_name', None)
+    min_frag_size = kwargs.get('min_frag_size', None)
 
     if isinstance(genome_db, str):
         genome_db = mirnylib.genome.Genome(genome_db)
@@ -657,10 +679,13 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
     misc_dict['genome']['label2idx'] = dict(genome_db.label2idx)
     out_dict['misc'] = misc_dict
 
+    if not (enzyme_name is None):
+        fill_rsites(out_dict, genome_db, enzyme_name, min_frag_size)
+
     return out_dict
 
 
-def fill_rsites(lib, genome_db, enzyme_name=None, min_frag_size=None):
+def fill_rsites(lib, genome_db, enzyme_name='auto', min_frag_size=None):
     '''Assign the mapped reads to the restriction fragments.
 
     Parameters
@@ -691,7 +716,7 @@ def fill_rsites(lib, genome_db, enzyme_name=None, min_frag_size=None):
     if len(lib['chrms1']) == 0:
         return lib
 
-    if enzyme_name is None:
+    if enzyme_name=='auto':
         if not genome_db.hasEnzyme():
             raise Exception('Set a restriction enzyme in the genome object or '
                             'supply its name')

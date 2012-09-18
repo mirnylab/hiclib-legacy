@@ -51,21 +51,15 @@ when you create a Genome object, you specify the chromosomes that you want to
 include. In our case, it is all numbered chromosomes ('#') and X. The reads 
 mapped to the chromosomes not included into the Genome object are ignored.
 
+Finally, you also have to specify the name of the restriction enzyme used
+in the Hi-C experiment. It is used to assign the Hi-C molecules to the
+restriction fragments.
+
 .. literalinclude:: ../../../examples/tutorial/01_iterative_mapping.py
    :language: python
-   :lines: 39-46
+   :lines: 39-49
 
 The preferable data type for Hi-C data storage is h5dict that is included into
 the library. h5dict mimics the interface of the standard Python dict, but stores
 the data on the hard drive in the highly efficient HDF5 format.
-
-Map reads to the restriction fragments
---------------------------------------
-
-Finally, the ultra-sonic fragments mapped onto the genome are assigned to
-the restriction fragments.
-
-.. literalinclude:: ../../../examples/tutorial/01_iterative_mapping.py
-   :language: python
-   :lines: 45-49
 

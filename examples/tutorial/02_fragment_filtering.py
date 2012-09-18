@@ -7,7 +7,7 @@ fragments = fragmentHiC.HiCdataset(
     filename='data/fragment_dataset.hdf5',
     genome=genome_db,
     maximumMoleculeLength=500,
-    override=True)
+    mode='w')
 
 fragments.parseInputData(
     dictLike='data/mapped_reads.hdf5')

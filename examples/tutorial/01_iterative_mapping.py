@@ -36,7 +36,8 @@ mapping.iterative_mapping(
     bowtie_flags='--very-sensitive',
     bash_reader='bin/sratoolkit.2.1.16-ubuntu32/bin/fastq-dump -Z')
 
-# B. Parse the mapped sequences into a Python data structure.
+# B. Parse the mapped sequences into a Python data structure,
+#    assign the ultra-sonic fragments to restriction fragments.
 mapped_reads = h5dict('data/mapped_reads.hdf5')
 genome_db = genome.Genome('data/hg19', readChrms=['#', 'X'])
 
@@ -44,12 +45,6 @@ mapping.parse_sam(
     sam_basename1='data/SRR027956_1.bam',
     sam_basename2='data/SRR027956_2.bam',
     out_dict=mapped_reads,
-    genome_db=genome_db)
-
-# C. Assign the ultra-sonic fragments to restriction fragments.
-mapping.fill_rsites(
-    lib=mapped_reads,
-    genome_db=genome_db,
+    genome_db=genome_db, 
     enzyme_name='HindIII')
-
 
