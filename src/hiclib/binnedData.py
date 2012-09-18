@@ -36,10 +36,10 @@ total bins, when working with 2 or more datasets.
 
 Class has significant knowledge about filters that have been applied.
 If an essential filter was not applied, it will throw an exception;
-if adviced filter is not applied, it will throw a warning.
+if advised filter is not applied, it will throw a warning.
 However, it does not guarantee dependencies, and you have to think yourself.
 Most of the methods have an optional "force" argument that will
-ignore dependensies.
+ignore dependencies.
 
 We provide example scripts that show ideal protocols for certain types of
 the analysis, but they don't cover the realm of all possible manipulations
@@ -113,7 +113,7 @@ Examples of the logic are below:
   i.e. remove diagonal and low-coverage bins.
 
 * Second, remove regions with poor coverage;
-  do this before chaiging heatmaps with other filters.
+  do this before chaining heatmaps with other filters.
 
 * Fake translocations before truncating trans, as translocations are very
   high-count regions, and truncTrans will truncate them, not actuall trans reads
@@ -157,8 +157,13 @@ Besides that, filter dependencies are:
 
 * IC recommends removal of poor regions
 
-Other filter dependencies, including adviced but not required filters, will be
-issied as warnings during runtime of a program.
+Other filter dependencies, including advised but not required filters, will be
+issued as warnings during runtime of a program.
+
+-------------------------------------------------------------------------------
+
+API documentation
+-----------------
 
 """
 

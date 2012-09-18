@@ -15,12 +15,25 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+'''
+This module contains the functions that map raw DNA sequences obtained in
+the Hi-C experiment to a supplied genome.
 
+The three main methods of this module are iterative_mapping, parse_sam and
+fill_rsite.
+
+The first, iterative_mapping() applies the bowtie2 read alignment software to
+the raw reads from the sequencer. The second method, parse_sam() parses 
+the bowtie output, combines individual reads into pairs and converts the data
+into the internal format that may be fed to the downstream functions. Finally,
+fill_rsite() maps the sequences onto the restriction fragments.
+
+-------------------------------------------------------------------------------
+
+API Documentation
+-----------------
 '''
-mapping - map raw Hi-C reads to a genome
-========================================
-'''
-import os
+
 import sys
 import re
 import glob
@@ -348,59 +361,6 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         os.remove(unmapped_fastq_path)
 
 
-def fill_rsites(lib, genome_db, enzyme_name=None, min_frag_size=None):
-    '''Assign the mapped reads to the restriction fragments.
-
-    Parameters
-    ----------
-
-    lib : dict
-        A library of mapped Hi-C molecules. Gets modified by the function.
-
-    genome_db : str or mirnylib.genome.genome
-        A path to the folder with genome sequences in FASTA format or
-        a mirnylib.genome.genome object.
-
-    enzyme_name : str
-        A name of the restriction enzyme. The full list of possible names
-        can be found in Bio.Restriction.AllEnzymes.
-
-    min_frag_size : int
-        The minimal distance between a cut site and a restriction site.
-        If the actual distance is less than minimal then the ultra-sonic
-        fragment is assigned to the next restriction fragment in the direction
-        of the read.
-    '''
-
-    if isinstance(genome_db, str):
-        genome_db = mirnylib.genome.Genome(genome_db)
-    assert isinstance(genome_db, mirnylib.genome.Genome)
-
-    if len(lib['chrms1']) == 0:
-        return lib
-
-    if enzyme_name is None:
-        if not genome_db.hasEnzyme():
-            raise Exception('Set a restriction enzyme in the genome object or '
-                            'supply its name')
-    else:
-        if enzyme_name not in Bio.Restriction.AllEnzymes:
-            raise Exception('Enzyme is not found in the library: %s' %
-                (enzyme_name,))
-        genome_db.setEnzyme(enzyme_name)
-
-    rsite_size = eval('len(Bio.Restriction.%s.site)' % genome_db.enzymeName)
-    if min_frag_size is None:
-        _min_frag_size = rsite_size / 2.0
-    else:
-        _min_frag_size = min_frag_size
-
-    _find_rfrags_inplace(lib, genome_db, _min_frag_size, 1)
-    _find_rfrags_inplace(lib, genome_db, _min_frag_size, 2)
-
-    return lib
-
-
 def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     '''Private: assign mapped reads to restriction fragments by
     their 5' end position.
@@ -674,3 +634,56 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db,
     out_dict['misc'] = misc_dict
 
     return out_dict
+
+
+def fill_rsites(lib, genome_db, enzyme_name=None, min_frag_size=None):
+    '''Assign the mapped reads to the restriction fragments.
+
+    Parameters
+    ----------
+
+    lib : dict
+        A library of mapped Hi-C molecules. Gets modified by the function.
+
+    genome_db : str or mirnylib.genome.genome
+        A path to the folder with genome sequences in FASTA format or
+        a mirnylib.genome.genome object.
+
+    enzyme_name : str
+        A name of the restriction enzyme. The full list of possible names
+        can be found in Bio.Restriction.AllEnzymes.
+
+    min_frag_size : int
+        The minimal distance between a cut site and a restriction site.
+        If the actual distance is less than minimal then the ultra-sonic
+        fragment is assigned to the next restriction fragment in the direction
+        of the read.
+    '''
+
+    if isinstance(genome_db, str):
+        genome_db = mirnylib.genome.Genome(genome_db)
+    assert isinstance(genome_db, mirnylib.genome.Genome)
+
+    if len(lib['chrms1']) == 0:
+        return lib
+
+    if enzyme_name is None:
+        if not genome_db.hasEnzyme():
+            raise Exception('Set a restriction enzyme in the genome object or '
+                            'supply its name')
+    else:
+        if enzyme_name not in Bio.Restriction.AllEnzymes:
+            raise Exception('Enzyme is not found in the library: %s' %
+                (enzyme_name,))
+        genome_db.setEnzyme(enzyme_name)
+
+    rsite_size = eval('len(Bio.Restriction.%s.site)' % genome_db.enzymeName)
+    if min_frag_size is None:
+        _min_frag_size = rsite_size / 2.0
+    else:
+        _min_frag_size = min_frag_size
+
+    _find_rfrags_inplace(lib, genome_db, _min_frag_size, 1)
+    _find_rfrags_inplace(lib, genome_db, _min_frag_size, 2)
+
+    return lib
