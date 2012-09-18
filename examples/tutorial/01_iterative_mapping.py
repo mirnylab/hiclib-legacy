@@ -1,5 +1,8 @@
+import logging
 from hiclib import mapping
 from mirnylib.h5dict import h5dict
+
+logging.basicConfig(level=logging.DEBUG)
 
 # A. Map the reads iteratively.
 mapping.iterative_mapping(
@@ -16,7 +19,7 @@ mapping.iterative_mapping(
     #max_reads_per_chunk = 10000000,  #optional, on low-memory machines
     temp_dir='data/tmp',  # optional, keep temporary files here
     bowtie_flags='--very-sensitive',
-    bash_reader='bin/sratoolkit.2.1.16-ubuntu32/bin/fastq-dump')
+    bash_reader='bin/sratoolkit.2.1.16-ubuntu32/bin/fastq-dump -Z')
 
 mapping.iterative_mapping(
     bowtie_path='bin/bowtie2-2.0.0-beta7/bowtie2',
@@ -31,7 +34,7 @@ mapping.iterative_mapping(
     #max_reads_per_chunk = 10000000,  #optional, on low-memory machines
     temp_dir='data/tmp',  # optional, keep temporary files here
     bowtie_flags='--very-sensitive',
-    bash_reader='bin/sratoolkit.2.1.16-ubuntu32/bin/fastq-dump')
+    bash_reader='bin/sratoolkit.2.1.16-ubuntu32/bin/fastq-dump -Z')
 
 # B. Parse the mapped sequences into a Python data structure.
 mapped_reads = h5dict('data/mapped_reads.hdf5')

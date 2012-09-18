@@ -34,6 +34,7 @@ API Documentation
 -----------------
 '''
 
+import os
 import sys
 import re
 import glob
@@ -233,7 +234,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         supplied by the OS.
 
     bash_reader : str, optional
-        A bash application to read the input onto the bash pipe. The default
+        A bash application to convert the input to the FASTQ format. The default
         value is None, that is the app is autodetected by the extension (i.e.
         cat for .fastq, gunzip for .gz).
 
@@ -261,6 +262,27 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
     reading_command = bash_reader.split() + [fastq_path, ]
 
+    # If bash reader is not 'cat', convert file to FASTQ first and
+    # run iterative_mapping recursively on the converted file.
+    if bash_reader != 'cat':
+        converted_fastq = os.path.join(temp_dir, os.path.split(fastq_path)[1] + '.fastq')
+        log.info('Bash reader is not trivial, read input with %s, store in %s',
+                 ' '.join(reading_command), converted_fastq)
+        converting_process = subprocess.Popen(
+            reading_command,
+            stdout=open(converted_fastq, 'w'))
+        converting_process.wait()
+
+        kwargs['bash_reader'] = 'cat'
+        log.info('Run iterative_mapping recursively on %s', converted_fastq)
+        iterative_mapping(
+            bowtie_path, bowtie_index_path, converted_fastq,
+            out_sam_path, min_seq_len, len_step,
+            **kwargs)
+
+        os.remove(converted_fastq)
+        return
+
     output_is_bam = (out_sam_path.split('.')[-1].lower() == 'bam')
     bamming_command = ['samtools', 'view', '-bS', '-'] if output_is_bam else []
 
@@ -268,11 +290,14 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     # segment separately.
     if max_reads_per_chunk > 0:
         kwargs['max_reads_per_chunk'] = -1
+        log.info('Split input file %s into chunks', fastq_path)
         chunked_files = _chunk_file(
             fastq_path,
             os.path.join(temp_dir, os.path.split(fastq_path)[1]),
             max_reads_per_chunk * 4)
+        log.debug('%d chunks obtained', len(chunked_files))
         for i, fastq_chunk_path in enumerate(chunked_files):
+            log.info('Run iterative_mapping recursively on %s', fastq_chunk_path)
             iterative_mapping(
                 bowtie_path, bowtie_index_path, fastq_chunk_path,
                 out_sam_path + '.%d' % (i + 1), min_seq_len, len_step,
@@ -280,6 +305,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
             # Delete chunks only if the file was really chunked.
             if len(chunked_files) > 1:
+                log.info('Remove the chunks: %s', ' '.join(chunked_files))
                 os.remove(fastq_chunk_path)
         return
 
@@ -307,28 +333,25 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             '-5', str(trim_5), '-3', str(trim_3), '-p', str(nthreads)
             ] + bowtie_flags.split()
 
-        log.info('Fastq reading command: {0}'.format(
-            ' '.join(reading_command)))
-        log.info('Mapping command: {0}'.format(' '.join(mapping_command)))
-        if bamming_command:
-            log.info('Output formatting command: {0}'.format(
-                ' '.join(bamming_command)))
-
         pipeline = []
         try:
+            log.info('Reading command: %s', ' '.join(reading_command))
             pipeline.append(
                 subprocess.Popen(reading_command, stdout=subprocess.PIPE))
             if bamming_command:
+                log.info('Mapping command: %s', ' '.join(mapping_command))
                 pipeline.append(
                     subprocess.Popen(mapping_command,
                                      stdin=pipeline[-1].stdout,
                                      stdout=subprocess.PIPE))
 
+                log.info('Output formatting command: %s', ' '.join(bamming_command))
                 pipeline.append(
                     subprocess.Popen(bamming_command,
                                      stdin=pipeline[-1].stdout,
                                      stdout=open(local_out_sam, 'w')))
             else:
+                log.info('Mapping command: %s', ' '.join(mapping_command))
                 pipeline.append(
                     subprocess.Popen(mapping_command,
                                      stdin=pipeline[-1].stdout,
