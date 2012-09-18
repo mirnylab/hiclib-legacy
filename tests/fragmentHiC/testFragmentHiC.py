@@ -109,8 +109,8 @@ def refine_paper(filename, create=True):
 
     Tb = h5dict(filename[1] + "-1M.hm")["1 1"]
     Tbb = h5dict(filename[1] + "-1M.hm")["1 2"]
-    assert (Tb - chrom1).sum() == 0
-    assert (Tbb - chrom12).sum() == 0
+    assert ((Tb - chrom1) == 0).all()
+    assert ((Tbb - chrom12) == 0).all()
     assert ((Tb + np.diag(np.diag(Tb))) == b).all()
     print "Diagonal counting methods are consistent\n"
 
