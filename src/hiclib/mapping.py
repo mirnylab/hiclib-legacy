@@ -234,9 +234,10 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         supplied by the OS.
 
     bash_reader : str, optional
-        A bash application to convert the input to the FASTQ format. The default
-        value is None, that is the app is autodetected by the extension (i.e.
-        cat for .fastq, gunzip for .gz).
+        A bash application to convert the input to the FASTQ format. The 
+        application have to save the output into stdout.
+        The default value is None, that is the app is autodetected by the 
+        extension (i.e. cat for .fastq, gunzip for .gz).
 
     '''
     bowtie_path = os.path.abspath(os.path.expanduser(bowtie_path))
