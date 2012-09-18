@@ -16,7 +16,6 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-
 #TODO:(MIU) Write tests for this module!
 
 """
@@ -1464,8 +1463,7 @@ class experimentalBinnedData(binnedData):
             support = """
             #include <math.h>
             """
-            for s in xrange(5):
-                s  # to remove warning
+            for _ in xrange(5):
                 weave.inline(code, ['transmask', 'mask', 'data', "N"],
                              extra_compile_args=['-march=native'
                                                    ' -malign-double -O3'],

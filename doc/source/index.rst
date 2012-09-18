@@ -42,20 +42,22 @@ Overview
 Here we present a collection of tools to map, filter and analyze Hi-C data. 
 The libarary is written in Python, an easy-to-learn human-friendly programming language. 
 
+General information about libarary is on this page.
+Detailed documentation for each module can be found in API documentation below. 
+
 Installation
 ------------
-
-
-.. note:: Library was tested only under Linux environment, but is in principle platform-independent with some adjustments.
-
-Windows/MAC users should take care of  Cython and corresponding C compiler themselves. Mapping is not be windows-compatible. 
 
 To install the library under linux, please run install_linux.py in the hiclib/src directory. 
 This will add hiclib to PYTHONPATH (in .bashrc & .bash_profile), what will make 
 hiclib library accessible from any folder of the computer. 
 You can then import hiclib sub-modules as "import hiclib.binnedData", etc. 
 (don't forget to restart bash in order to apply the changes made by install_linux.py).
-Windows/MAC users should add this directory to PYTHONPATH manually. 
+
+.. note:: Library was tested only under Linux environment, but is in principle platform-independent with some adjustments.
+
+Windows/MAC users should take care of  Cython and corresponding C compiler themselves. Mapping is not be windows-compatible. 
+
 
 
 
@@ -81,16 +83,17 @@ Mirnylib library is publicly available at https://bitbucket.org/mirnylab/mirnyli
 
 Both libraries are not compatible with python 2.5 and python 3.x, but work fine with python 2.6, 2.7.
 
-However, it might require a newer versions of python packages (specifically numpy and scipy), than those available with python 2.6-equipped linux distributions (e.g. Ubuntu 10.04 LTS, ubuntu 11.04+ is mostly fine). 
-
 Hiclib requires the following python libraries: cython (0.16+), joblib (0.6.3+), h5py, pysam, numpy(1.6+) , scipy, matplotlib, biopython, bx-python (preferably from bitbucket repo by james_taylor)
 
 Hiclib requires following non-python binaries to be installed: samtools, bowtie2
 
-If you're upgrading numpy/scipy/matplotlib/cython using pip (pip install --upgrade numpy), be sure to delete/replace the original package.
-Often pip installs new package to a different location, and python still loads the old copy as it looks there first.
-First attempt to remove original package using apt-get remove or aptitude remove.
-However, if this asks you to remove a ton of dependent packages, you need to specifically delete files corresponding to the original package. 
+This paragraph describe general problem with upgrading python modules, and applies to any modules you install using pip. 
+If you're upgrading a package (numpy/scipy/matplotlib/cython/etc...) using pip, use "pip install PACKAGENAME", not "pip install --upgrade PACKAGENAME". 
+Second will most likely create two copies of a package, because PIP tends to install packages to a different location.
+This will cause numerous problems, such as importing an old copy of a package. 
+If install says that package is already installed, you will have to delete it. 
+To do so, first attempt to remove original package using system package tool (apt-get remove PACKAGENAME on ubuntu/debian). 
+However, if this asks you to remove a ton of dependent packages, you will need to specifically delete files corresponding to the original package. 
 Current version and location of package files can be determined from the python console 
 by executing, e.g., >>>print numpy.__version__. and >>>print numpy.__file__
 
@@ -105,7 +108,6 @@ However, at each point in time a few individual tracks are loaded to RAM to perf
 Memory requirements for this part can be estimated as 20-30 bytes per read, dependent on the number of filters used. 
 For example, a 500 mln read Hi-C dataset will require no more than 16GB RAM. 
 We're working on rewriting the core of the library to consume less memory. 
-If you found a bottleneck, which can be easily fixed, please let us know and we'll fix it.
 
 Binned data analysis uses RAM to store all the heatmaps.
 Application of certain filters will create a copy of a heatmap, one at a time, even if multiple datasets are loaded. 
@@ -138,7 +140,7 @@ Pipeline structure
 ------------------
 
 Two sides of the read are mapped to the genome independently using iterative mapping function. 
-Acceptable read format is fastq, but .sra format can be incorporated using a bash_reader parameter 
+Acceptable read format is fastq (including fastq.gz), but .sra format can be incorporated using a bash_reader parameter 
 of iterative_mapping and a fastq-dump tool from SRA toolkit. 
 Iterative mapping outputs a combination of sam/bam files (autodetect by filename), which can be then parsed and written to an h5dict containing read data using parse_sams function. 
 
@@ -170,8 +172,8 @@ By default, this script saves heatmaps for all replicas of an experiments, then 
 To perform iterative correction and eigenvector expansion, use example scripts (example/iterativeCorrectionEigenvectorExpansion)
 
 
-Contents
---------
+API documentation
+-----------------
 
 .. toctree::
    :maxdepth: 2

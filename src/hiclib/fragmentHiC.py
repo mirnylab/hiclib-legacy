@@ -246,7 +246,6 @@ class HiCdataset(object):
         except:
             pass
 
-
     def _setData(self, name, data):
         "an internal method to save numpy arrays to HDD quickly"
         if name not in self.vectors.keys():
@@ -1227,32 +1226,39 @@ class HiCdataset(object):
         chr2 = self.chrms2
         DS = self.DS  # 13 bytes per read up to now, 16 total
         mydict = h5dict(filename)
+
         for chrom in xrange(self.genome.chrmCount):
             if includeTrans == True:
                 mask = ((chr1 == chrom) + (chr2 == chrom)) * DS
             else:
                 mask = ((chr1 == chrom) * (chr2 == chrom))
-
+            # Located chromosomes and positions of chromosomes
             c1, c2, p1, p2 = chr1[mask], chr2[mask], pos1[mask], pos2[mask]
-            mask = (c2 == chrom) * (c1 != chrom)
-            c1[mask], c2[mask], p1[mask], p2[mask] = c2[mask].copy(), c1[
-                mask].copy(), p2[mask].copy(), p1[mask].copy()
+            if includeTrans == True:
+                #moving different chromosomes to c2
+                #c1 == chrom now
+                mask = (c2 == chrom) * (c1 != chrom)
+                c1[mask], c2[mask], p1[mask], p2[mask] = c2[mask].copy(), c1[
+                    mask].copy(), p2[mask].copy(), p1[mask].copy()
+                del c1  # ignore c1
+                args = np.argsort(c2)
+                c2 = c2[args]
+                p1 = p1[args]
+                p2 = p2[args]
 
-            label = np.asarray(p1, "int64") * self.genome.numBins
-            label += self.genome.chrmStartsBinCont[c2]
-            label += p2
-            maxLabel = self.genome.chrmLensBin[chrom] * self.genome.numBins
-            counts = np.bincount(label, minlength=maxLabel)
-            assert len(counts) == maxLabel
-            counts.shape = (self.genome.chrmLensBin[chrom],
-                            self.genome.numBins)
-            if includeTrans == False:
-                chroms2 = [chrom]
-            else:
-                chroms2 = range(self.genome.chrmCount)
-            for chrom2 in chroms2:
-                mymap = counts[:, self.genome.chrmStartsBinCont[chrom2]:\
-                               self.genome.chrmEndsBinCont[chrom2]]
+            for chrom2 in xrange(chrom, self.genome.chrmCount):
+                start = np.searchsorted(c2, chrom2, "left")
+                end = np.searchsorted(c2, chrom2, "right")
+                cur1 = p1[start:end]
+                cur2 = p2[start:end]
+                label = np.asarray(cur1, "int64")
+                label *= self.genome.chrmLensBin[chrom2]
+                label += cur2
+                maxLabel = self.genome.chrmLensBin[chrom] * \
+                           self.genome.chrmLensBin[chrom2]
+                counts = np.bincount(label, minlength=maxLabel)
+                assert len(counts) == maxLabel
+                mymap = counts.reshape((self.genome.chrmLensBin[chrom], -1))
                 if chrom == chrom2:
                     mymap = mymap + mymap.T
                     if countDiagonalReads.lower() == "once":
