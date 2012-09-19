@@ -48,3 +48,5 @@ and the gap file containing the genomic coordinates of the centromeres:
 .. literalinclude:: ../../../examples/tutorial/00_download_data_binaries.sh
    :language: bash
    :lines: 33-42
+
+:download:`Download the source code for this chapter. <../../../examples/tutorial/00_download_data_binaries.sh>`

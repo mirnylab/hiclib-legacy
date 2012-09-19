@@ -18,3 +18,4 @@ examples/tutorial subfolder.
    tutorial/00_download_data_binaries
    tutorial/01_iterative_mapping
    tutorial/02_fragment_filtering
+   tutorial/03_heatmap_processing

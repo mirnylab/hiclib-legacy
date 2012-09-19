@@ -39,7 +39,7 @@ Parse the bowtie2 output
 
 Next, the output of bowtie2 have to be parsed, the separate sides of the reads
 combined into pairs and the result stored in a dict-like object. All of this
-is done with the mapping.parse_sam() function.
+is done with the :func:`hiclib.mapping.parse_sam` function.
 
 As an input for this function, you have to supply a mirnylib.genome.Genome 
 object corresponding to the target organism. The Genome class is a Python 
@@ -59,7 +59,8 @@ restriction fragments.
    :language: python
    :lines: 39-49
 
-The preferable data type for Hi-C data storage is h5dict that is included into
-the library. h5dict mimics the interface of the standard Python dict, but stores
-the data on the hard drive in the highly efficient HDF5 format.
+The preferable data type for Hi-C data storage is :class:`mirnylib.h5dict.h5dict`
+that is included into the library. h5dict mimics the interface of the standard
+Python dict, but stores the data on the hard drive in the highly efficient HDF5 format.
 
+:download:`Download the source code for this chapter. <../../../examples/tutorial/01_iterative_mapping.py>`

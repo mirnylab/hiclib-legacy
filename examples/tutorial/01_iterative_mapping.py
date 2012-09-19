@@ -1,6 +1,6 @@
 import logging
 from hiclib import mapping
-from mirnylib.h5dict import h5dict
+from mirnylib import h5dict, genome
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -38,12 +38,12 @@ mapping.iterative_mapping(
 
 # B. Parse the mapped sequences into a Python data structure,
 #    assign the ultra-sonic fragments to restriction fragments.
-mapped_reads = h5dict('data/mapped_reads.hdf5')
+mapped_reads = h5dict.h5dict('data/mapped_reads.hdf5')
 genome_db = genome.Genome('data/hg19', readChrms=['#', 'X'])
 
 mapping.parse_sam(
-    sam_basename1='data/SRR027956_1.bam',
-    sam_basename2='data/SRR027956_2.bam',
+    sam_basename1='data/SRR027056_1.bam',
+    sam_basename2='data/SRR027056_2.bam',
     out_dict=mapped_reads,
     genome_db=genome_db, 
     enzyme_name='HindIII')

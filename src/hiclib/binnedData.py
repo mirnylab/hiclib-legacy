@@ -520,7 +520,7 @@ class binnedData(object):
         pass
 
     def removePoorRegions(self, names=None, cutoff=2, coverage=False):
-        """removes "cutoff" percent of bins with least counts
+        """Removes "cutoff" percent of bins with least counts
 
         Parameters
         ----------
