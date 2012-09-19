@@ -575,7 +575,7 @@ class HiCdataset(object):
 
         self._moveSSReads()  # Eclipse warning removal
 
-        if "misc" in dictLike.keys():
+        if ("misc" in dictLike) and ("idx2label" in dictLike["misc"]):
             self.updateGenome(self.genome, removeSSreads="trans",
                               oldGenome=dictLike["misc"]["genome"]["idx2label"])
         else:
