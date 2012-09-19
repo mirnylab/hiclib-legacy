@@ -227,7 +227,7 @@ class HiCdataset(object):
 
         #------Creating filenames, etc---------
         if os.path.exists(self.filename) and (mode in ['w', 'a']):
-            print "----->!!!File already exists! It will be {0}\n" \
+            print "----->!!!File already exists! It will be {0}\n"\
             .format({"w": "deleted", "a": "opened in the append mode"}[mode])
 
         if len(os.path.split(self.filename)[0]) != 0:
@@ -249,7 +249,7 @@ class HiCdataset(object):
     def _setData(self, name, data):
         "an internal method to save numpy arrays to HDD quickly"
         if name not in self.vectors.keys():
-            raise ValueError("Attept to save data not "\
+            raise ValueError("Attept to save data not "
                              "specified in self.vectors")
         dtype = np.dtype(self.vectors[name])
         data = np.asarray(data, dtype=dtype)
@@ -386,7 +386,7 @@ class HiCdataset(object):
 
             if type(outVariable) == str:
                 self.h5dict.get_dataset(outVariable)[start:end]\
- = variables[outVariable]
+                    = variables[outVariable]
 
             elif len(outVariable) == 2:
                 outVariable[1][start:end] = variables[outVariable[0]]
@@ -577,7 +577,7 @@ class HiCdataset(object):
 
         if "misc" in dictLike.keys():
             self.updateGenome(self.genome, removeSSreads="trans",
-                              oldGenome=dictLike["misc"]["idx2label"])
+                              oldGenome=dictLike["misc"]["genome"]["idx2label"])
         else:
             assumedGenome = Genome(self.genome.genomePath)
             self.updateGenome(self.genome, removeSSreads="trans",
