@@ -714,7 +714,7 @@ class binnedData(object):
             self.dataDict[i] = data
             self.biasDict[i] = bias
             if i in self.singlesDict:
-                self.singlesDict[i] = self.singlesDict[i] / float(bias)
+                self.singlesDict[i] = self.singlesDict[i] / bias.astype(float)
         self.appliedOperations["Corrected"] = True
 
     def iterativeCorrectWithSS(self, names=None, M=55, force=False,

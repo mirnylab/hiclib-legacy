@@ -9,7 +9,7 @@ from hiclib import binnedData
 genome_db = genome.Genome('data/hg19', readChrms=['#', 'X'])
 
 # Read resolution from the dataset.
-raw_heatmap = h5dict.h5dict('data/heatmap-res-1M.hdf5', mode='r') 
+raw_heatmap = h5dict.h5dict('data/aristotelis/heatmap-res-1M.hdf5', mode='r') 
 resolution = int(raw_heatmap['resolution'])
 
 # Create a binnedData object, load the data.
