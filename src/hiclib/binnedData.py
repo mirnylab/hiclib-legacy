@@ -634,11 +634,11 @@ class binnedData(object):
             Set this to avoid checks for iterative correction
         """
         self.removeCis()
-        self.iterativeCorrectWithoutSS(M=5, force=force)
+        self.iterativeCorrectWithoutSS(force=force)
         self.fakeCisOnce(silent=True)
-        self.iterativeCorrectWithoutSS(M=5, force=force)
+        self.iterativeCorrectWithoutSS(force=force)
         self.fakeCisOnce(silent=True)
-        self.iterativeCorrectWithoutSS(M=10, force=force)
+        self.iterativeCorrectWithoutSS(force=force)
         print("All cis counts are substituted with faked counts")
         print("Data is iteratively corrected as a part of faking cis counts")
 
@@ -714,7 +714,7 @@ class binnedData(object):
             self.dataDict[i] = data
             self.biasDict[i] = bias
             if i in self.singlesDict:
-                self.singlesDict[i] /= bias
+                self.singlesDict[i] = self.singlesDict[i] / float(bias)
         self.appliedOperations["Corrected"] = True
 
     def iterativeCorrectWithSS(self, names=None, M=55, force=False,
