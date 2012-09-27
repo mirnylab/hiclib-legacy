@@ -432,7 +432,7 @@ class HiCdataset(object):
         self.rebuildFragments()
 
     def parseInputData(self, dictLike, zeroBaseChrom=True,
-                       enzymeToFillRsites=None, removeSS=False):
+                       enzymeToFillRsites=None, removeSS=False, **kwargs):
         """Inputs data from a dictionary-like object,
         containing coordinates of the reads.
         Performs filtering of the reads.
@@ -471,7 +471,9 @@ class HiCdataset(object):
             Enzyme name to use with Bio.restriction
         removeSS : bool, optional
             If set to True, removes SS reads from the library
-
+        noFiltering : bool, optional
+            If True then no filters are applied to the data. False by default.
+            Overrides removeSS. Experimental, do not use if you are not sure.
         """
 
         rsite_related = ["rsites1", "rsites2", "uprsites1",
@@ -628,7 +630,8 @@ class HiCdataset(object):
         "no extra DEs (--> (<500) <--): {extraDE}".format(**locals())
         del dist
         del readsMolecules
-        self.maskFilter(mask)
+        if not kwargs.get('noFiltering', False):
+            self.maskFilter(mask)
 
     def saveFragments(self):
         """saves fragment data to make correct expected
