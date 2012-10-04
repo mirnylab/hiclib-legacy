@@ -1379,6 +1379,47 @@ class binnedDataAnalysis(binnedData):
 class experimentalBinnedData(binnedData):
 
     "Contains some poorly-implemented new features"
+
+    def projectOnEigenvalues(self, eigenvectors=[0]):
+        """
+        Calculates projection of the data on a set of eigenvectors.
+        This is used to calculate heatmaps, reconstructed from eigenvectors.
+
+        Parameters
+        ----------
+        eigenvectors : list of non-negative ints, optional
+            Zero-based indices of eigenvectors, to project onto
+            By default projects on the first eigenvector
+
+        Returns
+        -------
+        Puts resulting data in dataDict under DATANAME_projected key
+
+        """
+
+        for name in self.dataDict.keys():
+            if name not in self.EigDict:
+                raise RuntimeError("Calculate eigenvectors first!")
+
+            PCs = self.EigDict[name]
+            if max(eigenvectors) >= len(PCs):
+                raise RuntimeError("Not enough eigenvectors."
+                                   "Increase numPCs in doEig()")
+            PCs = PCs[eigenvectors]
+
+            eigenvalues = self.eigEigenvalueDict[name][eigenvectors]
+
+            proj = reduce(lambda x, y: x + y,
+                          [PCs[i][:, None] * PCs[i][None, :] * \
+                           eigenvalues[i] for i in xrange(len(PCs))])
+            mask = PCs[0] != 0
+            mask = mask[:, None] * mask[None, :]  #maks of non-zero elements
+            data = self.dataDict[name]
+            datamean = np.mean(data[mask])
+            proj[mask] += datamean
+            self.dataDict[name + "_projected"] = proj
+
+
     def emulateCis(self):
         """if you want to have fun creating syntetic data,
         this emulates cis contacts. adjust cis/trans ratio in the C code"""
