@@ -440,6 +440,7 @@ class binnedData(object):
 
         toexport["resolution"] = self.resolution
         toexport["genome"] = self.genome.folderName
+        toexport["chromosomeStarts"] = self.genome.chrmStartsBinCont
         myh5dict = h5dict(outFilename, mode="w")
         myh5dict.update(toexport)
 
@@ -599,9 +600,9 @@ class binnedData(object):
         silent : bool
             Do not print anything
 
-
+        
         """
-
+        #TODO (MIU): check this method!
         if silent == False:
             print("All cis counts are substituted with matching trans count")
         for key in self.dataDict.keys():
@@ -1413,7 +1414,7 @@ class experimentalBinnedData(binnedData):
                           [PCs[i][:, None] * PCs[i][None, :] * \
                            eigenvalues[i] for i in xrange(len(PCs))])
             mask = PCs[0] != 0
-            mask = mask[:, None] * mask[None, :]  #maks of non-zero elements
+            mask = mask[:, None] * mask[None, :]  # maks of non-zero elements
             data = self.dataDict[name]
             datamean = np.mean(data[mask])
             proj[mask] += datamean
