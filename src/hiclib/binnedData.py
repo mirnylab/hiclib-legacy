@@ -440,7 +440,12 @@ class binnedData(object):
 
         toexport["resolution"] = self.resolution
         toexport["genome"] = self.genome.folderName
-        toexport["chromosomeStarts"] = self.genome.chrmStartsBinCont
+
+        toexport["binNumber"] = len(self.chromosomeIndex)
+        toexport["genomeIdxToLabel"] = self.genome.idx2label
+        toexport["chromosomeStarts"] = self.chromosomeStarts
+        toexport["chromosomeIndex"] = self.chromosomeIndex
+        toexport["positionIndex"] = self.positionIndex
         myh5dict = h5dict(outFilename, mode="w")
         myh5dict.update(toexport)
 

@@ -386,7 +386,7 @@ class HiCdataset(object):
 
             if type(outVariable) == str:
                 self.h5dict.get_dataset(outVariable)[start:end]\
-                    = variables[outVariable]
+ = variables[outVariable]
 
             elif len(outVariable) == 2:
                 outVariable[1][start:end] = variables[outVariable[0]]
@@ -576,11 +576,11 @@ class HiCdataset(object):
         del distances
 
         self._moveSSReads()  # Eclipse warning removal
-
-        if "misc" in dictLike:
+        try:
+            dictLike["misc"]["genome"]["idx2label"]
             self.updateGenome(self.genome, removeSSreads="trans",
                               oldGenome=dictLike["misc"]["genome"]["idx2label"])
-        else:
+        except KeyError:
             assumedGenome = Genome(self.genome.genomePath)
             self.updateGenome(self.genome, removeSSreads="trans",
                               oldGenome=assumedGenome)
@@ -1187,7 +1187,7 @@ class HiCdataset(object):
         tosave["frags"] = frags
         tosave["genomeBinNum"] = self.genome.numBins
         tosave["genomeIdxToLabel"] = self.genome.idx2label
-        tosave["chromosomeSTarts"] = chromosomeStarts
+        tosave["chromosomeStarts"] = chromosomeStarts
         print "----> Heatmap saved to '%s' at %d resolution" % (
             filename, resolution)
 
