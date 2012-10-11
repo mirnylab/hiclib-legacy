@@ -135,6 +135,8 @@ def _filter_fastq(ids, in_fastq, out_fastq):
     '''
     out_file = open(out_fastq, 'w')
     in_file = _gzopen(in_fastq)
+    num_filtered = 0
+    num_total = 0
     while True:
         line = in_file.readline()
         if not line:
@@ -151,6 +153,9 @@ def _filter_fastq(ids, in_fastq, out_fastq):
             read_id = read_id[:-2]
         if read_id in ids:
             out_file.writelines(fastq_entry)
+            num_filtered += 1
+        num_total += 1
+    return num_total, num_filtered
 
 
 def _filter_unmapped_fastq(in_fastq, in_sam, nonunique_fastq):
@@ -169,7 +174,10 @@ def _filter_unmapped_fastq(in_fastq, in_sam, nonunique_fastq):
         if 'XS' in tags_dict or read.is_unmapped:
             nonunique_ids.add(read_id)
 
-    _filter_fastq(nonunique_ids, in_fastq, nonunique_fastq)
+    num_total, num_filtered = _filter_fastq(
+        nonunique_ids, in_fastq, nonunique_fastq)
+
+    return num_total, num_filtered
 
 
 def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
@@ -370,12 +378,17 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             return
 
         # Recursively go to the next iteration.
-        log.info('Save unique aligments and send the '
+        log.info('Save the unique aligments and send the '
                      'non-unique ones to the next iteration')
 
         unmapped_fastq_path = os.path.join(
             temp_dir, os.path.split(fastq_path)[1] + '.%d' % min_seq_len)
-        _filter_unmapped_fastq(fastq_path, local_out_sam, unmapped_fastq_path)
+        num_total, num_filtered = _filter_unmapped_fastq(
+            fastq_path, local_out_sam, unmapped_fastq_path)
+
+        log.info(('{0} non-unique reads out of '
+                  '{1} are sent the next iteration.').format(num_filtered, 
+                                                             num_total))
 
         iterative_mapping(bowtie_path, bowtie_index_path, unmapped_fastq_path,
                           out_sam_path,
