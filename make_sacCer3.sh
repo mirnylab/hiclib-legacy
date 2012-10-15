@@ -27,7 +27,8 @@ chrXV,chr15 \
 chrXVI,chr16 \
 chrM,chrM"
 
-BOWTIE_FOLDER=`find ./bin -iname "*bowtie*" -type d`
+BOWTIE_FOLDER=`find ./bin -iname "*bowtie*" -type d | head -1`
+echo ${BOWTIE_FOLDER}
 
 get() {
     echo ${1} ${2}
@@ -65,7 +66,7 @@ for c in $CHRS_TO_INDEX ; do
     OUT_F=${2}.fa
 	if [ ! -f ${OUT_F} ] ; then
 		get ${UCSC_BASE}/$F $F|| (echo "Error getting $F" && exit 1)
-		zcat ${F} > ${OUT_F}  || (echo "Error unzipping $F" && exit 1)
+		zcat ${F} | sed 's/'${1}/${2}'/' > ${OUT_F}  || (echo "Error unzipping $F" && exit 1)
         rm ${F}
 	fi
 	[ -n "$INPUTS" ] && INPUTS=$INPUTS,${OUT_F}
