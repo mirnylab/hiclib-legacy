@@ -4,4 +4,6 @@ syntax: glob
 *~
 *.pyc
 doc/build
-
+bin/
+fasta/
+tests/mapping/tmp
