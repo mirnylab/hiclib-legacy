@@ -6,7 +6,7 @@ from mirnylib import h5dict, genome
 logging.basicConfig(level=logging.DEBUG)
 
 if not os.path.exists('../../data/sample/tmp/'):
-    os.path.mkdirs('../../data/sample/tmp/')
+    os.mkdir('../../data/sample/tmp/')
 
 # A. Map the reads iteratively.
 mapping.iterative_mapping(

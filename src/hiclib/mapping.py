@@ -149,14 +149,11 @@ def _filter_fastq(ids, in_fastq, out_fastq):
         fastq_entry = [line, in_file.readline(),
                        in_file.readline(), in_file.readline()]
         read_id = line.split()[0][1:]
-        if read_id.endswith('/1') or read_id.endswith('/2'):
-            read_id = read_id[:-2]
         if read_id in ids:
             out_file.writelines(fastq_entry)
             num_filtered += 1
         num_total += 1
     return num_total, num_filtered
-
 
 def _filter_unmapped_fastq(in_fastq, in_sam, nonunique_fastq):
     '''Read raw sequences from **in_fastq** and alignments from
@@ -169,8 +166,9 @@ def _filter_unmapped_fastq(in_fastq, in_sam, nonunique_fastq):
     for read in samfile:
         tags_dict = dict(read.tags)
         read_id = read.qname
+
         # If exists, the option 'XS' contains the score of the second
-        # best alignment. Therefore, its presence means non-unique alignment.
+        # best alignment. Therefore, its presence means a non-unique alignment.
         if 'XS' in tags_dict or read.is_unmapped:
             nonunique_ids.add(read_id)
 
@@ -323,6 +321,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
                                        stdout=subprocess.PIPE)
     reading_process.stdout.readline()
     raw_seq_len = len(reading_process.stdout.readline().strip())
+    log.info('The length of whole sequences in the file: %d', raw_seq_len)
     reading_process.terminate()
 
     if (seq_start < 0
@@ -570,7 +569,7 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
         (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['id_len'])
     _write_to_array.i = 0
     _for_each_unique_read(sam_basename, genome_db,
-        action=lambda read: _write_to_array(read, buf, read.qname))
+        action=lambda read: _write_to_array(read, buf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname))
     out_dict['ids'] = buf
 
     return out_dict
