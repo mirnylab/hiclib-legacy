@@ -40,65 +40,92 @@ Overview
 --------
 
 Here we present a collection of tools to map, filter and analyze Hi-C data. 
-The libarary is written in Python, an easy-to-learn human-friendly programming language. 
+The library is written in Python, an easy-to-learn human-friendly programming language. 
 
-General information about libarary is on this page.
+This page contains the general information about the library.
 Detailed documentation for each module can be found in API documentation below. 
-
-Installation
-------------
-
-To install the library under linux, please run install_linux.py in the hiclib/src directory. 
-This will add hiclib to PYTHONPATH (in .bashrc & .bash_profile), what will make 
-hiclib library accessible from any folder of the computer. 
-You can then import hiclib sub-modules as "import hiclib.binnedData", etc. 
-(don't forget to restart bash in order to apply the changes made by install_linux.py).
-
-.. note:: Library was tested only under Linux environment, but is in principle platform-independent with some adjustments.
-
-Windows/MAC users should take care of  Cython and corresponding C compiler themselves. Mapping is not be windows-compatible. 
-
-
-
 
 Requirements
 ------------
 
-A quick list of what you will need: 
+The hiclib was designed and tested only under Ubuntu environment, but
+may theoretically be ported to the other Linux distributions and OS. 
 
-* Get this library, get mirnylab/mirnylib from bitbucket, install a list of packages below
+Hiclib requires the following python libraries: 
 
-* Get fasta files for the genome of interest (.fa) and a gap table from Genome Browser (saved as gap.txt), place them in one folder.
+- cython (0.16+)
+- numpy(1.6+) 
+- matplotlib
+- scipy
+- biopython
+- joblib (0.6.3+)
+- h5py
+- pysam
+- bx-python (preferably from 
+  `the bitbucket repo <https://bitbucket.org/james_taylor/bx-python/wiki/Home>`_ 
+  by james_taylor)
+- `mirnylib <https://bitbucket.org/mirnylab/mirnylib>`_ (covered
+  in the `installation`_ section below.
 
-* Get bowtie2 mapping tool and bowtie index for the genome of interest
+hiclib and mirnylib are not compatible with python 2.5 and python 3.x, but work
+fine with python 2.6, 2.7.
 
-* Edit tests for mapping and FragmentHiC, put above folders there and make sure they run
+Besides that, you will need the following binaries and libraries (the names 
+are given for the corresponding Ubuntu packages):
 
-* Only then try a real dataset 
+- samtools
+- hdf5-tools
+- libhdf5-serial-dev
 
-You will need mirnylib library to use this library. 
-Mirnylib library is publicly available at https://bitbucket.org/mirnylab/mirnylib. 
+Finally, you will also need the bowtie2 mapping software which can be downloaded
+manually or installed via the download_bowtie.sh script in the hiclib folder.
 
-.. note:: Failure during installation of mirnylib often means that cython is not up to date. 
+Installation
+------------
 
-Both libraries are not compatible with python 2.5 and python 3.x, but work fine with python 2.6, 2.7.
+To install the library in Linux, do the following procedure:
 
-Hiclib requires the following python libraries: cython (0.16+), joblib (0.6.3+), h5py, pysam, numpy(1.6+) , scipy, matplotlib, biopython, bx-python (preferably from bitbucket repo by james_taylor)
+1. Install all the required python packages, binaries and libraries.
 
-Hiclib requires following non-python binaries to be installed: samtools, bowtie2
+2. Download the latest version of the 
+   `hiclib <https://bitbucket.org/mirnylab/hiclib/get/tip.zip>`_
+   and unpack it into an empty folder. This folder will be called 
+   "the hiclib folder" all throughout the document.
+3. Run install_linux.py in the hiclib folder. This script modifies the .bashrc 
+   and .bash_profile scripts and adds the the hiclib folder to the PYTHONPATH 
+   environment variable. After restarting the terminal, python will be able to 
+   locate the hiclib library.
+4. Download `mirnylib <https://bitbucket.org/mirnylab/mirnylib/get/tip.zip>`_,
+   unpack it into a separate folder and run install_linux.py.
+   Failure during installation of mirnylib often means that cython is not up to date. 
+5. Run download_bowtie.sh script to download and install the bowtie2 mapping
+   software.
+6. Run ./make_hg19.sh and ./make_sacCer3.sh scripts to download and index 
+   the human and baker yeast genome. These scripts download the fasta files 
+   with the nucleotide sequences and a gap file containing the positions of 
+   the centromeres. The scripts for the other genomes are not 
+   supplied and have to be created by a user. In most cases, it should be enough
+   to change the GENOME_NAME variable of the make_hg19.sh script to the name 
+   of the target genome, i.e. 'mm10' or 'bosTau7'.
+7. Test the installation using the scripts from the /tests folders.
 
-This paragraph describe general problem with upgrading python modules, and applies to any modules you install using pip. 
-If you're upgrading a package (numpy/scipy/matplotlib/cython/etc...) using pip, use "pip install PACKAGENAME", not "pip install --upgrade PACKAGENAME". 
-Second will most likely create two copies of a package, because PIP tends to install packages to a different location.
-This will cause numerous problems, such as importing an old copy of a package. 
-If install says that package is already installed, you will have to delete it. 
-To do so, first attempt to remove original package using system package tool (apt-get remove PACKAGENAME on ubuntu/debian). 
-However, if this asks you to remove a ton of dependent packages, you will need to specifically delete files corresponding to the original package. 
-Current version and location of package files can be determined from the python console 
-by executing, e.g., >>>print numpy.__version__. and >>>print numpy.__file__
+.. note:: If you're upgrading a package (numpy/scipy/matplotlib/cython/etc...) 
+          using the pip Python package manager, never use "pip install PACKAGENAME",
+          only "pip install --upgrade PACKAGENAME"! 
 
-Obsolete versions of certain packages may lead to unpredicted errors. 
-Please refer to troubleshooting guide for a list of known errors! 
+          If you have another version of the same package installed via the
+          standard system package manager, e.g. apt-get or aptitude,
+          the second command will most likely create a second copy of the package.
+          This causes numerous problem that are very hard to detect.
+          If 'pip install" says that package is already installed, remove it
+          via the system package manager and only then try to install it again.
+          However, if this asks you to remove a ton of dependent packages, 
+          you will need to specifically delete files corresponding to the 
+          original package. Current version and location of package files 
+          can be determined from the python console by executing,
+          e.g., >>>print numpy.__version__. and >>>print numpy.__file__
+          
+          Please refer to troubleshooting guide for a list of known errors! 
          
 Hardware requirements
 ---------------------

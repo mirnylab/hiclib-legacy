@@ -6,15 +6,15 @@ from mirnylib import h5dict
 from mirnylib import plotting
 from hiclib import binnedData
 
-genome_db = genome.Genome('data/hg19', readChrms=['#', 'X'])
+genome_db = genome.Genome('../../fasta/hg19', readChrms=['#', 'X'])
 
 # Read resolution from the dataset.
-raw_heatmap = h5dict.h5dict('data/aristotelis/heatmap-res-1M.hdf5', mode='r') 
+raw_heatmap = h5dict.h5dict('../../data/sample/heatmap-res-1M.hdf5', mode='r') 
 resolution = int(raw_heatmap['resolution'])
 
 # Create a binnedData object, load the data.
 BD = binnedData.binnedData(resolution, genome_db)
-BD.simpleLoad('data/heatmap-res-1M.hdf5', 'HindIII_GM_1')
+BD.simpleLoad('../../data/sample/heatmap-res-1M.hdf5', 'HindIII_GM_1')
 
 # Remove the contacts between loci located within the same bin.
 BD.removeDiagonal()
@@ -32,7 +32,7 @@ BD.truncTrans(high=0.0005)
 BD.iterativeCorrectWithoutSS()
 
 # Save the iteratively corrected heatmap.
-BD.export('HindIII_GM_1', 'data/IC-heatmap-res-1M.hdf5')
+BD.export('HindIII_GM_1', '../../data/sample/IC-heatmap-res-1M.hdf5')
 
 # Plot the heatmap directly.
 plotting.plot_matrix(np.log(BD.dataDict['HindIII_GM_1']))
