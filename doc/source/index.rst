@@ -65,7 +65,7 @@ Hiclib requires the following python libraries:
   `the bitbucket repo <https://bitbucket.org/james_taylor/bx-python/wiki/Home>`_ 
   by james_taylor)
 - `mirnylib <https://bitbucket.org/mirnylab/mirnylib>`_ (covered
-  in the `installation`_ section below.
+  in the `installation`_ section below).
 
 hiclib and mirnylib are not compatible with python 2.5 and python 3.x, but work
 fine with python 2.6, 2.7.
