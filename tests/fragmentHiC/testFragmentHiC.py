@@ -7,8 +7,8 @@ from mirnylib.systemutils import setExceptionHook
 
 if os.path.exists("test-1M.hm"):
     os.remove("test-1M.hm")
-workingGenome = "hg18"
-genomeFolder = "../../../data/hg18"
+workingGenome = "hg19"
+genomeFolder = "../../fasta/hg19"
 if not os.path.exists(genomeFolder):
 
     genomeFolder = sys.argv[1]
@@ -32,8 +32,10 @@ def refine_paper(filename, create=True):
             print "\nTesting loading new data without rsite information    "
             TR.parseInputData(dictLike=onename,
                               enzymeToFillRsites="HindIII")
-            assert len(TR.DS) == 523790
-            assert len(TR.ufragments) == 509379
+
+            assert len(TR.DS) == 856143
+
+            assert len(TR.ufragments) == 634572
             TR.save(onename + "_parsed.frag")
 
         #Merging files alltogether, applying filters
@@ -51,17 +53,21 @@ def refine_paper(filename, create=True):
 
         print "\nTesting Rsite filter"
         TR.filterRsiteStart(offset=5)
-        assert len(TR.DS) == 509248
+
+        assert len(TR.DS) == 832110
 
         print "\nTesting duplicate filter"
         TR.filterDuplicates()
-        assert len(TR.DS) == 508892
+
+        assert len(TR.DS) == 830395
 
         print "\nTesting small/large and extreme fragment filter"
         TR.filterLarge()
-        assert len(TR.DS) == 506081
+
+        assert len(TR.DS) == 825561
         TR.filterExtreme(cutH=0.005, cutL=0)
-        assert len(TR.DS) == 490313
+
+        assert len(TR.DS) == 803929
 
 
     #-------------------------------------------
@@ -88,7 +94,7 @@ def refine_paper(filename, create=True):
     print "Cis heatmap consistent"
     assert (bb - chrom12).sum() == 0
     print 'Trans heatmap consistent'
-    assert  a["heatmap"][::10, ::10].sum() == 12726
+    assert  a["heatmap"][::10, ::10].sum() == 21798
     print "Heatmap sum correct\n"
 
     #---------------------------------
@@ -134,7 +140,7 @@ map(refine_paper,
       ), "test", "HindIII"]])
 
 #os.remove("test_breaks.frag")
-os.remove("test-hg18.hdf5_parsed.frag")
+os.remove("test-hg19.hdf5_parsed.frag")
 os.remove("test_merged.frag")
 os.remove("test-1M.hm")
 #os.remove("test_refined.frag")
