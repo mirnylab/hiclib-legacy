@@ -1542,7 +1542,8 @@ class experimentalBinnedData(binnedData):
             except:
                 print "bla"
 
-    def loadWigFile(self, filename, label, control=None, wigFileType="Auto"):
+    def loadWigFile(self, filenames, label, control=None,
+                    wigFileType="Auto", functionToAverage=np.log):
         """Only fixed-step wig files and bigWig files are supported!!!
         Import from fixedStep wig files is very fast,
         however is not the most reliable.
@@ -1567,9 +1568,10 @@ class experimentalBinnedData(binnedData):
         fixed my issue # 39 :)
         https://bitbucket.org/james_taylor/bx-python/overview
         """
-        #TODO:(MI) rewrite parser to support any resolution.
 
-        filename = os.path.abspath(filename)
+        if type(filenames) == str:
+            filenames = [filenames]
+        filenames = [os.path.abspath(i) for i in filenames]
 
         def loadFile(name, wigFileType=wigFileType):
             """Choosing right method to load wigfile"""
@@ -1584,7 +1586,7 @@ class experimentalBinnedData(binnedData):
                     raise StandardError("Wig file has no extension. \
                     Please specify it's type")
                 elif ext.lower() == ".wig":
-                    if open(filename).readline()[:2] != "fi":
+                    if open(name).readline()[:2] != "fi":
                         raise StandardError("Cannot read non fixed-step wig \
                         files! Please use wigToBigWig utility. See docstring \
                         of this method.")
@@ -1600,14 +1602,21 @@ class experimentalBinnedData(binnedData):
                     name, resolution=5000)
             elif wigFileType.lower() == "bigwig":
                 data = self.genome.parseBigWigFile(name, resolution=5000,
-                    divideByValidCounts=False)
+                    divideByValidCounts=True)
             else:
                 raise StandardError("Wrong type of wig file : %s" %
                     wigFileType)
             return data
 
-        "Loading the data files"
-        data = loadFile(filename)
+        "Loading and averaging the data files"
+        data = [loadFile(i) for i in filenames]
+        base = data[0]
+        for otherdata in data[1:]:
+            for i in xrange(len(otherdata)):
+                base[i] += otherdata[i]
+        data = base
+
+
         if control is not None:
             controlData = loadFile(control)
 
@@ -1636,10 +1645,11 @@ class experimentalBinnedData(binnedData):
                 self.resolution / 5000))
             value.shape = (-1, self.genome.resolution / 5000)
             if value.mean() == 0:
-                raise StandardError("Chromosome %s contains zero data in wig \
-                file %s" % (self.genome.idx2label[chrom], filename))
+                raise StandardError("Chromosome {0} contains zero data in wig \
+                file(s) {1}".format(self.genome.idx2label[chrom], filenames))
             mask = value == 0
-            value[-mask] = np.log(value[-mask])
+            value[-mask] = functionToAverage(value[-mask])
+            #print "Remove SQRT here"
 
             valuesum = np.sum(value, axis=1)
             masksum = np.sum(mask == False, axis=1)
