@@ -369,9 +369,10 @@ class binnedData(object):
 
         """
         if type(in_data) == str:
-            if os.path.exists(in_data) == False:
-                raise IOError("HDF5 dict do not exist, %s" % in_data)
-            alldata = h5dict(in_data, mode="r")
+            path = os.path.abspath(os.path.expanduser(in_data))
+            if os.path.exists(path) == False:
+                raise IOError("HDF5 dict do not exist, %s" % path)
+            alldata = h5dict(path, mode="r")
         else:
             alldata = in_data
 
