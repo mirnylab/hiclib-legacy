@@ -1,19 +1,5 @@
-# Copyright (C) 2010-2012 Leonid Mirny lab (mirnylab.mit.edu)
+#(c) 2012 Massachusetts Institute of Technology. All Rights Reserved
 # Code written by: Anton Goloborodko (golobor@mit.edu)
-# For questions regarding using and/or distributing this code
-# please contact Leonid Mirny (leonid@mit.edu)
-#
-# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-# ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
-# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
-# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 '''
 This module contains the functions that map raw DNA sequences obtained in
@@ -386,7 +372,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             fastq_path, local_out_sam, unmapped_fastq_path)
 
         log.info(('{0} non-unique reads out of '
-                  '{1} are sent the next iteration.').format(num_filtered, 
+                  '{1} are sent the next iteration.').format(num_filtered,
                                                              num_total))
 
         iterative_mapping(bowtie_path, bowtie_index_path, unmapped_fastq_path,
@@ -728,7 +714,7 @@ def fill_rsites(lib, genome_db, enzyme_name='auto', min_frag_size=None):
     if len(lib['chrms1']) == 0:
         return lib
 
-    if enzyme_name=='auto':
+    if enzyme_name == 'auto':
         if not genome_db.hasEnzyme():
             raise Exception('Set a restriction enzyme in the genome object or '
                             'supply its name')
