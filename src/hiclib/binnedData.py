@@ -1574,7 +1574,7 @@ class experimentalBinnedData(binnedData):
                     Please specify it's type")
                 elif ext.lower() == ".wig":
                     if open(name).readline()[:2] != "fi":
-                        raise StandardError("Cannot read non fixed-step wig \
+                        raise StandardError("Cannot read non variable-step wig \
                         files! Please use wigToBigWig utility. See docstring \
                         of this method.")
                     wigFileType = "wig"
