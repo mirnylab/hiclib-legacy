@@ -15,7 +15,7 @@ into the internal format that may be fed to the downstream functions. Finally,
 fill_rsite() maps the sequences onto the restriction fragments.
 
 -------------------------------------------------------------------------------
-
+ 
 API Documentation
 -----------------
 '''
