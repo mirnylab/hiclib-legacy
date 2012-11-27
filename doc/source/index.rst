@@ -110,8 +110,8 @@ To install the library in Linux, do the following procedure:
 7. Test the installation using the scripts from the /tests folders.
 
 .. note:: If you're upgrading a package (numpy/scipy/matplotlib/cython/etc...) 
-          using the pip Python package manager, never use "pip install PACKAGENAME",
-          only "pip install --upgrade PACKAGENAME"! 
+          using the pip Python package manager, use "pip install PACKAGENAME",
+          not "pip install --upgrade PACKAGENAME"! 
 
           If you have another version of the same package installed via the
           standard system package manager, e.g. apt-get or aptitude,
@@ -141,9 +141,12 @@ Application of certain filters will create a copy of a heatmap, one at a time, e
 For example, working with 3 datasets at 200-kb resolution will require: 
 (3 GB/200kb)^2 * (8 bytes per float64) * (3 datasets + 1 extra) = 8 GB RAM
 
+highResBinnedData uses sparse logic to store Hi-C matrix in memory (in a compressed format), or on the HDD. 
+Even in memory storage often allows to fit a 500mln read human Hi-C dataset at 10kb resolution in under 8GB (thanks to HDf5!)
+
 Timewise, fragment-based correction of a dataset is relatively quick, being about an hour for 500 million raw reads.
 Binned data analysis performance depends on resolution only, usually being of the order of seconds for 1M-resolution analysis, and scaling as (1/resolution^2),
-reaching few minutes for 200kb resolution, and tens minutes for 100kb. 
+reaching few minutes for 200kb resolution, and tens minutes for 100kb. High-resolution binned data takes few hours to complete.
 
 Overall, time-limiting step is mapping, and it's the only part of the code that is well-paralellized.
 Multi-threading is only utilized by bowtie when mapping reads, and takes about a few days to map 500-million-read dataset on 
@@ -178,9 +181,12 @@ It stores all the data in an h5dict, and modifies it as the analysis goes.
 
 An example script shows how  fragment-level analysis can be used to merge multiple datasets together, filter them and save heatmaps to an h5dict.
 
-Heatmaps and vectors of SS reads are then exported by fragment-level analysis to an h5dict, that can be passe to a binnedData class. 
+Heatmaps and vectors of SS reads are then exported by fragment-level analysis to an h5dict, that can be passed to a binnedData class. 
 BinnedData class will load this h5dict, or any other dict-like object,
 perform multiple types of iterative correction and eigenvector expansion, and compare results with different genomic tracks.
+
+High-resolution binned data class can be used to perform Iterative Correction at high resolutions (was tested at 10kb resolution). 
+It is much less feature-rich, and relies on the user to do all the analysis. It can operate on one dataset only.
 
 
 Example scripts
@@ -210,8 +216,10 @@ API documentation
    mapping
    fragment 
    binneddata
+   highResBinnedData
    tutorial
    troubleshooting
+
 
 
 Indices and tables

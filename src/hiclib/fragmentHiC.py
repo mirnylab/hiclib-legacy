@@ -227,10 +227,10 @@ class HiCdataset(object):
                                   os.path.split(self.filename)[0])
 
         self.h5dict = h5dict(self.filename, mode=mode, in_memory=inMemory)
-        try:
-            self.DSNum = self.DS.sum()
-        except:
-            pass
+        if "DS" in self.h5dict.keys():
+            DS = self.DS
+            self.N = len(DS)
+            self.DSnum = DS.sum()
 
     def _setData(self, name, data):
         "an internal method to save numpy arrays to HDD quickly"
@@ -1153,7 +1153,7 @@ class HiCdataset(object):
             Resolution of an all-by-all heatmap
         countDiagonalReads : "once" or "twice"
             How many times to count reads in the diagonal bin
-        
+
         """
 
         try:
