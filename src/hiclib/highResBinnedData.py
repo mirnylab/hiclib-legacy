@@ -3,10 +3,14 @@
 
 """
 This is a basic toolbox to perform high-resolution analysis of a Hi-C data.
+By high resolution we meen that there are more than 10000-20000 bins per genome
+- otherwise, binnedData is easily capable of the analysis.
+
 It can perform basic filtering (poor coverage regions), and iterative correction at any resolution.
 
 The main advantage of this class is that it supports both in memory and HDD storage,
 and for HDD storage it supports both sparse and dense matrix logic.
+In fact, sparse logic with HDF5-based storage in memory is already good (default settings).
 
 Class structure
 ---------------
@@ -38,9 +42,10 @@ ideal algorithm to do this.
 
 On my machine with 32GB RAM it was successfully used to perform IC of a human
 Hi-C at 10kb resolution. It took it 20 minutes to load the data, 4 mins to
-remove poor bins, and couple hours to perform IC. I also note that the data was
-in fact stored in memory for doing that, and it never used more than 16GB of
-RAM... in fact, creating this dataset used more, but this will be optimized later.
+remove poor bins, and couple hours to perform IC, about 10 minutes per pass. I
+also note that the data was in fact stored in memory for doing that, and it
+never used more than 16GB of RAM... in fact, creating this dataset used more,
+but this will be optimized later.
 """
 
 
