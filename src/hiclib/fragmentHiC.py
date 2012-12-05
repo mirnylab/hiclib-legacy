@@ -205,7 +205,7 @@ class HiCdataset(object):
         self.maximumMoleculeLength = maximumMoleculeLength
         # maximum length of a molecule for SS reads
 
-        self.filename = filename  # File to save the data
+        self.filename = os.path.abspath(os.path.expanduser(filename))  # File to save the data
         self.chunksize = 5000000
         # Chunk size for h5dict operation, external sorting, etc.
 
