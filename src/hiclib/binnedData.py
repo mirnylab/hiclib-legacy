@@ -540,7 +540,7 @@ class binnedData(object):
             newmask = countsum >= np.percentile(countsum[datamask], cutoff)
             mask *= newmask
             statmask[(newmask == False) * (datamask == True)] = True
-        print "removed {} poor bins".format(statmask.sum())
+        print "removed {0} poor bins".format(statmask.sum())
         inds = np.nonzero(mask == False)
 
         for i in self.dataDict.values():
@@ -592,7 +592,7 @@ class binnedData(object):
         silent : bool
             Do not print anything
 
-        
+
         """
         #TODO (MIU): check this method!
         if silent == False:

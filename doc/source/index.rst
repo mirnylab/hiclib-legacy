@@ -45,6 +45,14 @@ The library is written in Python, an easy-to-learn human-friendly programming la
 This page contains the general information about the library.
 Detailed documentation for each module can be found in API documentation below. 
 
+.. note :: (news) We've just added a high resolution Hi-C analysis.
+           It can perform IC at up to 10kb resolution, and possibly below. 
+           (resolution for the mouse or human genome)!
+           Documentation is in the API documentation. 
+             (11/27/2012)
+            
+    
+
 Requirements
 ------------
 

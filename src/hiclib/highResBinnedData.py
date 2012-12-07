@@ -456,10 +456,10 @@ class HiResHiC(object):
             see below
 
 
-        cisProtocol should implement all functions, currently defined in the
-        defaultMatrix protocol. If inhereted from defaultMatrix, it should
-        implement proper get and set functions It cannot store the matrix itself
-        in memory, and should forget it after any function call.
+        cisProtocol and transProtocol should implement all functions, currently
+        defined in the defaultMatrix protocol. If inhereted from defaultMatrix,
+        it should implement proper get and set functions It cannot store the
+        matrix itself in memory, and should forget it after any function call.
         """
 
         if mode.lower() not in ["cis", "all"]:
@@ -581,6 +581,5 @@ class HiResHiC(object):
             data = self.data[i].getData()
             mydict["heatmap%d %d"] = data
         mydict["resolution"] = self.resolution
-
 
 
