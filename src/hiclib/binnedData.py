@@ -475,7 +475,7 @@ class binnedData(object):
         mask2D = mask[:, None] * mask[None, :]
         antimask = np.nonzero(mask2D.flat == False)[0]
         for i in self.dataDict.values():
-            i[antimask] = 0
+            i.flat[antimask] = 0
         self.appliedOperations["RemovedStandalone"] = True
 
     def removeBySequencedCount(self, sequencedFraction=0.5):
