@@ -12,6 +12,15 @@ The main advantage of this class is that it supports both in memory and HDD stor
 and for HDD storage it supports both sparse and dense matrix logic.
 In fact, sparse logic with HDF5-based storage in memory is already good (default settings).
 
+.. note::
+    This class loads data, saved by saveByChromosomeHeatmap method of fragmentHiC.
+    It is not designed to load heatmaps saved by "saveHeatmap" class, because those
+    can fit in memory, and should be analyzed by a more powerful binnedData class.
+
+
+
+
+
 Class structure
 ---------------
 
