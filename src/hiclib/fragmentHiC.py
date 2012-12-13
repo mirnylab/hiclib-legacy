@@ -1178,7 +1178,7 @@ class HiCdataset(object):
             filename, resolution)
 
     def saveByChromosomeHeatmap(self, filename, resolution=10000,
-                                includeTrans=False,
+                                includeTrans=True,
                                 countDiagonalReads="Once"):
         """
         Saves chromosome by chromosome heatmaps to h5dict.
@@ -1236,6 +1236,8 @@ class HiCdataset(object):
                 p2 = p2[args]
 
             for chrom2 in xrange(chrom, self.genome.chrmCount):
+                if (includeTrans == False) and (chrom2 != chrom):
+                    continue
                 start = np.searchsorted(c2, chrom2, "left")
                 end = np.searchsorted(c2, chrom2, "right")
                 cur1 = p1[start:end]
