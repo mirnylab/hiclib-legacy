@@ -27,7 +27,7 @@ parameter to convert the .sra data file into the .fastq format.
 
 .. literalinclude:: ../../../examples/tutorial/01_iterative_mapping.py
    :language: python
-   :lines: 1-38
+   :lines: 1-42
 
 This code will generate a series of files with names 'data/SRR027956_1.bam.25',
 'data/SRR027956_1.bam.30', etc with the terminating numbers corresponding to the
@@ -57,7 +57,7 @@ restriction fragments.
 
 .. literalinclude:: ../../../examples/tutorial/01_iterative_mapping.py
    :language: python
-   :lines: 39-49
+   :lines: 43-54
 
 The preferable data type for Hi-C data storage is :class:`mirnylib.h5dict.h5dict`
 that is included into the library. h5dict mimics the interface of the standard
