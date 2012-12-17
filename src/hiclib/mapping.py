@@ -242,6 +242,10 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     nthreads = kwargs.get('nthreads', 4)
     max_reads_per_chunk = kwargs.get('max_reads_per_chunk', -1)
     bowtie_flags = kwargs.get('bowtie_flags', '')
+    
+    if subprocess.call(['which', 'samtools']) != 0:
+        raise Exception('samtools are not installed!')
+
     # Check for a typo from the publication.
     assert re.search('--score-min(\s+)-L', bowtie_flags) is None, (
         'The flag --score-min -L 0.6,0.2 in the original publication was a typo. '
