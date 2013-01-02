@@ -406,7 +406,6 @@ class HiResHiC(object):
                 print "Please load data!"
                 raise ValueError("Please load data first")
 
-
     def _marginalError(self, marginals=None):
         "Checks after each pass of IC, if marginals are close enough to 1"
         if marginals is None:
@@ -511,7 +510,6 @@ class HiResHiC(object):
                     data, dictToSave=self._h5dict, key=myKey)
 
         self._checkConsistency()
-
 
     def getMarginals(self, normalizeForIC=False):
         """

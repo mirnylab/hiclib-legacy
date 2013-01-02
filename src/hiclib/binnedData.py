@@ -198,7 +198,7 @@ class binnedData(object):
         else:
             self.genome = genome
 
-        assert isinstance(self.genome, Genome)
+        assert hasattr(self.genome, "chrmCount")
 
         if resolution is not None:
             self.resolution = resolution
