@@ -388,7 +388,7 @@ class HiResHiC(object):
 
     def _checkConsistency(self):
         "Checks if shapes of all datasets are correct"
-
+        self._hasData()
         for i in self.data:
             shape = self.data[i].shape
             chr1, chr2 = i
@@ -397,6 +397,15 @@ class HiResHiC(object):
             if (expected[0] != shape[0]) or (expected[1] != shape[1]):
                 raise ValueError("Wrong dimensions of a chromosomes {2}: expected {0},"
                                  "got {1}".format(expected, shape, i))
+
+    def _hasData(self):
+        mykeys = self.data.keys()
+        for i in xrange(self.genome.chrmCount):
+            if ((i, i)) not in mykeys:
+                print "Not all cis keys found in data!"
+                print "Please load data!"
+                raise ValueError("Please load data first")
+
 
     def _marginalError(self, marginals=None):
         "Checks after each pass of IC, if marginals are close enough to 1"
@@ -503,13 +512,14 @@ class HiResHiC(object):
 
         self._checkConsistency()
 
+
     def getMarginals(self, normalizeForIC=False):
         """
         Returns a sum over each row/column, and saves them to self.marginals
 
         normalizeForIc=True will normalize them to mean 1.
         """
-
+        self._hasData()
         marginals = [np.zeros(i, float) for i in self.genome.chrmLensBin]
         for chr1, chr2 in self.data:
             m2, m1 = self.data[(chr1, chr2)].getSums()
@@ -535,6 +545,7 @@ class HiResHiC(object):
         If the vector is not provided, will divide it by a
         marginals calculated previously.
         """
+        self._hasData()
         if marginals is None:
             marginals = self.marginals
 
@@ -550,7 +561,7 @@ class HiResHiC(object):
 
         Tries to set biases to self.biases after IC.
         """
-
+        self._hasData()
         curPass = 0
         marginals = np.zeros(self.genome.numBins, float)
         while self._marginalError() > tolerance:
@@ -566,6 +577,7 @@ class HiResHiC(object):
         Removes diagonal from the data.
         m=0 is main diagonal, m=1 is main +-1, etc.
         """
+        self._hasData()
         for i in self.cisKeys:
             data = self.data[i].getData()
             removeDiagonals(data, m)
@@ -575,6 +587,7 @@ class HiResHiC(object):
         """
         Removes "percent" percent of regions with low coverage.
         """
+        self._hasData()
         marg = self.getMarginals(normalizeForIC=False)
         allMarg = np.concatenate(marg)
         cut = np.percentile(allMarg[allMarg > 0], percent)
@@ -588,7 +601,7 @@ class HiResHiC(object):
         mydict = h5dict(filename)
         for i in self.allKeys:
             data = self.data[i].getData()
-            mydict["heatmap%d %d"] = data
+            mydict["heatmap%d %d" % (i, i)] = data
         mydict["resolution"] = self.resolution
 
 

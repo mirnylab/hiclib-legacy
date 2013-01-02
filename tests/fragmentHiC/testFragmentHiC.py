@@ -7,6 +7,9 @@ from mirnylib.systemutils import setExceptionHook
 
 if os.path.exists("test-1M.hm"):
     os.remove("test-1M.hm")
+if os.path.exists("test-1M-byChr.hm"):
+    os.remove("test-1M-byChr.hm")
+
 workingGenome = "hg19"
 genomeFolder = "../../fasta/hg19"
 if not os.path.exists(genomeFolder):
@@ -110,11 +113,11 @@ def refine_paper(filename, create=True):
     setExceptionHook()
     print "----> saving by chromosome heatmap"
     TR.saveByChromosomeHeatmap(
-        filename[1] + "-1M.hm", resolution=1000000, includeTrans=True,
+        filename[1] + "-1M-byChr.hm", resolution=1000000, includeTrans=True,
         countDiagonalReads="once")
 
-    Tb = h5dict(filename[1] + "-1M.hm")["1 1"]
-    Tbb = h5dict(filename[1] + "-1M.hm")["1 2"]
+    Tb = h5dict(filename[1] + "-1M-byChr.hm")["1 1"]
+    Tbb = h5dict(filename[1] + "-1M-byChr.hm")["1 2"]
     assert ((Tb - chrom1) == 0).all()
     assert ((Tbb - chrom12) == 0).all()
     assert ((Tb + np.diag(np.diag(Tb))) == b).all()
@@ -142,6 +145,6 @@ map(refine_paper,
 #os.remove("test_breaks.frag")
 os.remove("test-hg19.hdf5_parsed.frag")
 os.remove("test_merged.frag")
-os.remove("test-1M.hm")
+#os.remove("test-1M.hm")
 #os.remove("test_refined.frag")
 print "Test finished successfully!"
