@@ -599,7 +599,7 @@ class HiResHiC(object):
         mydict = h5dict(filename)
         for i in self.allKeys:
             data = self.data[i].getData()
-            mydict["heatmap%d %d" % (i, i)] = data
+            mydict["%d %d" % i ] = data
         mydict["resolution"] = self.resolution
 
 
