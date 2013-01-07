@@ -158,7 +158,7 @@ import warnings
 from mirnylib.plotting import removeBorder
 from mirnylib.numutils import PCA, EIG, correct, \
     ultracorrectSymmetricWithVector, isInteger, \
-    observedOverExpected, ultracorrect, adaptiveSmoothing, fillDiagonal, \
+    observedOverExpected, ultracorrect, adaptiveSmoothing, \
     removeDiagonals
 from mirnylib.genome import Genome
 import numpy as np
@@ -167,7 +167,7 @@ from mirnylib.h5dict import h5dict
 from scipy.stats.stats import spearmanr
 import matplotlib.pyplot as plt
 from mirnylib.numutils import  fakeCisImpl
-from mirnylib.systemutils import setExceptionHook
+
 
 
 class binnedData(object):
@@ -422,7 +422,7 @@ class binnedData(object):
                     end1 = self.chromosomeEnds[i]
                     st2 = self.chromosomeStarts[j]
                     end2 = self.chromosomeEnds[j]
-                    toexport["heatmap{0} {1}".format(i, j)] = hm[st1:end1,
+                    toexport["{0} {1}".format(i, j)] = hm[st1:end1,
                                                                  st2:end2]
 
         toexport["resolution"] = self.resolution
@@ -1412,7 +1412,6 @@ class experimentalBinnedData(binnedData):
             proj[mask] += datamean
             self.dataDict[name + "_projected"] = proj
 
-
     def emulateCis(self):
         """if you want to have fun creating syntetic data,
         this emulates cis contacts. adjust cis/trans ratio in the C code"""
@@ -1602,7 +1601,6 @@ class experimentalBinnedData(binnedData):
             for i in xrange(len(otherdata)):
                 base[i] += otherdata[i]
         data = base
-
 
         if control is not None:
             controlData = loadFile(control)

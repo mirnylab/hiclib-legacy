@@ -62,7 +62,6 @@ from mirnylib.genome import Genome
 import numpy as np
 import warnings
 from mirnylib.h5dict import h5dict
-from mirnylib.plotting import mat_img
 from mirnylib.numutils import removeDiagonals
 from mirnylib.systemutils import setExceptionHook
 
@@ -385,6 +384,21 @@ class HiResHiC(object):
         self.allKeys = self.cisKeys + self.transKeys
 
         self.data = {}
+        self._initChromosomes()
+
+    def _initChromosomes(self):
+        "internal: loads mappings from the genome class based on resolution"
+        self.chromosomeStarts = self.genome.chrmStartsBinCont
+        self.centromerePositions = self.genome.cntrMidsBinCont
+        self.chromosomeEnds = self.genome.chrmEndsBinCont
+        self.trackLength = self.genome.numBins
+
+        self.chromosomeCount = self.genome.chrmCount
+        self.chromosomeIndex = self.genome.chrmIdxBinCont
+        self.positionIndex = self.genome.posBinCont
+        self.armIndex = self.chromosomeIndex * 2 + \
+            np.array(self.positionIndex > self.genome.cntrMids
+                     [self.chromosomeIndex], int)
 
     def _checkConsistency(self):
         "Checks if shapes of all datasets are correct"
@@ -599,7 +613,12 @@ class HiResHiC(object):
         mydict = h5dict(filename)
         for i in self.allKeys:
             data = self.data[i].getData()
-            mydict["%d %d" % i ] = data
+            mydict["%d %d" % i] = data
         mydict["resolution"] = self.resolution
 
-
+    def exportWithoutZeros(self, filename):
+        mydict = h5dict(filename)
+        for i in self.allKeys:
+            data = self.data[i].getData()
+            mydict["%d %d" % i] = data
+        mydict["resolution"] = self.resolution

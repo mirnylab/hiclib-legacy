@@ -14,7 +14,7 @@ from mirnylib.genome import Genome
 from hiclib.binnedData import binnedData
 from mirnylib.h5dict import h5dict
 import numpy as np
-import matplotlib.pyplot as plt
+import os
 
 genome = Genome("../../../data/hg19", readChrms=["1", "2", "3", "4", "5"])
 
@@ -36,11 +36,22 @@ b.removePoorRegions(cutoff=2)
 b.iterativeCorrectWithoutSS(tolerance=1e-10)
 a.export("testExport")
 
-dataHigh = a.getCombinedMatrix()
-dataLow = b.dataDict["data"]
+def compareData():
+    dataHigh = a.getCombinedMatrix()
+    dataLow = b.dataDict["data"]
 
-dataHigh /= dataHigh.mean()
-dataLow /= dataLow.mean()
+    dataHigh /= dataHigh.mean()
+    dataLow /= dataLow.mean()
 
-assert np.abs(dataHigh - dataLow).max() < 1e-6
+    assert np.abs(dataHigh - dataLow).max() < 1e-6
+
+compareData()
+
+
+
+print "Tests finished successfully"
+
+os.remove("hiResDict")
+os.remove("testExport")
+
 
