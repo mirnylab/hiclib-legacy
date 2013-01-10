@@ -1393,6 +1393,8 @@ class HiCStatistics(HiCdataset):
             Restrict scaling calculation to only certain squares of the map
         appendReadCount : bool, optional
             Append read count to the plot label
+        plot : bool, optional
+            If False then do not display the plot. True by default.
         **kwargs :  optional
             All other keyword args are passed to plt.plot
 
@@ -1658,11 +1660,13 @@ class HiCStatistics(HiCdataset):
                                                           ]
                                  )
 
-        if appendReadCount == True:
-            if "label" in kwargs.keys():
-                kwargs["label"] = kwargs["label"] + \
-                    ", %d reads" % len(distances)
-        plt.plot(positions, values, **kwargs)
+        do_plot = kwargs.pop('plot', True)
+        if do_plot:
+            if appendReadCount == True:
+                if "label" in kwargs.keys():
+                    kwargs["label"] = kwargs["label"] + \
+                        ", %d reads" % len(distances)
+            plt.plot(positions, values, **kwargs)
         return (positions, values)
 
     def plotRsiteStartDistribution(self, useSSReadsOnly=False,
