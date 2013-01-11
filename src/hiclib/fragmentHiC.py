@@ -1380,7 +1380,7 @@ class HiCStatistics(HiCdataset):
         excludeNeighbors : int or None, optional
             If None, all fragment pairs are considered.
             If integer, only fragment pairs separated
-            by this rsites are considered.
+            by at least this number of r-fragments are considered.
         enzyme : string ("HindIII","NcoI")
             If excludeNeighbors is used, you have to specify restriction enzyme
         normalize : bool, optional
@@ -1488,41 +1488,37 @@ class HiCStatistics(HiCdataset):
                 fragRegions2[mask2] = regionNum
         del chr1, chr2, pos1, pos2
 
-        lens = np.array(numutils.logbins(mindist, maxdist, 1.12),
-            float) + 0.1  # bins of lengths
-
-        positions = []  # arrays to write the result
-        values = []
-
-        if excludeNeighbors is not None:
-            if enzyme is None:
-                raise ValueError("Please specify enzyme if you're"
-                                 " excluding Neighbors")
-            fragmentDists = self.genome.getFragmentDistance(
-                self.fragids1, self.fragids2, enzyme)
-
-            # keep only guys more than excludeNeighbors fragments apart
-            mask3 = fragmentDists > excludeNeighbors
+        bins = np.array(
+            numutils.logbins(mindist, maxdist, 1.12), float) + 0.1  # bins of lengths
+        numBins = len(bins) - 1  # number of bins
 
         #Keeping reads for fragments in use
-
+        # Consider only double-sided fragment pairs.
+        validFragPairs = self.DS
         if allFragments == False:
+            # Filter the dataset so it has only the specified fragments.
             p11 = arrayInArray(self.fragids1, fragids1)
             p12 = arrayInArray(self.fragids1, fragids2)
             p21 = arrayInArray(self.fragids2, fragids1)
             p22 = arrayInArray(self.fragids2, fragids2)
-            mask = ((p11 * p22) + (p12 * p21)) * \
-                self.DS  # reads between fragids1 and fragids2
-        else:
-            mask = self.DS
-        mask2 = (mask) * (regionID >= 0) * (self.strands1 == self.strands2)
-        #Reads only between fragments
-        #Reads from the same region
-        #Reads like --> -->    or <-- <--, discarding --> <-- and <-- -->
-        if excludeNeighbors is not None:
-            mask2 = mask2 * mask3  # remove all neighbors
+            validFragPairs *= ((p11 * p22) + (p12 * p21))
 
-        distances = np.sort(self.distances[mask2])
+        # Consider pairs of fragments from the same region.
+        validFragPairs *= (regionID >= 0)
+        # Keep only --> -->  or <-- <-- pairs, discard --> <-- and <-- -->
+        validFragPairs *= (self.strands1 == self.strands2)
+
+        # Keep only fragment pairs more than excludeNeighbors fragments apart.
+        if excludeNeighbors is not None:
+            if enzyme is None:
+                raise ValueError("Please specify enzyme if you're"
+                                 " excluding Neighbors")
+            distsInFrags = self.genome.getFragmentDistance(
+                self.fragids1, self.fragids2, enzyme)
+
+            validFragPairs *= distsInFrags > excludeNeighbors
+
+        distances = np.sort(self.distances[validFragPairs])
 
         "calculating fragments lengths for exclusions to expected # of counts"
         #sorted fragment IDs and lengthes
@@ -1539,26 +1535,24 @@ class HiCStatistics(HiCdataset):
             weights2 = uweights[np.searchsorted(usort, fragids2)
                 ]  # weghts for fragment IDs under  consideration
 
-        lenmins, lenmaxs = lens[:-1], lens[1:]
+        binBegs, binEnds = bins[:-1], bins[1:]
 
-        N = len(lenmins)  # number of bins
-        count = [0 for _ in xrange(N)]  # count of reads in each min
+        numExpFrags = np.zeros(numBins)  # count of reads in each min
         chr1 = fragids1 / self.fragIDmult
         chr2 = fragids2 / self.fragIDmult
         pos1 = fragids1 % self.fragIDmult
         pos2 = fragids2 % self.fragIDmult
 
         for regionNumber, region in enumerate(regions):
-
             print region
 
-            # filtering fragments that correspont to current region
-            mask = np.nonzero(fragRegions1 == regionNumber)[0]
+            # filtering fragments that correspond to current region
+            mask1 = np.nonzero(fragRegions1 == regionNumber)[0]
             mask2 = np.nonzero(fragRegions2 == regionNumber)[0]
 
-            if (len(mask) == 0) or (len(mask2) == 0):
+            if (len(mask1) == 0) or (len(mask2) == 0):
                 continue
-            bp1, bp2 = pos1[mask], pos2[mask2]
+            bp1, bp2 = pos1[mask1], pos2[mask2]
                 #positions of fragments on chromosome
 
             p2arg = np.argsort(bp2)
@@ -1568,7 +1562,7 @@ class HiCStatistics(HiCdataset):
                 "calculating excluded fragments (neighbors) and their weights"\
                 " to subtract them later"
                 excFrag1, excFrag2 = self.genome.getPairsLessThanDistance(
-                    fragids1[mask], fragids2[mask2], excludeNeighbors, enzyme)
+                    fragids1[mask1], fragids2[mask2], excludeNeighbors, enzyme)
                 excDists = np.abs(excFrag2 - excFrag1)
                     #distances between excluded fragment pairs
                 if useWeights == True:
@@ -1579,31 +1573,28 @@ class HiCStatistics(HiCdataset):
                     correctionWeights = correctionWeights * weights2[
                                 numutils.arraySearch(fragids2, excFrag2)]
             if useWeights == True:
-                w1, w2 = weights1[mask], weights2[mask2]
+                w1, w2 = weights1[mask1], weights2[mask2]
                 sw2 = np.r_[0, np.cumsum(w2[p2arg])]
                     #cumsum for sorted weights on 2 strand
-            for lenmin, lenmax, index in map(None, lenmins,
-                                             lenmaxs, range(len(lenmins))):
 
+            for minDist, maxDist, binIndex in zip(binBegs, binEnds, range(numBins)):
                 "Now calculating actual number of fragment pairs for a "\
                 "length-bin, or weight of all these pairs"
 
-                # calculating boundaries for fragments on a second strand
-                mymin, mymax = bp1 - lenmax, bp1 - lenmin
-                val1 = np.searchsorted(p2, mymin)
-                    #Calculating indexes on the second strand
-                val2 = np.searchsorted(p2, mymax)
+                # For each first fragment in a pair, calculate total # of
+                # restriction fragments in the genome lying downstream within 
+                # the bin.
+                val1 = np.searchsorted(p2, bp1 - maxDist)
+                val2 = np.searchsorted(p2, bp1 - minDist)
                 if useWeights == False:
-                    curcount = np.sum(np.abs(val1 -
-                        val2))  # just # of fragments
+                    curcount = np.sum(np.abs(val1 - val2)) # just # of fragments
                 else:
                     # (difference in cumsum of weights) * my weight
                     curcount = np.sum(w1 * np.abs(sw2[val1] - sw2[val2]))
 
-                mymin, mymax = bp1 + lenmax, bp1 + \
-                    lenmin  # repeating the same for
-                val1 = np.searchsorted(p2, mymin)
-                val2 = np.searchsorted(p2, mymax)
+                # Repeat the procedure for the fragments lying upstream.
+                val1 = np.searchsorted(p2, bp1 + maxDist)
+                val2 = np.searchsorted(p2, bp1 + minDist)
                 if useWeights == False:
                     curcount += np.sum(np.abs(val1 - val2))
                 else:
@@ -1612,53 +1603,49 @@ class HiCStatistics(HiCdataset):
                 # now modifying expected count because of excluded fragments
                 if excludeNeighbors is not None:
                     if useWeights == False:
-                        ignore = ((excDists > lenmin) *
+                        ignore = ((excDists > minDist) *
                             (excDists < lenmax)).sum()
                     else:
-                        ignore = (correctionWeights[((excDists > lenmin) * \
-                                                (excDists < lenmax))]).sum()
+                        ignore = (correctionWeights[((excDists > minDist) * \
+                                                (excDists < maxDist))]).sum()
 
                     if (ignore >= curcount) and (ignore != 0):
                         if ignore < curcount * 1.0001:
                             curcount = ignore = 0
                         else:
-                            print "error found", "lenmin:", lenmin
+                            print "error found", "minDist:", minDist
                             print "  curcount:", curcount, "  ignore:", ignore
                     else:  # Everything is all right
                         curcount -= ignore
-                count[index] += curcount
-                #print index,count[index]
-        maxcountsall = count
+                numExpFrags[binIndex] += curcount
+
+        values = []
         rawValues = []
-        begs = []
-        ends = []
-        #print "before"
-        for i in xrange(len(lens) - 1):  # Dividing observed by expected
-            beg, end = lens[i], lens[i + 1]
-            begs.append(beg)
-            ends.append(end)
-            first, last = tuple(np.searchsorted(distances, [beg, end]))
+        binBegs, binEnds = bins[:-1], bins[1:]
+        binMids = 0.5 * (binBegs + binEnds).astype(float)
+        binLens = binEnds - binBegs
+
+        for i in xrange(len(bins) - 1):  # Dividing observed by expected
+            first, last = tuple(np.searchsorted(distances, [binBegs[i], binEnds[i]]))
             mycounts = last - first
-            maxcounts = maxcountsall[i]
-            positions.append(0.5 * (float(beg) + float(end)))
-            values.append(mycounts / float(maxcounts))
+            values.append(mycounts / float(numExpFrags[i]))
             rawValues.append(mycounts)
-        #print "after"
-        positions = np.array(positions)
-        lengthes = np.array(ends) - np.array(begs)
+
         values = np.array(values)
 
         if normalize == True:
             if normRange is None:
-                values /= np.sum(1. * (lengthes * values)[np.logical_not(
-                    np.isnan(positions * values))])
+                values /= np.sum(
+                    1. * (binLens * values)[
+                        np.logical_not(
+                            np.isnan(binMids * values))])
             else:
-                values /= np.sum(1. * (lengthes * values)[np.logical_not(
-                np.isnan(positions * values)) * (positions > normRange[0]) * \
-                                                 (positions < normRange[1]
-                                                                        )
-                                                          ]
-                                 )
+                values /= np.sum(
+                    1. * (binLens * values)[
+                        np.logical_not(
+                            np.isnan(binMids * values)) 
+                            * (binMids > normRange[0]) 
+                            * (binMids < normRange[1])])
 
         do_plot = kwargs.pop('plot', True)
         if do_plot:
@@ -1666,8 +1653,8 @@ class HiCStatistics(HiCdataset):
                 if "label" in kwargs.keys():
                     kwargs["label"] = kwargs["label"] + \
                         ", %d reads" % len(distances)
-            plt.plot(positions, values, **kwargs)
-        return (positions, values)
+            plt.plot(binMids, values, **kwargs)
+        return (binMids, values)
 
     def plotRsiteStartDistribution(self, useSSReadsOnly=False,
                                    offset=5, length=200):
