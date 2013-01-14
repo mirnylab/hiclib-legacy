@@ -1582,12 +1582,12 @@ class HiCStatistics(HiCdataset):
                 "length-bin, or weight of all these pairs"
 
                 # For each first fragment in a pair, calculate total # of
-                # restriction fragments in the genome lying downstream within 
+                # restriction fragments in the genome lying downstream within
                 # the bin.
                 val1 = np.searchsorted(p2, bp1 - maxDist)
                 val2 = np.searchsorted(p2, bp1 - minDist)
                 if useWeights == False:
-                    curcount = np.sum(np.abs(val1 - val2)) # just # of fragments
+                    curcount = np.sum(np.abs(val1 - val2))  # just # of fragments
                 else:
                     # (difference in cumsum of weights) * my weight
                     curcount = np.sum(w1 * np.abs(sw2[val1] - sw2[val2]))
@@ -1604,7 +1604,7 @@ class HiCStatistics(HiCdataset):
                 if excludeNeighbors is not None:
                     if useWeights == False:
                         ignore = ((excDists > minDist) *
-                            (excDists < lenmax)).sum()
+                            (excDists < maxDist)).sum()
                     else:
                         ignore = (correctionWeights[((excDists > minDist) * \
                                                 (excDists < maxDist))]).sum()
@@ -1643,8 +1643,8 @@ class HiCStatistics(HiCdataset):
                 values /= np.sum(
                     1. * (binLens * values)[
                         np.logical_not(
-                            np.isnan(binMids * values)) 
-                            * (binMids > normRange[0]) 
+                            np.isnan(binMids * values))
+                            * (binMids > normRange[0])
                             * (binMids < normRange[1])])
 
         do_plot = kwargs.pop('plot', True)
