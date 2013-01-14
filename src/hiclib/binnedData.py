@@ -1424,7 +1424,7 @@ class experimentalBinnedData(binnedData):
             N = len(data)
             N
             code = r"""
-            #line 841 "binary_search.py"
+            #line 1427 "binnedData.py"
             using namespace std;
             for (int i = 0; i < N; i++)
             {
@@ -1464,7 +1464,7 @@ class experimentalBinnedData(binnedData):
             N = len(data)
             N, transmask, mask  # to remove warning
             code = r"""
-            #line 841 "binary_search.py"
+            #line 1467 "binnedData.py"
             using namespace std;
             for (int i = 0; i < N; i++)
             {
