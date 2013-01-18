@@ -1480,10 +1480,12 @@ class HiCStatistics(HiCdataset):
 
                 mask = mask1 + mask2
                 regionID[mask] = regionNum
-                mask1 = (fragch1 == chrom) * (fragpos1 >
-                    start1) * (fragpos1 < end1)
-                mask2 = (fragch2 == chrom) * (fragpos2 >
-                    start2) * (fragpos2 < end2)
+                mask1 = (fragch1 == chrom) * (
+                    (fragpos1 > start1) * (fragpos1 < end1)
+                    + (fragpos1 > start2) * (fragpos1 < end2))
+                mask2 = (fragch2 == chrom) * (
+                    (fragpos2 > start2) * (fragpos2 < end2)
+                    + (fragpos2 > start1) * (fragpos2 < end1))
                 fragRegions1[mask1] = regionNum
                 fragRegions2[mask2] = regionNum
         del chr1, chr2, pos1, pos2
@@ -1538,10 +1540,8 @@ class HiCStatistics(HiCdataset):
         binBegs, binEnds = bins[:-1], bins[1:]
 
         numExpFrags = np.zeros(numBins)  # count of reads in each min
-        chr1 = fragids1 / self.fragIDmult
-        chr2 = fragids2 / self.fragIDmult
-        pos1 = fragids1 % self.fragIDmult
-        pos2 = fragids2 % self.fragIDmult
+        fragpos1 = fragids1 % self.fragIDmult
+        fragpos2 = fragids2 % self.fragIDmult
 
         for regionNumber, region in enumerate(regions):
             print region
@@ -1552,7 +1552,7 @@ class HiCStatistics(HiCdataset):
 
             if (len(mask1) == 0) or (len(mask2) == 0):
                 continue
-            bp1, bp2 = pos1[mask1], pos2[mask2]
+            bp1, bp2 = fragpos1[mask1], fragpos2[mask2]
                 #positions of fragments on chromosome
 
             p2arg = np.argsort(bp2)
