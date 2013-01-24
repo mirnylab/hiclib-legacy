@@ -262,6 +262,8 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
     temp_dir = os.path.abspath(os.path.expanduser(
         kwargs.get('temp_dir', tempfile.gettempdir())))
+    if not os.path.isdir(temp_dir):
+        os.makedirs(temp_dir)
 
     bash_reader = kwargs.get('bash_reader', None)
     if bash_reader is None:
