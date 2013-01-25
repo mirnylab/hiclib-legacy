@@ -273,11 +273,12 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         else:
             bash_reader = 'cat'
     else:
-        bash_reader = os.path.abspath(os.path.expanduser(bash_reader))
-        if not os.path.isfile(bash_reader.split()[0]):
-            raise Exception(
-                'The bash reader is not found '
-                'at the specified location {0}.'.format(bash_reader))
+        if subprocess.call(['which', bash_reader]) != 0:
+            bash_reader = os.path.abspath(os.path.expanduser(bash_reader))
+            if not os.path.isfile(bash_reader.split()[0]):
+                raise Exception(
+                    'The bash reader is not found '
+                    'at the specified location {0}.'.format(bash_reader))
 
     reading_command = bash_reader.split() + [fastq_path, ]
 
@@ -288,8 +289,9 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         log.info('Bash reader is not trivial, read input with %s, store in %s',
                  ' '.join(reading_command), converted_fastq)
         converting_process = subprocess.Popen(
-            reading_command,
-            stdout=open(converted_fastq, 'w'))
+            ' '.join(reading_command),
+            stdout=open(converted_fastq, 'w'),
+            shell=True)
         converting_process.wait()
 
         kwargs['bash_reader'] = 'cat'
