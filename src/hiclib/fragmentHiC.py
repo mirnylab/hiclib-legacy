@@ -95,10 +95,8 @@ from mirnylib.numutils import arrayInArray, sumByArray, \
 
 r_ = np.r_
 
-
 def corr(x, y):
     return stats.spearmanr(x, y)[0]
-
 
 class HiCdataset(object):
     """Base class to operate on HiC dataset.
@@ -176,7 +174,11 @@ class HiCdataset(object):
             # precise location of cut-site
             "cuts1": "int32", "cuts2": "int32",
             "strands1": "bool", "strands2": "bool",
-            "DS": "bool", "SS": "bool"}
+            "DS": "bool", "SS": "bool",
+            'rfragIdxs1': 'int32',
+            'rfragIdxs2':'int32',
+            'absRfragIdxs1':'int32',
+            'absRfragIdxs2':'int32'}
 
         #--------Deprecation warnings-------
         if override != "deprecated":
@@ -213,8 +215,8 @@ class HiCdataset(object):
 
         #------Creating filenames, etc---------
         if os.path.exists(self.filename) and (mode in ['w', 'a']):
-            print "----->!!!File already exists! It will be {0}\n"\
-            .format({"w": "deleted", "a": "opened in the append mode"}[mode])
+            print '----->!!!File already exists! It will be {0}\n'.format(
+                {"w": "deleted", "a": "opened in the append mode"}[mode])
 
         if len(os.path.split(self.filename)[0]) != 0:
             if not os.path.exists(os.path.split(self.filename)[0]):
@@ -328,8 +330,6 @@ class HiCdataset(object):
         out_variable : str or tuple or None, optional
             Variable to output the data. Either internal variable, or tuple
             (name,value), where value is an array
-
-
         """
         if type(internalVariables) == str:
             internalVariables = [internalVariables]
@@ -371,9 +371,7 @@ class HiCdataset(object):
                 outVariable = (outVariable[0], np.zeros(self.N, dtype))
 
             if type(outVariable) == str:
-                self.h5dict.get_dataset(outVariable)[start:end]\
- = variables[outVariable]
-
+                self.h5dict.get_dataset(outVariable)[start:end] = variables[outVariable]
             elif len(outVariable) == 2:
                 outVariable[1][start:end] = variables[outVariable[0]]
             elif outVariable is None:
@@ -460,6 +458,8 @@ class HiCdataset(object):
         noFiltering : bool, optional
             If True then no filters are applied to the data. False by default.
             Overrides removeSS. Experimental, do not use if you are not sure.
+        loadRfragIdxs: bool, optional
+            If True, load r-fragment indexes from input. False by default.
         """
 
         rsite_related = ["rsites1", "rsites2", "uprsites1",
@@ -470,7 +470,7 @@ class HiCdataset(object):
             print "     loading data from file %s (assuming h5dict)" % dictLike
             dictLike = h5dict(dictLike, 'r')  # attempting to open h5dict
 
-        if False not in [i in dictLike.keys() for i in rsite_related]:
+        if all([i in dictLike.keys() for i in rsite_related]):
             noRsites = False
         else:
             noRsites = True
@@ -488,8 +488,30 @@ class HiCdataset(object):
         self.N = len(self.chrms1)
         del a
 
-        self.cuts1 = dictLike["cuts1"]
-        self.cuts2 = dictLike["cuts2"]
+        self.cuts1 = dictLike['cuts1']
+        self.cuts2 = dictLike['cuts2']
+        
+        if kwargs.get('loadRfragIdxs', False):
+            if ((enzymeToFillRsites is None) and
+                (self.genome.hasEnzyme() == False)):
+                raise Exception("Please specify enzyme to calculate absolute "
+                                "r-fragment indices.")
+
+            self.genome.setEnzyme(enzymeToFillRsites)
+            self.rfragIdxs1 = dictLike['rfragIdxs1'].astype('int32')
+            self.rfragIdxs2 = dictLike['rfragIdxs2'].astype('int32')
+
+            self.absRfragIdxMult = max([len(i) for i in self.genome.rsites]) + 1
+            self.absRfragIdxs1 = self.absRfragIdxMult * self.chrms1 + self.rfragIdxs1
+            self.absRfragIdxs2 = self.absRfragIdxMult * self.chrms2 + self.rfragIdxs2
+            self.absRfragIdxs1[self.rfragIdxs1 == -1] = -1
+            self.absRfragIdxs2[self.rfragIdxs2 == -1] = -1
+        else:
+            self.vectors.pop('rfragIdxs1')
+            self.vectors.pop('rfragIdxs2')
+            self.vectors.pop('absRfragIdxs1')
+            self.vectors.pop('absRfragIdxs2')
+
 
         if not (("strands1" in dictLike.keys()) and
                 ("strands2" in dictLike.keys())):
@@ -507,8 +529,8 @@ class HiCdataset(object):
 
         # We have to fill rsites ousrlves. Let's see what enzyme to use!
         if noRsites == True:
-            if (enzymeToFillRsites is None) and \
-                (self.genome.hasEnzyme() == False):
+            if ((enzymeToFillRsites is None) and
+                (self.genome.hasEnzyme() == False)):
                 raise ValueError("Please specify enzyme"
                                  " if your data has no rsites")
 
@@ -1261,7 +1283,6 @@ class HiCdataset(object):
         print a
         print "     ----> Bye! :) <----"
         exit()
-
 
 class HiCStatistics(HiCdataset):
     """a semi-experimental sub-class of a 'HiCdataset' class
