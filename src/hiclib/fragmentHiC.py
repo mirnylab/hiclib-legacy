@@ -175,10 +175,11 @@ class HiCdataset(object):
             "cuts1": "int32", "cuts2": "int32",
             "strands1": "bool", "strands2": "bool",
             "DS": "bool", "SS": "bool",
-            'rfragIdxs1': 'int32',
-            'rfragIdxs2':'int32',
-            'absRfragIdxs1':'int32',
-            'absRfragIdxs2':'int32'}
+            }
+            #'rfragIdxs1': 'int32',
+            #'rfragIdxs2':'int32',
+            #'absRfragIdxs1':'int32',
+            #'absRfragIdxs2':'int32'}
 
         #--------Deprecation warnings-------
         if override != "deprecated":
@@ -497,21 +498,21 @@ class HiCdataset(object):
                 raise Exception("Please specify enzyme to calculate absolute "
                                 "r-fragment indices.")
 
-            self.genome.setEnzyme(enzymeToFillRsites)
+            self.vectors['rfragIdxs1'] = 'int32'
+            self.vectors['rfragIdxs2'] = 'int32'
+            self.vectors['absRfragIdxs1'] = 'int32'
+            self.vectors['absRfragIdxs2'] = 'int32'
+
             self.rfragIdxs1 = dictLike['rfragIdxs1'].astype('int32')
             self.rfragIdxs2 = dictLike['rfragIdxs2'].astype('int32')
 
+            self.genome.setEnzyme(enzymeToFillRsites)
             self.absRfragIdxMult = max([len(i) for i in self.genome.rsites]) + 1
+
             self.absRfragIdxs1 = self.absRfragIdxMult * self.chrms1 + self.rfragIdxs1
             self.absRfragIdxs2 = self.absRfragIdxMult * self.chrms2 + self.rfragIdxs2
             self.absRfragIdxs1[self.rfragIdxs1 == -1] = -1
             self.absRfragIdxs2[self.rfragIdxs2 == -1] = -1
-        else:
-            self.vectors.pop('rfragIdxs1')
-            self.vectors.pop('rfragIdxs2')
-            self.vectors.pop('absRfragIdxs1')
-            self.vectors.pop('absRfragIdxs2')
-
 
         if not (("strands1" in dictLike.keys()) and
                 ("strands2" in dictLike.keys())):
@@ -636,6 +637,11 @@ class HiCdataset(object):
 
         print "     ... -> No unmapped reads: {noUnmapped} -> "\
         "no extra DEs (--> (<500) <--): {extraDE}".format(**locals())
+
+        if mask.sum() == 0:
+            raise Exception(
+                'No reads left after filtering. Please, check the input data')
+
         del dist
         del readsMolecules
         if not kwargs.get('noFiltering', False):
