@@ -459,8 +459,6 @@ class HiCdataset(object):
         noFiltering : bool, optional
             If True then no filters are applied to the data. False by default.
             Overrides removeSS. Experimental, do not use if you are not sure.
-        loadRfragIdxs: bool, optional
-            If True, load r-fragment indexes from input. False by default.
         """
 
         rsite_related = ["rsites1", "rsites2", "uprsites1",
@@ -492,28 +490,6 @@ class HiCdataset(object):
         self.cuts1 = dictLike['cuts1']
         self.cuts2 = dictLike['cuts2']
         
-        if kwargs.get('loadRfragIdxs', False):
-            if ((enzymeToFillRsites is None) and
-                (self.genome.hasEnzyme() == False)):
-                raise Exception("Please specify enzyme to calculate absolute "
-                                "r-fragment indices.")
-
-            self.vectors['rfragIdxs1'] = 'int32'
-            self.vectors['rfragIdxs2'] = 'int32'
-            self.vectors['absRfragIdxs1'] = 'int32'
-            self.vectors['absRfragIdxs2'] = 'int32'
-
-            self.rfragIdxs1 = dictLike['rfragIdxs1'].astype('int32')
-            self.rfragIdxs2 = dictLike['rfragIdxs2'].astype('int32')
-
-            self.genome.setEnzyme(enzymeToFillRsites)
-            self.absRfragIdxMult = max([len(i) for i in self.genome.rsites]) + 1
-
-            self.absRfragIdxs1 = self.absRfragIdxMult * self.chrms1 + self.rfragIdxs1
-            self.absRfragIdxs2 = self.absRfragIdxMult * self.chrms2 + self.rfragIdxs2
-            self.absRfragIdxs1[self.rfragIdxs1 == -1] = -1
-            self.absRfragIdxs2[self.rfragIdxs2 == -1] = -1
-
         if not (("strands1" in dictLike.keys()) and
                 ("strands2" in dictLike.keys())):
             warnings.warn("No strand information provided,"
@@ -1290,6 +1266,73 @@ class HiCdataset(object):
         print "     ----> Bye! :) <----"
         exit()
 
+    def setRfragIdxs(self, rEnzyme=None):
+        if self.genome.hasEnzyme() == False:
+            if rEnzyme is None:
+                raise Exception("Please specify the restriction enzyme.")
+            else:
+                self.genome.setEnzyme(rEnzyme)
+
+        rfragIdxs1 = np.ones(self.N, dtype='int32') * -1
+        rfragIdxs2 = np.ones(self.N, dtype='int32') * -1
+        for i in range(max(self.chrms1.max(), self.chrms2.max()) + 1):
+            allMids = (self.genome.rsites[i] + np.r_[0, self.genome.rsites[i][:-1]]) / 2
+            mask1 = (self.chrms1 == i)
+            rfragIdxs1[mask1] = np.searchsorted(
+                allMids, self.mids1[mask1], side='left').astype('int32')
+            mask2 = (self.chrms2 == i)
+            rfragIdxs2[mask2] = np.searchsorted(
+                allMids, self.mids2[mask2], side='left').astype('int32')
+            print 'Chromosome #{0}: {1} out of {2} rfragIdxs are restored correctly'.format(
+                i,
+                (allMids[rfragIdxs1[mask1]] == self.mids1[mask1]).sum()
+                + (allMids[rfragIdxs2[mask2]] == self.mids2[mask2]).sum(),
+                mask1.sum() + mask2.sum())
+
+        rfragAbsIdxs1 = self.genome.chrmStartsRfragCont[self.chrms1] + rfragIdxs1
+        rfragAbsIdxs2 = self.genome.chrmStartsRfragCont[self.chrms2] + rfragIdxs2
+        rfragAbsIdxs1[self.chrms1 == -1] = -1
+        rfragAbsIdxs2[self.chrms2 == -1] = -1
+
+        self.vectors['rfragIdxs1'] = 'int32'
+        self.vectors['rfragIdxs2'] = 'int32'
+        self.vectors['rfragAbsIdxs1'] = 'int32'
+        self.vectors['rfragAbsIdxs2'] = 'int32'
+
+        self.rfragIdxs1 = rfragIdxs1
+        self.rfragIdxs2 = rfragIdxs2
+        self.rfragAbsIdxs1 = rfragAbsIdxs1
+        self.rfragAbsIdxs2 = rfragAbsIdxs2
+
+    def iterativeCorrection(self, numsteps = 10, normToLen=False):
+        '''
+        This function performs fragment-based iterative correction of Hi-C data.
+        '''
+        if 'rfragAbsIdxs1' not in self.vectors:
+            raise Exception('Run setRfragIdxs() first!')
+
+        rfragLensConc = np.concatenate(self.genome.rfragLens)
+        weights = np.ones(self.N, dtype=np.float32)
+        concRfragAbsIdxs = np.r_[self.rfragAbsIdxs1, self.rfragAbsIdxs2]
+        concOrigArgs = np.r_[np.arange(0, self.N), np.arange(0, self.N)]
+        concArgs = np.argsort(concRfragAbsIdxs)
+        concRfragAbsIdxs = concRfragAbsIdxs[concArgs]
+        concOrigArgs = concOrigArgs[concArgs]
+        fragBorders = np.where(concRfragAbsIdxs[:-1] != concRfragAbsIdxs[1:])[0] + 1
+        fragBorders = np.r_[0, fragBorders, 2*self.N]
+        rfragLensLocal = rfragLensConc[concRfragAbsIdxs[fragBorders[:-1]]]
+        for step in range(numsteps):
+            for i in range(len(fragBorders) - 1):
+                mask = concOrigArgs[fragBorders[i]:fragBorders[i+1]]
+                totWeight = weights[mask].sum()
+                if normToLen:
+                    weights[mask] *= rfragLensLocal[i] / totWeight
+                else:
+                    weights[mask] /= totWeight
+
+        self.vectors['weights'] = 'float32'
+        self.weights = weights
+
 class HiCStatistics(HiCdataset):
     """a semi-experimental sub-class of a 'HiCdataset' class
      used to do statistics on Hi-C reads
@@ -1720,7 +1763,6 @@ class HiCStatistics(HiCdataset):
         plt.title("strands2, side 2")
         plt.plot(myrange, np.bincount(
             dists2[mask][self.strands1[mask] == False])[:length])
-
 
 class experimentalFeatures(HiCdataset):
     "This class contain some dangerous features that were not tested."
