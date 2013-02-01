@@ -233,8 +233,16 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
     '''
     bowtie_path = os.path.abspath(os.path.expanduser(bowtie_path))
+    if not os.path.isfile(bowtie_path):
+        raise Exception(
+            'The bowtie binary is not found '
+            'at the specified path: {0}.'.format(bowtie_path))
     bowtie_index_path = os.path.abspath(os.path.expanduser(bowtie_index_path))
     fastq_path = os.path.abspath(os.path.expanduser(fastq_path))
+    if not os.path.isfile(fastq_path):
+        raise Exception(
+            'The fastq file is not found '
+            'at the specified path: {0}.'.format(fastq_path))
     out_sam_path = os.path.abspath(os.path.expanduser(out_sam_path))
 
     seq_start = kwargs.get('seq_start', 0)
@@ -254,6 +262,8 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
     temp_dir = os.path.abspath(os.path.expanduser(
         kwargs.get('temp_dir', tempfile.gettempdir())))
+    if not os.path.isdir(temp_dir):
+        os.makedirs(temp_dir)
 
     bash_reader = kwargs.get('bash_reader', None)
     if bash_reader is None:
@@ -262,6 +272,13 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             bash_reader = 'gunzip -c'
         else:
             bash_reader = 'cat'
+    else:
+        if subprocess.call(['which', bash_reader]) != 0:
+            bash_reader = os.path.abspath(os.path.expanduser(bash_reader))
+            if not os.path.isfile(bash_reader.split()[0]):
+                raise Exception(
+                    'The bash reader is not found '
+                    'at the specified location {0}.'.format(bash_reader))
 
     reading_command = bash_reader.split() + [fastq_path, ]
 
@@ -272,8 +289,9 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         log.info('Bash reader is not trivial, read input with %s, store in %s',
                  ' '.join(reading_command), converted_fastq)
         converting_process = subprocess.Popen(
-            reading_command,
-            stdout=open(converted_fastq, 'w'))
+            ' '.join(reading_command),
+            stdout=open(converted_fastq, 'w'),
+            shell=True)
         converting_process.wait()
 
         kwargs['bash_reader'] = 'cat'

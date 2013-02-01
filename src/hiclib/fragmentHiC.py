@@ -95,10 +95,8 @@ from mirnylib.numutils import arrayInArray, sumByArray, \
 
 r_ = np.r_
 
-
 def corr(x, y):
     return stats.spearmanr(x, y)[0]
-
 
 class HiCdataset(object):
     """Base class to operate on HiC dataset.
@@ -176,7 +174,12 @@ class HiCdataset(object):
             # precise location of cut-site
             "cuts1": "int32", "cuts2": "int32",
             "strands1": "bool", "strands2": "bool",
-            "DS": "bool", "SS": "bool"}
+            "DS": "bool", "SS": "bool",
+            }
+            #'rfragIdxs1': 'int32',
+            #'rfragIdxs2':'int32',
+            #'absRfragIdxs1':'int32',
+            #'absRfragIdxs2':'int32'}
 
         #--------Deprecation warnings-------
         if override != "deprecated":
@@ -213,8 +216,8 @@ class HiCdataset(object):
 
         #------Creating filenames, etc---------
         if os.path.exists(self.filename) and (mode in ['w', 'a']):
-            print "----->!!!File already exists! It will be {0}\n"\
-            .format({"w": "deleted", "a": "opened in the append mode"}[mode])
+            print '----->!!!File already exists! It will be {0}\n'.format(
+                {"w": "deleted", "a": "opened in the append mode"}[mode])
 
         if len(os.path.split(self.filename)[0]) != 0:
             if not os.path.exists(os.path.split(self.filename)[0]):
@@ -328,8 +331,6 @@ class HiCdataset(object):
         out_variable : str or tuple or None, optional
             Variable to output the data. Either internal variable, or tuple
             (name,value), where value is an array
-
-
         """
         if type(internalVariables) == str:
             internalVariables = [internalVariables]
@@ -371,9 +372,7 @@ class HiCdataset(object):
                 outVariable = (outVariable[0], np.zeros(self.N, dtype))
 
             if type(outVariable) == str:
-                self.h5dict.get_dataset(outVariable)[start:end]\
- = variables[outVariable]
-
+                self.h5dict.get_dataset(outVariable)[start:end] = variables[outVariable]
             elif len(outVariable) == 2:
                 outVariable[1][start:end] = variables[outVariable[0]]
             elif outVariable is None:
@@ -470,7 +469,7 @@ class HiCdataset(object):
             print "     loading data from file %s (assuming h5dict)" % dictLike
             dictLike = h5dict(dictLike, 'r')  # attempting to open h5dict
 
-        if False not in [i in dictLike.keys() for i in rsite_related]:
+        if all([i in dictLike.keys() for i in rsite_related]):
             noRsites = False
         else:
             noRsites = True
@@ -488,9 +487,9 @@ class HiCdataset(object):
         self.N = len(self.chrms1)
         del a
 
-        self.cuts1 = dictLike["cuts1"]
-        self.cuts2 = dictLike["cuts2"]
-
+        self.cuts1 = dictLike['cuts1']
+        self.cuts2 = dictLike['cuts2']
+        
         if not (("strands1" in dictLike.keys()) and
                 ("strands2" in dictLike.keys())):
             warnings.warn("No strand information provided,"
@@ -507,8 +506,8 @@ class HiCdataset(object):
 
         # We have to fill rsites ousrlves. Let's see what enzyme to use!
         if noRsites == True:
-            if (enzymeToFillRsites is None) and \
-                (self.genome.hasEnzyme() == False):
+            if ((enzymeToFillRsites is None) and
+                (self.genome.hasEnzyme() == False)):
                 raise ValueError("Please specify enzyme"
                                  " if your data has no rsites")
 
@@ -614,6 +613,11 @@ class HiCdataset(object):
 
         print "     ... -> No unmapped reads: {noUnmapped} -> "\
         "no extra DEs (--> (<500) <--): {extraDE}".format(**locals())
+
+        if mask.sum() == 0:
+            raise Exception(
+                'No reads left after filtering. Please, check the input data')
+
         del dist
         del readsMolecules
         if not kwargs.get('noFiltering', False):
@@ -1262,6 +1266,72 @@ class HiCdataset(object):
         print "     ----> Bye! :) <----"
         exit()
 
+    def setRfragIdxs(self, rEnzyme=None):
+        if self.genome.hasEnzyme() == False:
+            if rEnzyme is None:
+                raise Exception("Please specify the restriction enzyme.")
+            else:
+                self.genome.setEnzyme(rEnzyme)
+
+        rfragIdxs1 = np.ones(self.N, dtype='int32') * -1
+        rfragIdxs2 = np.ones(self.N, dtype='int32') * -1
+        for i in range(max(self.chrms1.max(), self.chrms2.max()) + 1):
+            allMids = (self.genome.rsites[i] + np.r_[0, self.genome.rsites[i][:-1]]) / 2
+            mask1 = (self.chrms1 == i)
+            rfragIdxs1[mask1] = np.searchsorted(
+                allMids, self.mids1[mask1], side='left').astype('int32')
+            mask2 = (self.chrms2 == i)
+            rfragIdxs2[mask2] = np.searchsorted(
+                allMids, self.mids2[mask2], side='left').astype('int32')
+            print 'Chromosome #{0}: {1} out of {2} rfragIdxs are restored correctly'.format(
+                i,
+                (allMids[rfragIdxs1[mask1]] == self.mids1[mask1]).sum()
+                + (allMids[rfragIdxs2[mask2]] == self.mids2[mask2]).sum(),
+                mask1.sum() + mask2.sum())
+
+        rfragAbsIdxs1 = self.genome.chrmStartsRfragCont[self.chrms1] + rfragIdxs1
+        rfragAbsIdxs2 = self.genome.chrmStartsRfragCont[self.chrms2] + rfragIdxs2
+        rfragAbsIdxs1[self.chrms1 == -1] = -1
+        rfragAbsIdxs2[self.chrms2 == -1] = -1
+
+        self.vectors['rfragIdxs1'] = 'int32'
+        self.vectors['rfragIdxs2'] = 'int32'
+        self.vectors['rfragAbsIdxs1'] = 'int32'
+        self.vectors['rfragAbsIdxs2'] = 'int32'
+
+        self.rfragIdxs1 = rfragIdxs1
+        self.rfragIdxs2 = rfragIdxs2
+        self.rfragAbsIdxs1 = rfragAbsIdxs1
+        self.rfragAbsIdxs2 = rfragAbsIdxs2
+
+    def iterativeCorrection(self, numsteps = 10, normToLen=False):
+        '''
+        This function performs fragment-based iterative correction of Hi-C data.
+        '''
+        if 'rfragAbsIdxs1' not in self.vectors:
+            raise Exception('Run setRfragIdxs() first!')
+
+        rfragLensConc = np.concatenate(self.genome.rfragLens)
+        weights = np.ones(self.N, dtype=np.float32)
+        concRfragAbsIdxs = np.r_[self.rfragAbsIdxs1, self.rfragAbsIdxs2]
+        concOrigArgs = np.r_[np.arange(0, self.N), np.arange(0, self.N)]
+        concArgs = np.argsort(concRfragAbsIdxs)
+        concRfragAbsIdxs = concRfragAbsIdxs[concArgs]
+        concOrigArgs = concOrigArgs[concArgs]
+        fragBorders = np.where(concRfragAbsIdxs[:-1] != concRfragAbsIdxs[1:])[0] + 1
+        fragBorders = np.r_[0, fragBorders, 2*self.N]
+        rfragLensLocal = rfragLensConc[concRfragAbsIdxs[fragBorders[:-1]]]
+        for step in range(numsteps):
+            for i in range(len(fragBorders) - 1):
+                mask = concOrigArgs[fragBorders[i]:fragBorders[i+1]]
+                totWeight = weights[mask].sum()
+                if normToLen:
+                    weights[mask] *= rfragLensLocal[i] / totWeight
+                else:
+                    weights[mask] /= totWeight
+
+        self.vectors['weights'] = 'float32'
+        self.weights = weights
 
 class HiCStatistics(HiCdataset):
     """a semi-experimental sub-class of a 'HiCdataset' class
@@ -1480,10 +1550,12 @@ class HiCStatistics(HiCdataset):
 
                 mask = mask1 + mask2
                 regionID[mask] = regionNum
-                mask1 = (fragch1 == chrom) * (fragpos1 >
-                    start1) * (fragpos1 < end1)
-                mask2 = (fragch2 == chrom) * (fragpos2 >
-                    start2) * (fragpos2 < end2)
+                mask1 = (fragch1 == chrom) * (
+                    (fragpos1 > start1) * (fragpos1 < end1)
+                    + (fragpos1 > start2) * (fragpos1 < end2))
+                mask2 = (fragch2 == chrom) * (
+                    (fragpos2 > start2) * (fragpos2 < end2)
+                    + (fragpos2 > start1) * (fragpos2 < end1))
                 fragRegions1[mask1] = regionNum
                 fragRegions2[mask2] = regionNum
         del chr1, chr2, pos1, pos2
@@ -1538,10 +1610,8 @@ class HiCStatistics(HiCdataset):
         binBegs, binEnds = bins[:-1], bins[1:]
 
         numExpFrags = np.zeros(numBins)  # count of reads in each min
-        chr1 = fragids1 / self.fragIDmult
-        chr2 = fragids2 / self.fragIDmult
-        pos1 = fragids1 % self.fragIDmult
-        pos2 = fragids2 % self.fragIDmult
+        fragpos1 = fragids1 % self.fragIDmult
+        fragpos2 = fragids2 % self.fragIDmult
 
         for regionNumber, region in enumerate(regions):
             print region
@@ -1552,7 +1622,7 @@ class HiCStatistics(HiCdataset):
 
             if (len(mask1) == 0) or (len(mask2) == 0):
                 continue
-            bp1, bp2 = pos1[mask1], pos2[mask2]
+            bp1, bp2 = fragpos1[mask1], fragpos2[mask2]
                 #positions of fragments on chromosome
 
             p2arg = np.argsort(bp2)
@@ -1693,7 +1763,6 @@ class HiCStatistics(HiCdataset):
         plt.title("strands2, side 2")
         plt.plot(myrange, np.bincount(
             dists2[mask][self.strands1[mask] == False])[:length])
-
 
 class experimentalFeatures(HiCdataset):
     "This class contain some dangerous features that were not tested."
