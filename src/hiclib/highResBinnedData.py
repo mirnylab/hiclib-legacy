@@ -33,6 +33,7 @@ Class h5dictMatrix implements a subclass of a defaultMatrix, where the matrix is
 in fact stored on the HDD. It leaves all other methods intact, as  all other
 methods use only self.setData() and self.getData(). Therefore overriding getter
 and setter is enough to move matrix storage from memory to an h5dict.
+Use defaultMatrix when the speed is critical, if you're working with cis data only.
 
 Class h5dictSparseMatrix implements a subclass of defaultMatrix, where all the
 methods were overwrridden to operate in a sparse logic. It stores a Hi-C map as

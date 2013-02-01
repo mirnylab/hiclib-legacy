@@ -123,7 +123,7 @@ To install the library in Linux, do the following procedure:
 
           If you have another version of the same package installed via the
           standard system package manager, e.g. apt-get or aptitude,
-          the second command will most likely create a second copy of the package.
+          the "pip install --upgrade"  command will most likely create a second copy of the package.
           This causes numerous problem that are very hard to detect.
           If 'pip install" says that package is already installed, remove it
           via the system package manager and only then try to install it again.
@@ -132,6 +132,12 @@ To install the library in Linux, do the following procedure:
           original package. Current version and location of package files 
           can be determined from the python console by executing,
           e.g., >>>print numpy.__version__. and >>>print numpy.__file__
+
+          Also note that PIP compiles packages. Therefore, to do a successfull and complete 
+          installation you would need to install all libraries which 
+          are required to build a package. Under Ubuntu, you can do this using "aptitude build-dep packagename", 
+          where packagename is an aptitude (not PIP) name of the package (e.g. python-numpy)
+          This is very important for compilation of matplotlib and h5py. 
           
           Please refer to troubleshooting guide for a list of known errors! 
          
