@@ -819,33 +819,52 @@ class HiCdataset(object):
         else:
             return np.array(hist)
 
-    def buildAllHeatmap(self, resolution, countDiagonalReads="Once"):
+    def buildAllHeatmap(self, resolution, countDiagonalReads="Once", 
+        useWeights=False):
         """Creates an all-by-all heatmap in accordance with mapping
         provided by 'genome' class
 
         Parameters
         ----------
-        resolution : int
-            Resolution of a heatmap
+        resolution : int or str
+            Resolution of a heatmap. May be an int or 'fragment' for 
+            restriction fragment resolution.
         countDiagonalReads : "once" or "twice"
             How many times to count reads in the diagonal bin
+        useWeights : bool
+            If True, then take weights from 'weights' varile.
         """
-        #8 bytes per record + heatmap
-        self.genome.setResolution(resolution)
-        dr = self.DS
-        label = self.genome.chrmStartsBinCont[self.chrms1[dr]]
-        label = np.asarray(label, dtype="int64")
-        label += self.mids1[dr] / resolution
-        label *= self.genome.numBins
-        label += self.genome.chrmStartsBinCont[self.chrms2[dr]]
-        label += self.mids2[dr] / resolution
+        if type(resolution) == int:
+            #8 bytes per record + heatmap
+            self.genome.setResolution(resolution)
+            numBins = self.genome.numBins
+            dr = self.DS
+            label = self.genome.chrmStartsBinCont[self.chrms1[dr]]
+            label = np.asarray(label, dtype="int64")
+            label += self.mids1[dr] / resolution
+            label *= numBins 
+            label += self.genome.chrmStartsBinCont[self.chrms2[dr]]
+            label += self.mids2[dr] / resolution
+        elif resolution == 'fragment':
+            numBins = self.genome.numRfrags
+            label = self.rfragAbsIdxs1[self.DS]
+            label *= numBins
+            label += self.rfragAbsIdxs2[self.DS]
+        else:
+            raise Exception('Unknown value for resolution: {0}'.format(
+                resolution))
 
-        counts = np.bincount(label, minlength=self.genome.numBins ** 2)
-        if len(counts) > self.genome.numBins ** 2:
+        if useWeights:
+            if 'weights' not in self.vectors:
+                raise Exception('Set read weights first!')
+            counts = np.bincount(label, weights=self.weights, minlength=numBins ** 2)
+        else:
+            counts = np.bincount(label, minlength=numBins ** 2)
+        if len(counts) > numBins ** 2:
             raise StandardError("\nheatmap exceed length of the genome!!!"
                                 " Check genome")
 
-        counts.shape = (self.genome.numBins, self.genome.numBins)
+        counts.shape = (numBins, numBins)
         for i in xrange(len(counts)):
             counts[i, i:] += counts[i:, i]
             counts[i:, i] = counts[i, i:]
