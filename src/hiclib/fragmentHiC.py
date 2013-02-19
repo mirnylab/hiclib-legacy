@@ -832,7 +832,7 @@ class HiCdataset(object):
         countDiagonalReads : "once" or "twice"
             How many times to count reads in the diagonal bin
         useWeights : bool
-            If True, then take weights from 'weights' varile.
+            If True, then take weights from 'weights' variable. False by default.
         """
         if type(resolution) == int:
             #8 bytes per record + heatmap
@@ -962,7 +962,8 @@ class HiCdataset(object):
         except:
             past = 0
         assert len(self.fragids2) == len(self.DS)
-        ufragids1, ufragids1ind = chunkedUnique(self.fragids1,
+        ufragids1, ufragids1ind = chunkedUnique(
+            self.fragids1,
             return_index=True, chunksize=self.chunksize)
         ufragids2, ufragids2ind = chunkedUnique(
             fasterBooleanIndexing(self.fragids2, self.DS, outLen=self.DSnum),
@@ -1073,6 +1074,7 @@ class HiCdataset(object):
         dups[:, 1] = self.chrms2[DS]
         dups[:, 1] *= self.fragIDmult
         dups[:, 1] += self.cuts2[DS]
+        dups.sort(axis=1)
         dups.shape = (Nds * 2)
         strings = dups.view("|S16")
             #Converting two indices to a single string to run unique
@@ -1089,6 +1091,54 @@ class HiCdataset(object):
         self.maskFilter(stay)
         assert len(self.ufragments) == uflen
         print
+
+    def filterByCisToTotal(self, cutH=0.0, cutL=0.01):
+        """Remove fragments with too low or too high cis-to-total ratio.
+        Parameters
+        ----------
+        cutH : float, 0<=cutH < 1, optional
+            Fraction of the fragments with largest cis-to-total ratio 
+            to be removed.
+        cutL : float, 0<=cutL<1, optional
+            Fraction of the fragments with lowest cis-to-total ratio 
+            to be removed.
+        """
+        concRfragAbsIdxs = np.r_[self.rfragAbsIdxs1, self.rfragAbsIdxs2]
+        concCis = np.r_[self.chrms1 == self.chrms2, self.chrms1 == self.chrms2]
+
+        cis = np.bincount(concRfragAbsIdxs[concCis])
+        total = np.bincount(concRfragAbsIdxs)
+        cistototal = np.nan_to_num(cis / total.astype('float'))
+        numEmptyFrags = (cistototal == 0).sum()
+
+        cutLFrags = int(np.ceil((len(cistototal) - numEmptyFrags) * cutL))
+        cutHFrags = int(np.ceil((len(cistototal) - numEmptyFrags) * cutH))
+
+        sortedCistotot = np.sort(cistototal)
+
+        lCutoff = sortedCistotot[cutLFrags + numEmptyFrags]
+        hCutoff = sortedCistotot[len(cistototal) - 1 - cutHFrags]
+
+        fragsToFilter = np.where((cistototal < lCutoff) + (cistototal > hCutoff))[0]
+        print ('Keep fragments with cis-to-total ratio in range ({0},{1}), '
+               'discard {2} fragments').format(lCutoff, hCutoff, cutLFrags+cutHFrags)
+
+        mask = (arrayInArray(self.rfragAbsIdxs1, fragsToFilter) +
+                arrayInArray(self.rfragAbsIdxs2, fragsToFilter))
+
+        self.maskFilter(-mask)
+
+    def filterTooClose(self, minRsitesDist=2):
+        """
+        Remove fragment pairs separated by less then `minRsitesDist` 
+        restriction sites within the same chromosome.
+        """
+
+        mask = (
+            (np.abs(self.rfragAbsIdxs1 - self.rfragAbsIdxs2) < minRsitesDist)
+            * (self.chrms1 == self.chrms2))
+
+        self.maskFilter(-mask)
 
     def fragmentSum(self, fragments=None, strands="both"):
         """returns sum of all counts for a set or subset of fragments
@@ -1164,7 +1214,8 @@ class HiCdataset(object):
             self.rebuildFragments()
 
     def saveHeatmap(self, filename, resolution=1000000,
-                    countDiagonalReads="Once"):
+                    countDiagonalReads="Once",
+                    useWeights=False):
         """
         Saves heatmap to filename at given resolution.
 
@@ -1172,11 +1223,13 @@ class HiCdataset(object):
         ----------
         filename : str
             Filename of the output h5dict
-        resolution : int
-            Resolution of an all-by-all heatmap
+        resolution : int or str
+            Resolution of a heatmap. May be an int or 'fragment' for 
+            restriction fragment resolution.
         countDiagonalReads : "once" or "twice"
             How many times to count reads in the diagonal bin
-
+        useWeights : bool
+            If True, then take weights from 'weights' variable. False by default.
         """
 
         try:
@@ -1185,19 +1238,25 @@ class HiCdataset(object):
             pass
 
         tosave = h5dict(path=filename, mode="w")
-        heatmap = self.buildAllHeatmap(resolution, countDiagonalReads)
+        heatmap = self.buildAllHeatmap(resolution, countDiagonalReads, useWeights)
         tosave["heatmap"] = heatmap
         del heatmap
-        singles = self.buildSinglesCoverage(resolution)
-        frags = self.buildFragmetCoverage(resolution)
-        chromosomeStarts = np.array(self.genome.chrmStartsBinCont)
+        if resolution != 'fragment':
+            singles = self.buildSinglesCoverage(resolution)
+            frags = self.buildFragmetCoverage(resolution)
+            chromosomeStarts = np.array(self.genome.chrmStartsBinCont)
+            numBins = self.genome.numBins
+        else:
+            singles, frags = [], []
+            chromosomeStarts = np.array(self.genome.chrmStartsRfragCont)
+            numBins = self.genome.numRfrags
         tosave["resolution"] = resolution
         tosave["singles"] = singles
         tosave["frags"] = frags
-        tosave["genomeBinNum"] = self.genome.numBins
+        tosave["genomeBinNum"] = numBins
         tosave["genomeIdxToLabel"] = self.genome.idx2label
         tosave["chromosomeStarts"] = chromosomeStarts
-        print "----> Heatmap saved to '%s' at %d resolution" % (
+        print "----> Heatmap saved to '{0}' at {1} resolution".format(
             filename, resolution)
 
     def saveByChromosomeHeatmap(self, filename, resolution=10000,
