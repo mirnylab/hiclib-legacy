@@ -34,8 +34,7 @@ if (len(sys.argv) <= 1) or  (sys.argv[1].lower()[-7:] != "nocheck"):
     print "Checking for numpy version..",
     try:
         nv = numpy.__version__
-        nums = [int(i) for i in nv.split(".")]
-        nums = tuple(nums[:2])
+        nums = tuple([int(i) for i in nv.split('.')[:2]])
         assert nums >= (1, 6)
         print "Correct!"
     except:
