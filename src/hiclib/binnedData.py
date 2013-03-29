@@ -169,7 +169,6 @@ import matplotlib.pyplot as plt
 from mirnylib.numutils import  fakeCisImpl
 
 
-
 class binnedData(object):
     """Base class to work with binned data, the most documented and
     robust part of the code. Further classes for other analysis
