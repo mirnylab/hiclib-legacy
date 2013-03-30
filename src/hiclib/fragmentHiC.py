@@ -95,8 +95,10 @@ from mirnylib.numutils import arrayInArray, sumByArray, \
 
 r_ = np.r_
 
+
 def corr(x, y):
     return stats.spearmanr(x, y)[0]
+
 
 class HiCdataset(object):
     """Base class to operate on HiC dataset.
@@ -489,7 +491,7 @@ class HiCdataset(object):
 
         self.cuts1 = dictLike['cuts1']
         self.cuts2 = dictLike['cuts2']
-        
+
         if not (("strands1" in dictLike.keys()) and
                 ("strands2" in dictLike.keys())):
             warnings.warn("No strand information provided,"
@@ -819,7 +821,7 @@ class HiCdataset(object):
         else:
             return np.array(hist)
 
-    def buildAllHeatmap(self, resolution, countDiagonalReads="Once", 
+    def buildAllHeatmap(self, resolution, countDiagonalReads="Once",
         useWeights=False):
         """Creates an all-by-all heatmap in accordance with mapping
         provided by 'genome' class
@@ -827,7 +829,7 @@ class HiCdataset(object):
         Parameters
         ----------
         resolution : int or str
-            Resolution of a heatmap. May be an int or 'fragment' for 
+            Resolution of a heatmap. May be an int or 'fragment' for
             restriction fragment resolution.
         countDiagonalReads : "once" or "twice"
             How many times to count reads in the diagonal bin
@@ -842,7 +844,7 @@ class HiCdataset(object):
             label = self.genome.chrmStartsBinCont[self.chrms1[dr]]
             label = np.asarray(label, dtype="int64")
             label += self.mids1[dr] / resolution
-            label *= numBins 
+            label *= numBins
             label += self.genome.chrmStartsBinCont[self.chrms2[dr]]
             label += self.mids2[dr] / resolution
         elif resolution == 'fragment':
@@ -1097,10 +1099,10 @@ class HiCdataset(object):
         Parameters
         ----------
         cutH : float, 0<=cutH < 1, optional
-            Fraction of the fragments with largest cis-to-total ratio 
+            Fraction of the fragments with largest cis-to-total ratio
             to be removed.
         cutL : float, 0<=cutL<1, optional
-            Fraction of the fragments with lowest cis-to-total ratio 
+            Fraction of the fragments with lowest cis-to-total ratio
             to be removed.
         """
         concRfragAbsIdxs = np.r_[self.rfragAbsIdxs1, self.rfragAbsIdxs2]
@@ -1121,7 +1123,7 @@ class HiCdataset(object):
 
         fragsToFilter = np.where((cistototal < lCutoff) + (cistototal > hCutoff))[0]
         print ('Keep fragments with cis-to-total ratio in range ({0},{1}), '
-               'discard {2} fragments').format(lCutoff, hCutoff, cutLFrags+cutHFrags)
+               'discard {2} fragments').format(lCutoff, hCutoff, cutLFrags + cutHFrags)
 
         mask = (arrayInArray(self.rfragAbsIdxs1, fragsToFilter) +
                 arrayInArray(self.rfragAbsIdxs2, fragsToFilter))
@@ -1130,7 +1132,7 @@ class HiCdataset(object):
 
     def filterTooClose(self, minRsitesDist=2):
         """
-        Remove fragment pairs separated by less then `minRsitesDist` 
+        Remove fragment pairs separated by less then `minRsitesDist`
         restriction sites within the same chromosome.
         """
 
@@ -1224,7 +1226,7 @@ class HiCdataset(object):
         filename : str
             Filename of the output h5dict
         resolution : int or str
-            Resolution of a heatmap. May be an int or 'fragment' for 
+            Resolution of a heatmap. May be an int or 'fragment' for
             restriction fragment resolution.
         countDiagonalReads : "once" or "twice"
             How many times to count reads in the diagonal bin
@@ -1382,7 +1384,7 @@ class HiCdataset(object):
         self.rfragAbsIdxs1 = rfragAbsIdxs1
         self.rfragAbsIdxs2 = rfragAbsIdxs2
 
-    def iterativeCorrection(self, numsteps = 10, normToLen=False):
+    def iterativeCorrection(self, numsteps=10, normToLen=False):
         '''
         This function performs fragment-based iterative correction of Hi-C data.
         '''
@@ -1397,11 +1399,11 @@ class HiCdataset(object):
         concRfragAbsIdxs = concRfragAbsIdxs[concArgs]
         concOrigArgs = concOrigArgs[concArgs]
         fragBorders = np.where(concRfragAbsIdxs[:-1] != concRfragAbsIdxs[1:])[0] + 1
-        fragBorders = np.r_[0, fragBorders, 2*self.N]
+        fragBorders = np.r_[0, fragBorders, 2 * self.N]
         rfragLensLocal = rfragLensConc[concRfragAbsIdxs[fragBorders[:-1]]]
-        for step in range(numsteps):
+        for _ in range(numsteps):
             for i in range(len(fragBorders) - 1):
-                mask = concOrigArgs[fragBorders[i]:fragBorders[i+1]]
+                mask = concOrigArgs[fragBorders[i]:fragBorders[i + 1]]
                 totWeight = weights[mask].sum()
                 if normToLen:
                     weights[mask] *= rfragLensLocal[i] / totWeight
@@ -1410,6 +1412,7 @@ class HiCdataset(object):
 
         self.vectors['weights'] = 'float32'
         self.weights = weights
+
 
 class HiCStatistics(HiCdataset):
     """a semi-experimental sub-class of a 'HiCdataset' class
@@ -1841,6 +1844,7 @@ class HiCStatistics(HiCdataset):
         plt.title("strands2, side 2")
         plt.plot(myrange, np.bincount(
             dists2[mask][self.strands1[mask] == False])[:length])
+
 
 class experimentalFeatures(HiCdataset):
     "This class contain some dangerous features that were not tested."
