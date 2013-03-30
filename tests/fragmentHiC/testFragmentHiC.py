@@ -31,7 +31,7 @@ def refine_paper(filename, create=True):
             #Parsing individual files
             if not os.path.exists(onename):
                 raise StandardError("path not found: %s" % onename)
-            TR = HiCdataset("bla", genome=genomeFolder, maximumMoleculeLength=500, mode="w", inMemory=True)
+            TR = HiCdataset("bla", genome=genomeFolder, maximumMoleculeLength=500, inMemory=True)
             print "\nTesting loading new data without rsite information    "
             TR.parseInputData(dictLike=onename,
                               enzymeToFillRsites="HindIII")
@@ -62,15 +62,15 @@ def refine_paper(filename, create=True):
         print "\nTesting duplicate filter"
         TR.filterDuplicates()
 
-        assert len(TR.DS) == 830395
+        assert len(TR.DS) == 830275
 
         print "\nTesting small/large and extreme fragment filter"
         TR.filterLarge()
 
-        assert len(TR.DS) == 825561
+        assert len(TR.DS) == 825442
         TR.filterExtreme(cutH=0.005, cutL=0)
 
-        assert len(TR.DS) == 803929
+        assert len(TR.DS) == 803845
 
 
     #-------------------------------------------
@@ -97,7 +97,8 @@ def refine_paper(filename, create=True):
     print "Cis heatmap consistent"
     assert (bb - chrom12).sum() == 0
     print 'Trans heatmap consistent'
-    assert  a["heatmap"][::10, ::10].sum() == 21798
+    print  a["heatmap"][::10, ::10].sum()
+    assert  a["heatmap"][::10, ::10].sum() == 21800
     print "Heatmap sum correct\n"
 
     #---------------------------------
