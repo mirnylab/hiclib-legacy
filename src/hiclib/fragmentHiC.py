@@ -1,5 +1,6 @@
 #(c) 2012 Massachusetts Institute of Technology. All Rights Reserved
 # Code written by: Maksim Imakaev (imakaev@mit.edu)
+from mirnylib.systemutils import setExceptionHook
 
 
 """
@@ -84,6 +85,7 @@ from copy import copy
 from mirnylib.genome import Genome
 import hiclib.mapping
 import numpy as np
+import math
 from numpy import array as na
 from scipy import stats
 import matplotlib.pyplot as plt
@@ -91,7 +93,8 @@ from mirnylib.h5dict import h5dict
 from mirnylib.plotting import mat_img
 from mirnylib import numutils
 from mirnylib.numutils import arrayInArray, sumByArray, \
-    uniqueIndex, chunkedUnique, fasterBooleanIndexing, fillDiagonal
+    uniqueIndex, chunkedUnique, fasterBooleanIndexing, fillDiagonal, arraySearch, \
+    arraySumByArray
 
 r_ = np.r_
 
@@ -562,7 +565,7 @@ class HiCdataset(object):
         self.distances = distances  # distances between restriction fragments
         del distances
 
-        self._moveSSReads()  # Eclipse warning removal
+        self._moveSSReads()
         try:
             dictLike["misc"]["genome"]["idx2label"]
             self.updateGenome(self.genome, removeSSreads="trans",
@@ -710,7 +713,7 @@ class HiCdataset(object):
                             self.DS + self.SS * (self.chrms1 >= 0) *
                             (self.chrms1 < newN))
 
-    def calculateWeights(self):
+    def calculateFragmentWeights(self):
         """Calculates weights for reads based on fragment length correction
          similar to Tanay's;
          may be used for scalings or creating heatmaps"""
@@ -720,7 +723,7 @@ class HiCdataset(object):
         pls = np.r_[pls, pls[-1] + 1]
         N = len(fragmentLength)
         mysum = np.array(self.fragmentSum(), float)
-        self.weights = np.ones(N, float)
+        self.fragmentWeights = np.ones(N, float)
         meanSum = np.mean(np.array(mysum, float))
         #watch = np.zeros(len(mysum),int)
         for i in np.arange(0, 0.991, 0.01):
@@ -729,97 +732,14 @@ class HiCdataset(object):
             #watch[p] += 1
             value = np.mean(mysum[p])
             if p.sum() > 0:
-                self.weights[p] = value / meanSum
+                self.fragmentWeights[p] = value / meanSum
             else:
                 print "no weights", i, b1, b2
 
-    def buildHeatmap(self, chromosome=14, chromosome2=None, resolution=1000000,
-                     show=False, useRsiteDensity=True):
-        """Builds heatmaps between any two chromosomes at a given resolution
+    def readWeightsFromFragmentWeights(self):
+        self.vectors['weights'] = 'float32'
+        self.weights = weights
 
-        .. warning::
-            This method will be deprecated on 11/01/2012
-
-        Parameters
-        ----------
-        chromosome1 : int
-            First chromosome
-        chromosome2 : int, optional
-            Second chromosome, if the map is trans.
-        resolution : int
-            Resolution of a heatmap. Default is 1M
-        show : bool , optional
-            Show heatmap, or just output it?
-        useRsiteDensity : bool, optional
-            Correct map by density of rsites.
-
-        """
-        #TODO:(MI) Deprecate on 11/01/2012
-
-        w = UserWarning("This method will be deprecated on 11/01/2012"
-                        "Use saveByChromosomeHeatmap instead"
-                        "Or write me an email")
-        warnings.warn(w)
-
-        self._buildFragments()
-        if chromosome2 is None:
-            chromosome2 = chromosome
-            mask = (self.chrms1 == chromosome) * (self.chrms2 == chromosome)
-            p1 = self.mids1[mask]
-            p2 = self.mids2[mask]
-            p1 = na(p1, int)
-            p2 = na(p2, int)
-            b1 = np.arange(0, max(p1.max() + resolution,
-                                  p2.max() + resolution), resolution)
-            hist = np.histogram2d(p1, p2, (b1))[0]
-            hist = hist + np.transpose(hist)
-
-        else:
-            mask = (self.chrms1 == chromosome) * (self.chrms2 == chromosome2)
-            p11 = self.mids1[mask]
-            p21 = self.mids2[mask]
-            mask = (self.chrms1 == chromosome2) * (self.chrms2 == chromosome)
-            p12 = self.mids2[mask]
-            p22 = self.mids1[mask]
-            p1 = np.r_[p11, p12]
-            p2 = np.r_[p21, p22]
-            if (len(p1) == 0) or (len(p2) == 0):
-                return np.zeros((500, 500), float) + 0.000001
-            b1 = np.arange(0, (p1.max() + resolution), resolution)
-            b2 = np.arange(0, (p2.max() + resolution), resolution)
-            l1 = len(b1)
-            l2 = len(b2)
-            hist = np.histogram2d(p1, p2, (b1, b2))[0]
-
-        if chromosome2 is None:
-            chromosome2 = chromosome
-        if useRsiteDensity == True:
-            m1 = self.ufragments / self.fragIDmult == chromosome
-            m2 = self.ufragments / self.fragIDmult == chromosome2
-            p1 = self.ufragments[m1] % self.fragIDmult
-            p2 = self.ufragments[m2] % self.fragIDmult
-            p1mod = p1 / resolution
-            p2mod = p2 / resolution
-            myarray = np.array(range(np.max(p1mod) + 1))
-            vec1 = sumByArray(p1mod, myarray)
-            myarray = np.array(range(np.max(p2mod) + 1))
-            vec2 = sumByArray(p2mod, myarray)
-            vec1 = vec1[:l1]
-            vec2 = vec2[:l2]
-            correction = na(vec1[:, None] * vec2[None, :], float)
-            mask = np.logical_or(np.isnan(correction), correction == 0)
-            correction[mask] = 1
-            hist2 = hist / correction
-            hist2 /= (np.mean(hist2[mask == False]) / np.mean(
-                hist[mask == False]))
-            if show == True:
-                mat_img(np.log(np.array(hist2, float)))
-            else:
-                return np.array(hist2)
-        if show == True:
-            mat_img(np.log(np.array(hist, float)))
-        else:
-            return np.array(hist)
 
     def buildAllHeatmap(self, resolution, countDiagonalReads="Once",
         useWeights=False):
@@ -859,7 +779,7 @@ class HiCdataset(object):
         if useWeights:
             if 'weights' not in self.vectors:
                 raise Exception('Set read weights first!')
-            counts = np.bincount(label, weights=self.weights, minlength=numBins ** 2)
+            counts = np.bincount(label, weights=self.fragmentWeights, minlength=numBins ** 2)
         else:
             counts = np.bincount(label, minlength=numBins ** 2)
         if len(counts) > numBins ** 2:
@@ -867,6 +787,141 @@ class HiCdataset(object):
                                 " Check genome")
 
         counts.shape = (numBins, numBins)
+        for i in xrange(len(counts)):
+            counts[i, i:] += counts[i:, i]
+            counts[i:, i] = counts[i, i:]
+        if countDiagonalReads.lower() == "once":
+            diag = np.diag(counts)
+            fillDiagonal(counts, diag / 2)
+        elif countDiagonalReads.lower() == "twice":
+            pass
+        else:
+            raise ValueError("Bad value for countDiagonalReads")
+        return counts
+
+
+    def buildHeatmapWithOverlapCpp(self, resolution, countDiagonalReads="Twice",
+        maxBinSpawn=10):
+        """Creates an all-by-all heatmap in accordance with mapping
+        provided by 'genome' class
+
+        This method assigns fragments to all bins which
+        the fragment overlaps, proportionally
+
+        Parameters
+        ----------
+        resolution : int or str
+            Resolution of a heatmap. May be an int or 'fragment' for
+            restriction fragment resolution.
+        countDiagonalReads : "once" or "twice"
+            How many times to count reads in the diagonal bin
+        maxBinSpawn : bool
+            If True, then take weights from 'weights' variable. False by default.
+        """
+
+
+        if type(resolution) == int:
+
+            #many bytes per record + heatmap
+            self.genome.setResolution(resolution)
+            dr = self.DS
+            N = len(dr)
+
+            low1 = self.genome.chrmStartsBinCont[self.chrms1[dr]]
+            low1 = np.asarray(low1, dtype="float32")
+            low1 += (self.mids1[dr] - self.fraglens1[dr] / 2) / float(resolution)
+
+            high1 = self.genome.chrmStartsBinCont[self.chrms1[dr]]
+            high1 = np.asarray(high1, dtype="float32")
+            high1 += (self.mids1[dr] + self.fraglens1[dr] / 2) / float(resolution)
+
+            low2 = self.genome.chrmStartsBinCont[self.chrms2[dr]]
+            low2 = np.asarray(low2, dtype="float32")
+            low2 += (self.mids2[dr] - self.fraglens2[dr] / 2) / float(resolution)
+
+            high2 = self.genome.chrmStartsBinCont[self.chrms2[dr]]
+            high2 = np.asarray(high2, dtype="float32")
+            high2 += (self.mids2[dr] + self.fraglens2[dr] / 2) / float(resolution)
+
+            mappedBases = np.concatenate(self.genome.mappedBasesBin)
+            mappedBases = mappedBases / float(resolution)
+
+            heatmap = np.zeros((self.genome.numBins, self.genome.numBins),
+                               dtype="float64", order="C")
+            heatmapSize = len(heatmap)
+
+
+            from scipy import weave
+            code = """
+            #line 1045 "fragmentHiC.py"
+            double vector1[100];
+            double vector2[100];
+
+            for (int readNum = 0;  readNum < N; readNum++)
+            {
+                for (int i=0; i<10; i++)
+                {
+                    vector1[i] = 0;
+                    vector2[i] = 0;
+                }
+
+                double l1 = low1[readNum];
+                double l2 = low2[readNum];
+                double h1 = high1[readNum];
+                double h2 = high2[readNum];
+
+
+                if ((h1 - l1) > maxBinSpawn) continue;
+                if ((h2 - l2) > maxBinSpawn) continue;
+
+                int binNum1 = ceil(h1) - floor(l1);
+                int binNum2 = ceil(h2) - floor(l2);
+                double binLen1 = h1 - l1;
+                double binLen2 = h2 - l2;
+
+                int b1 = floor(l1);
+                int b2 = floor(l2);
+
+                if (binNum1 == 1)
+                    vector1[0] = 1.;
+                else
+                    {
+                    vector1[0] = (ceil(l1 + 0.00001) - l1) / binLen1;
+                    for (int t = 1; t< binNum1 - 1; t++)
+                        {vector1[t] = 1. / binLen1;}
+                    vector1[binNum1 - 1] = (h1 - floor(h1)) / binLen1;
+                    }
+
+                if (binNum2 == 1) vector2[0] = 1.;
+
+                else
+                    {
+                    vector2[0] = (ceil(l2 + 0.0001) - l2) / binLen2;
+                    for (int t = 1; t< binNum2 - 1; t++)
+                        {vector2[t] = 1. / binLen2;}
+                    vector2[binNum2 - 1] = (h2 - floor(h2)) / binLen2;
+                    }
+
+                for (int i = 0; i< binNum1; i++)
+                    {
+                    for (int j = 0; j < binNum2; j++)
+                        {
+                        heatmap[(b1 + i) * heatmapSize +  b2 + j] += vector1[i] * vector2[j];
+                        }
+                    }
+                }
+        """
+        weave.inline(code,
+                     ['low1', "high1", "low2", "high2",
+                      "dr", "N", "heatmap", "maxBinSpawn",
+                      "heatmapSize",
+                       ],
+                     extra_compile_args=['-march=native  -O3 '],
+                     support_code=r"""
+                    #include <stdio.h>
+                    #include <math.h>""")
+
+        counts = heatmap
         for i in xrange(len(counts)):
             counts[i, i:] += counts[i:, i]
             counts[i:, i] = counts[i, i:]
@@ -1142,7 +1197,7 @@ class HiCdataset(object):
 
         self.maskFilter(-mask)
 
-    def fragmentSum(self, fragments=None, strands="both"):
+    def fragmentSum(self, fragments=None, strands="both", useWeights=False):
         """returns sum of all counts for a set or subset of fragments
 
 
@@ -1153,22 +1208,51 @@ class HiCdataset(object):
         strands : 1,2 or "both" (default)
             Use only first or second side of the read
             (first has SS, second - doesn't)
+        useWeights : bool, optional
+            If set to True, will give a fragment sum with weights adjusted for iterative correction.
         """
         #Uses 16 bytes per read
         self._buildFragments()
         if fragments is None:
             fragments = self.ufragments
 
-        if strands == "both":
-            return sumByArray(self.fragids1, fragments) + \
-                sumByArray(fasterBooleanIndexing(self.fragids2, self.DS,
-                                                 outLen=self.DSnum),
-                           fragments)
-        if strands == 1:
-            return sumByArray(self.fragids1, fragments)
-        if strands == 2:
-            return sumByArray(fasterBooleanIndexing(self.fragids2, self.DS),
-                              fragments)
+        if not useWeights:
+            if strands == "both":
+                return sumByArray(self.fragids1, fragments) + \
+                    sumByArray(fasterBooleanIndexing(self.fragids2, self.DS,
+                                                     outLen=self.DSnum),
+                               fragments)
+            if strands == 1:
+                return sumByArray(self.fragids1, fragments)
+            if strands == 2:
+                return sumByArray(fasterBooleanIndexing(self.fragids2, self.DS),
+                                  fragments)
+        else:
+            if strands == "both":
+                self.fragmentWeights = 1. * self.fragmentWeights
+                fids1 = fasterBooleanIndexing(self.fragids1, self.DS, outLen=self.DSnum)
+                fids2 = fasterBooleanIndexing(self.fragids2, self.DS, outLen=self.DSnum)
+
+                pass1 = 1. / self.fragmentWeights[arraySearch(self.ufragments, fids1)]
+                pass1 /= self.fragmentWeights[arraySearch(self.ufragments, fids2)]
+                return arraySumByArray(fids1, fragments, pass1) + arraySumByArray(fids2, fragments, pass1)
+            else:
+                raise NotImplementedError("Sorry")
+
+    def iterativeCorrectionFromMax(self, minimumCount=50, precision=0.01):
+        self.fragmentWeights = 1. * self.fragmentSum()
+        self.fragmentFilter(self.fragmentWeights > minimumCount)
+        self.fragmentWeights = 1. * self.fragmentSum()
+
+        while True:
+            newSum = 1. * self.fragmentSum(useWeights=True)
+            maxDev = np.max(np.abs(newSum - newSum.mean())) / newSum.mean()
+            print maxDev
+
+            self.fragmentWeights *= (newSum / newSum.mean())
+            if maxDev < precision:
+                return
+
 
     def printStats(self):
         #Uses <10 bytes per read
@@ -1217,7 +1301,8 @@ class HiCdataset(object):
 
     def saveHeatmap(self, filename, resolution=1000000,
                     countDiagonalReads="Once",
-                    useWeights=False):
+                    useWeights=False,
+                    useFragmentOverlap=False):
         """
         Saves heatmap to filename at given resolution.
 
@@ -1240,7 +1325,11 @@ class HiCdataset(object):
             pass
 
         tosave = h5dict(path=filename, mode="w")
-        heatmap = self.buildAllHeatmap(resolution, countDiagonalReads, useWeights)
+        if not useFragmentOverlap:
+            heatmap = self.buildAllHeatmap(resolution, countDiagonalReads, useWeights)
+        else:
+            heatmap = self.buildHeatmapWithOverlapCpp(resolution, countDiagonalReads)
+
         tosave["heatmap"] = heatmap
         del heatmap
         if resolution != 'fragment':
@@ -1680,10 +1769,10 @@ class HiCStatistics(HiCdataset):
 
         if useWeights == True:  # calculating weights if needed
             try:
-                self.weights
+                self.fragmentWeights
             except:
-                self.calculateWeights()
-            uweights = self.weights[args]  # weights for sorted fragment IDs
+                self.calculateFragmentWeights()
+            uweights = self.fragmentWeights[args]  # weights for sorted fragment IDs
             weights1 = uweights[np.searchsorted(usort, fragids1)]
             weights2 = uweights[np.searchsorted(usort, fragids2)
                 ]  # weghts for fragment IDs under  consideration
