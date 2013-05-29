@@ -1528,127 +1528,13 @@ class experimentalBinnedData(binnedData):
                 print "bla"
 
     def loadWigFile(self, filenames, label, control=None,
-                    wigFileType="Auto", functionToAverage=np.log):
-        """Only fixed-step wig files and bigWig files are supported!!!
-        Import from fixedStep wig files is very fast,
-        however is not the most reliable.
-
-        for VariableStep files use wigToBigWig utility to convert
-        them to bigWig format first.
-        To use it you will also need to have fetchChromSizes script.
-
-        Then you just run
-        $bash fetchChromSizes hg18 > hg18.chrom.sizes
-        $./wigToBigWig myWig.wig hg18.chrom.sizes myWig.bigWig
-
-        And you enjoy your favourite bigWig.
-
-        BigWig import is implemented using bx-python module.
-        It is normally very fast; however, it has a bug at low resolutions.
-        I have an ugly workaround for it (chopping the quiery
-        into many smaller pieces), but I hope
-        that they actually fix this bug.
-
-        Anyway, check their repo on BitBucket, maybe they've
-        fixed my issue # 39 :)
-        https://bitbucket.org/james_taylor/bx-python/overview
-        """
-
-        if type(filenames) == str:
-            filenames = [filenames]
-        filenames = [os.path.abspath(i) for i in filenames]
-
-        def loadFile(name, wigFileType=wigFileType):
-            """Choosing right method to load wigfile"""
-
-            if os.path.exists(name) == False:
-                raise IOError("\n Wig file not found : %s " %
-                    (os.path.abspath(name)))
-
-            if wigFileType == "Auto":
-                ext = os.path.splitext(name)[1]
-                if ext == "":
-                    raise StandardError("Wig file has no extension. \
-                    Please specify it's type")
-                elif ext.lower() == ".wig":
-                    if open(name).readline()[:2] != "fi":
-                        raise StandardError("Cannot read non variable-step wig \
-                        files! Please use wigToBigWig utility. See docstring \
-                        of this method.")
-                    wigFileType = "wig"
-                elif ext.lower() == ".bigwig":
-                    wigFileType = "bigwig"
-                else:
-                    raise StandardError("Unknown extension of wig file: %s" %
-                        ext)
-
-            if wigFileType.lower() == "wig":
-                data = self.genome.parseFixedStepWigAtKbResolution(
-                    name, resolution=5000)
-            elif wigFileType.lower() == "bigwig":
-                data = self.genome.parseBigWigFile(name, resolution=5000,
-                    divideByValidCounts=True)
-            else:
-                raise StandardError("Wrong type of wig file : %s" %
-                    wigFileType)
-            return data
-
-        "Loading and averaging the data files"
-        data = [loadFile(i) for i in filenames]
-        base = data[0]
-        for otherdata in data[1:]:
-            for i in xrange(len(otherdata)):
-                base[i] += otherdata[i]
-        data = base
-
-        if control is not None:
-            controlData = loadFile(control)
-
-        if self.genome.resolution % 5000 != 0:
-            raise StandardError("Cannot parse wig file at resolution \
-            that is not a multiply of 5 kb")
-
-        vector = np.zeros(self.genome.numBins, float)  # resulting array
-        for chrom, value in enumerate(data):
-            value = np.array(value)
-            if control is not None:
-                chromControl = np.asarray(controlData[chrom])
-                vmask = value != 0
-                cmask = chromControl != 0
-                keepmask = vmask * cmask
-                vmasksum, cmasksum = vmask.sum(), cmask.sum()
-                if max(vmasksum, cmasksum) / (1. * min(vmasksum, cmasksum)) \
-                > 1.3:
-                    warnings.warn("\nBig deviation: number of non-zero \
-                    data points: %s, control points:%s."
-                    % (vmasksum, cmasksum))
-                value[-keepmask] = 0
-                value[keepmask] = value[keepmask] / chromControl[keepmask]
-
-            value.resize(self.genome.chrmLensBin[chrom] * (
-                self.resolution / 5000))
-            value.shape = (-1, self.genome.resolution / 5000)
-            if value.mean() == 0:
-                raise StandardError("Chromosome {0} contains zero data in wig \
-                file(s) {1}".format(self.genome.idx2label[chrom], filenames))
-            mask = value == 0
-            value[-mask] = functionToAverage(value[-mask])
-            #print "Remove SQRT here"
-
-            valuesum = np.sum(value, axis=1)
-            masksum = np.sum(mask == False, axis=1)
-            valuesum[masksum == 0] = 0
-            vmask = valuesum != 0
-            valuesum[vmask] /= masksum[vmask]
-            valuesum[-vmask] = np.median(valuesum[vmask])
-            # setting all unknown points to the median of known points
-
-            vector[self.genome.chrmStartsBinCont[chrom]:
-                self.genome.chrmEndsBinCont[chrom]] = valuesum
-        if len(vector) != self.genome.numBins:
-            raise ValueError("Length mismatch. Length of vector: %d, \
-            length of genome:%d" % (len(vector), self.genome.numBins))
-        self.trackDict[label] = vector
+                    wigFileType="Auto", functionToAverage=np.log, internalResolution=5000):
+        byChromosome = self.genome.parseAnyWigFile(filenames=filenames,
+                                                   control=control,
+                                                   wigFileType=wigFileType,
+                                                    functionToAverage=functionToAverage,
+                                                     internalResolution=internalResolution)
+        self.trackDict[label] = np.concatenate(byChromosome)
 
     def loadErezEigenvector1MB(self, erezFolder):
         "Loads Erez chromatin domain eigenvector for HindIII"
