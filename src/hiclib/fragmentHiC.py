@@ -106,6 +106,10 @@ def corr(x, y):
 class HiCdataset(object):
     """Base class to operate on HiC dataset.
 
+    .. warning ::
+        This is the last build to support SS reads; from now on
+        SS reads will be deprecated as noone uses them :(
+
     This class stores all information about HiC reads on a hard drive.
     Whenever a variable corresponding to any record is used,
     it is loaded/saved from/to the HDD.
