@@ -1770,17 +1770,19 @@ class HiCStatistics(HiCdataset):
 
         #Keeping reads for fragments in use
         # Consider only double-sided fragment pairs.
+        validFragPairs = (regionID >= 0)
         if allFragments == False:
             # Filter the dataset so it has only the specified fragments.
             p11 = arrayInArray(self.fragids1, fragids1)
             p12 = arrayInArray(self.fragids1, fragids2)
             p21 = arrayInArray(self.fragids2, fragids1)
             p22 = arrayInArray(self.fragids2, fragids2)
-            validFragPairs = ((p11 * p22) + (p12 * p21))
+            validFragPairs *= ((p11 * p22) + (p12 * p21))
 
         # Consider pairs of fragments from the same region.
-        validFragPairs *= (regionID >= 0)
+
         # Keep only --> -->  or <-- <-- pairs, discard --> <-- and <-- -->
+
         validFragPairs *= (self.strands1 == self.strands2)
 
         # Keep only fragment pairs more than excludeNeighbors fragments apart.
