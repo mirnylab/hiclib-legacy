@@ -1964,19 +1964,3 @@ class HiCStatistics(HiCdataset):
         plt.title("strands2, side 2")
         plt.plot(myrange, np.bincount(
             dists2[self.strands1 == False])[:length])
-
-
-class experimentalFeatures(HiCdataset):
-    "This class contain some dangerous features that were not tested."
-    def splitFragmentsBystrands(self):
-        """Splits fragments: those with strands = 1 gets location += 1.
-        This is totally safe!
-        This might be fun if you want to analyze two sides of the
-        fragment separately, but unnecessary otherwise"""
-        f1 = self.fragids1
-        f1 += ((f1 % self.fragIDmult) % 2)
-        f1[self.strands1 == 1] += 1
-        f2 = self.fragids2
-        f1 += ((f2 % self.fragIDmult) % 2)
-        f2[self.strands1 == 1] += 1
-        self.rebuildFragments()

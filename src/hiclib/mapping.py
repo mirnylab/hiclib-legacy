@@ -411,6 +411,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         os.remove(unmapped_fastq_path)
 
 
+
 def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     '''Private: assign mapped reads to restriction fragments by
     their 5' end position.
@@ -488,7 +489,9 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
         if not sam_paths:
             raise Exception('No SAM/BAM files with \'%s\' basename are found.' % sam_basename)
 
+
         for sam_path in sam_paths:
+
             samfile = pysam.Samfile(sam_path)
 
             # Make Bowtie's chromosome tids -> genome_db indices dictionary.
