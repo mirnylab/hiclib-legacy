@@ -84,7 +84,6 @@ import numpy as np
 import math
 from numpy import array as na
 from scipy import stats
-import matplotlib.pyplot as plt
 from mirnylib.h5dict import h5dict
 from mirnylib.plotting import mat_img
 from mirnylib import numutils
@@ -1557,6 +1556,7 @@ class HiCStatistics(HiCdataset):
         May do based on one strands only
         "please run  plt.legend & plt.show() after calling this
         for all datasets you want to consider"""
+        import matplotlib.pyplot as plt
         self._buildFragments()
         fragmentLength = self.ufragmentlen
         pls = np.sort(fragmentLength)
@@ -1674,6 +1674,7 @@ class HiCStatistics(HiCdataset):
 
         """
         #TODO:(MI) write an ab-initio test for scaling calculation
+        import matplotlib.pyplot as plt
         self._buildFragments()
         if excludeNeighbors <= 0:
             excludeNeighbors = None  # Not excluding neighbors
@@ -1932,6 +1933,7 @@ class HiCStatistics(HiCdataset):
         """
         run plt.show() after this function.
         """
+        import matplotlib.pyplot as plt
         dists1 = self.fraglens1 - np.array(self.dists1, dtype="int32")
         dists2 = self.fraglens2 - np.array(self.dists2, dtype="int32")
         m = min(dists1.min(), dists2.min())

@@ -155,7 +155,6 @@ API documentation
 import os
 from mirnylib import numutils
 import warnings
-from mirnylib.plotting import removeBorder
 from mirnylib.numutils import PCA, EIG, correct, \
     ultracorrectSymmetricWithVector, isInteger, \
     observedOverExpected, ultracorrect, adaptiveSmoothing, \
@@ -165,7 +164,6 @@ import numpy as np
 from math import exp
 from mirnylib.h5dict import h5dict
 from scipy.stats.stats import spearmanr
-import matplotlib.pyplot as plt
 from mirnylib.numutils import  fakeCisImpl
 
 
@@ -1158,6 +1156,8 @@ class binnedDataAnalysis(binnedData):
 
     def plotScaling(self, name, label="BLA", color=None, plotUnit=1000000):
         "plots scaling of a heatmap,treating arms separately"
+        import matplotlib.pyplot as plt
+        from mirnylib.plotting import removeBorder
         data = self.dataDict[name]
         bins = numutils.logbins(
             2, self.genome.maxChrmArm / self.resolution, 1.17)
