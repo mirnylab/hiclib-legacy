@@ -598,7 +598,6 @@ class HiCdataset(object):
         sameFragMask = self.evaluate("a = (fragids1 == fragids2)",
                      ["fragids1", "fragids2"]) * DSmask
 
-
         cutDifs = self.cuts2[sameFragMask] > self.cuts1[sameFragMask]
         s1 = self.strands1[sameFragMask]
         s2 = self.strands2[sameFragMask]
@@ -614,7 +613,7 @@ class HiCdataset(object):
 
         mask = DSmask * (-sameFragMask)
         del DSmask, sameFragMask
-        maskLen, noSameFrag = len(mask), mask.sum()
+        noSameFrag = mask.sum()
 
         # Discard unused chromosomes
 
@@ -647,7 +646,6 @@ class HiCdataset(object):
             self.maskFilter(mask)
         self.metadata["300_ValidPairs"] = self.N
 
-
     def printMetadata(self, saveTo=None):
         self._dumpMetadata()
         for i in sorted(self.metadata):
@@ -667,7 +665,6 @@ class HiCdataset(object):
                     myfile.write(":   ")
                     myfile.write(str(self.metadata[i]))
                     myfile.write("\n")
-
 
     def saveFragments(self):
         """saves fragment data to make correct expected
@@ -720,6 +717,7 @@ class HiCdataset(object):
         chrms1 = np.array(self.chrms1, int)
         chrms2 = np.array(self.chrms2, int)
         SS = (chrms1 < 0) + (chrms2 < 0)
+        metadata = {}
         if "M" in label2idx:
             Midx = label2idx["M"]
             M1 = chrms1 == Midx
@@ -727,13 +725,13 @@ class HiCdataset(object):
             mToM = (M1 * M2).sum()
             mToAny = (M1 + M2).sum()
             mToSS = ((M1 + M2) * SS).sum()
-            self.metadata["102_mappedSide1"] = (chrms1 >= 0).sum()
-            self.metadata["104_mappedSide2"] = (chrms2 >= 0).sum()
+            metadata["102_mappedSide1"] = (chrms1 >= 0).sum()
+            metadata["104_mappedSide2"] = (chrms2 >= 0).sum()
 
-            self.metadata["112_M-to-M_reads"] = mToM
-            self.metadata["114_M-to-Any_reads"] = mToAny
-            self.metadata["116_M-to-SS_reads"] = mToSS
-            self.metadata["118_M-to-DS_reads"] = mToAny - mToSS
+            metadata["112_M-to-M_reads"] = mToM
+            metadata["114_M-to-Any_reads"] = mToAny
+            metadata["116_M-to-SS_reads"] = mToSS
+            metadata["118_M-to-DS_reads"] = mToAny - mToSS
 
         if "Y" in label2idx:
             Yidx = label2idx["Y"]
@@ -743,10 +741,13 @@ class HiCdataset(object):
             yToAny = (Y1 + Y2).sum()
             yToSS = ((Y1 + Y2) * SS).sum()
 
-            self.metadata["122_Y-to-Y_reads"] = yToY
-            self.metadata["124_Y-to-Any_reads"] = yToAny
-            self.metadata["126_Y-to-SS_reads"] = yToSS
-            self.metadata["128_Y-to-DS_reads"] = yToAny - yToSS
+            metadata["122_Y-to-Y_reads"] = yToY
+            metadata["124_Y-to-Any_reads"] = yToAny
+            metadata["126_Y-to-SS_reads"] = yToSS
+            metadata["128_Y-to-DS_reads"] = yToAny - yToSS
+
+        if putMetadata:
+            self.metadata.update(metadata)
 
         if oldN == newN:
             return None
@@ -788,11 +789,6 @@ class HiCdataset(object):
                 self.fragmentWeights[p] = value / meanSum
             else:
                 print "no weights", i, b1, b2
-
-    def readWeightsFromFragmentWeights(self):
-        self.vectors['weights'] = 'float32'
-        self.weights = weights
-
 
     def buildAllHeatmap(self, resolution, countDiagonalReads="Once",
         useWeights=False):
