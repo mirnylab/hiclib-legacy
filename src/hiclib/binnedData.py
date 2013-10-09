@@ -155,7 +155,6 @@ API documentation
 import os
 from mirnylib import numutils
 import warnings
-from mirnylib.plotting import removeBorder
 from mirnylib.numutils import PCA, EIG, correct, \
     ultracorrectSymmetricWithVector, isInteger, \
     observedOverExpected, ultracorrect, adaptiveSmoothing, \
@@ -165,7 +164,6 @@ import numpy as np
 from math import exp
 from mirnylib.h5dict import h5dict
 from scipy.stats.stats import spearmanr
-import matplotlib.pyplot as plt
 from mirnylib.numutils import  fakeCisImpl
 
 
@@ -1136,15 +1134,15 @@ class binnedData(object):
         cismap = self.chromosomeIndex[:, None] == self.chromosomeIndex[None, :]
         cissums = np.sum(cismap * data, axis=0)
         allsums = np.sum(data, axis=0)
-        if mode == "All":
+        if mode.lower() == "all":
             cissums += self.singlesDict[filename]
             allsums += self.singlesDict[filename]
-        elif mode == "Dummy":
+        elif mode.lower() == "dummy":
             sm = np.mean(self.singlesDict[filename])
             fakesm = cissums * sm / np.mean(cissums)
             cissums += fakesm
             allsums += fakesm
-        elif mode == "Matrix":
+        elif mode.lower() == "matrix":
             pass
         else:
             raise
@@ -1158,6 +1156,8 @@ class binnedDataAnalysis(binnedData):
 
     def plotScaling(self, name, label="BLA", color=None, plotUnit=1000000):
         "plots scaling of a heatmap,treating arms separately"
+        import matplotlib.pyplot as plt
+        from mirnylib.plotting import removeBorder
         data = self.dataDict[name]
         bins = numutils.logbins(
             2, self.genome.maxChrmArm / self.resolution, 1.17)
@@ -1204,6 +1204,8 @@ class binnedDataAnalysis(binnedData):
 
     def averageTransMap(self, name, **kwargs):
         "plots and returns average inter-chromosomal inter-arm map"
+        import matplotlib.pyplot as plt
+        from mirnylib.plotting import removeBorder
         data = self.dataDict[name]
         avarms = np.zeros((80, 80))
         avmasks = np.zeros((80, 80))

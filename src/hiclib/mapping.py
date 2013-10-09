@@ -9,13 +9,13 @@ The three main methods of this module are iterative_mapping, parse_sam and
 fill_rsite.
 
 The first, iterative_mapping() applies the bowtie2 read alignment software to
-the raw reads from the sequencer. The second method, parse_sam() parses 
+the raw reads from the sequencer. The second method, parse_sam() parses
 the bowtie output, combines individual reads into pairs and converts the data
 into the internal format that may be fed to the downstream functions. Finally,
 fill_rsite() maps the sequences onto the restriction fragments.
 
 -------------------------------------------------------------------------------
- 
+
 API Documentation
 -----------------
 '''
@@ -226,9 +226,9 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         supplied by the OS.
 
     bash_reader : str, optional
-        A bash application to convert the input to the FASTQ format. The 
+        A bash application to convert the input to the FASTQ format. The
         application have to save the output into stdout.
-        The default value is None, that is the app is autodetected by the 
+        The default value is None, that is the app is autodetected by the
         extension (i.e. cat for .fastq, gunzip for .gz).
 
     '''
@@ -250,7 +250,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     nthreads = kwargs.get('nthreads', 4)
     max_reads_per_chunk = kwargs.get('max_reads_per_chunk', -1)
     bowtie_flags = kwargs.get('bowtie_flags', '')
-    
+
     if subprocess.call(['which', 'samtools']) != 0:
         raise Exception('samtools are not installed!')
 
@@ -411,6 +411,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         os.remove(unmapped_fastq_path)
 
 
+
 def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     '''Private: assign mapped reads to restriction fragments by
     their 5' end position.
@@ -488,7 +489,9 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
         if not sam_paths:
             raise Exception('No SAM/BAM files with \'%s\' basename are found.' % sam_basename)
 
+
         for sam_path in sam_paths:
+
             samfile = pysam.Samfile(sam_path)
 
             # Make Bowtie's chromosome tids -> genome_db indices dictionary.
@@ -545,46 +548,33 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
     # Read and save each type of data separately.
     def _write_to_array(read, array, value):
         array[_write_to_array.i] = value
-        _write_to_array.i += 1
+
+    def inc(function):
+        function.i += 1
 
     # ...chromosome ids
-    buf = np.zeros((sam_stats['num_reads'],), dtype=np.int8)
-    _write_to_array.i = 0
-    _for_each_unique_read(sam_basename, genome_db,
-        action=lambda read: _write_to_array(read, buf, read.tid))
-    out_dict['chrms'] = buf
-
-    # ...strands
-    buf = np.zeros((sam_stats['num_reads'],), dtype=np.bool)
-    _write_to_array.i = 0
-    _for_each_unique_read(sam_basename, genome_db,
-        action=lambda read: _write_to_array(read, buf, not read.is_reverse))
-    out_dict['strands'] = buf
-
-    # ...cut sites
-    buf = np.zeros((sam_stats['num_reads'],), dtype=np.int64)
-    _write_to_array.i = 0
-    _for_each_unique_read(sam_basename, genome_db,
-        action=
-            lambda read: _write_to_array(read, buf, read.pos + (len(read.seq) if read.is_reverse else 0)))
-    out_dict['cuts'] = buf
-
-    # ...sequences
-    buf = np.zeros(
-        (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['seq_len'])
-    _write_to_array.i = 0
-    _for_each_unique_read(sam_basename, genome_db,
-        action=
-            lambda read: _write_to_array(read, buf, Bio.Seq.reverse_complement(read.seq) if read.is_reverse and reverse_complement else read.seq))
-    out_dict['seqs'] = buf
-
-    # and ids.
-    buf = np.zeros(
+    chrmBuf = np.zeros((sam_stats['num_reads'],), dtype=np.int8)
+    strandBuf = np.zeros((sam_stats['num_reads'],), dtype=np.bool)
+    cutBuf = np.zeros((sam_stats['num_reads'],), dtype=np.int64)
+    idBuf = np.zeros(
         (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['id_len'])
+    seqBuf = np.zeros(
+        (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['seq_len'])
+
     _write_to_array.i = 0
     _for_each_unique_read(sam_basename, genome_db,
-        action=lambda read: _write_to_array(read, buf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname))
-    out_dict['ids'] = buf
+        action=lambda read: (_write_to_array(read, chrmBuf, read.tid),
+                             _write_to_array(read, strandBuf, not read.is_reverse),
+                             _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
+                             _write_to_array(read, idBuf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname),
+                             _write_to_array(read, seqBuf, Bio.Seq.reverse_complement(read.seq) if read.is_reverse and reverse_complement else read.seq),
+                             inc(_write_to_array)))
+
+    out_dict['chrms'] = chrmBuf
+    out_dict["strands"] = strandBuf
+    out_dict["cuts"] = cutBuf
+    out_dict["ids"] = idBuf
+    out_dict['seqs'] = seqBuf
 
     return out_dict
 
@@ -623,7 +613,7 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, **kwargs):
         If True then the IDs of reads are stored. False by default.
 
     enzyme_name : str, optional
-        If specified, assign the reads to the restriction fragments with 
+        If specified, assign the reads to the restriction fragments with
         the fill_rsites() function.
 
         The name of the restriction enzyme. The full list of possible names
@@ -631,7 +621,7 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, **kwargs):
         has an enzyme set then use this enzyme.
 
     min_frag_size : int, optional
-        The minimal distance between a cut site and a restriction site. 
+        The minimal distance between a cut site and a restriction site.
         Used only if enzyme_name is specified.
 
         If the actual distance is less or equal than minimal then the ultra-sonic
