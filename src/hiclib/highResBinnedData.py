@@ -617,9 +617,3 @@ class HiResHiC(object):
             mydict["%d %d" % i] = data
         mydict["resolution"] = self.resolution
 
-    def exportWithoutZeros(self, filename):
-        mydict = h5dict(filename)
-        for i in self.allKeys:
-            data = self.data[i].getData()
-            mydict["%d %d" % i] = data
-        mydict["resolution"] = self.resolution

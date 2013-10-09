@@ -707,42 +707,6 @@ class binnedData(object):
                 self.singlesDict[i] = self.singlesDict[i] / bias.astype(float)
         self.appliedOperations["Corrected"] = True
 
-    def iterativeCorrectWithSS(self, names=None, M=55, force=False,
-                               tolerance=1e-5):
-        """performs iterative correction with SS
-
-        Parameters
-        ----------
-        names : list of str or None, optional
-            Keys of datasets to be corrected. By default, all are corrected.
-        M : int, optional
-            Number of iterations to perform.
-        force : bool, optional
-            Ignore warnings and pre-requisite filters
-        """
-
-        if force == False:
-            self._checkAppliedOperations(advicedKeys=["RemovedDiagonal",
-                                                      "RemovedPoor"],
-                                         excludedKeys=["Corrected",
-                                                       "RemovedCis"])
-            self._checkItertiveCorrectionError()
-
-        if names is None:
-            names = self.dataDict.keys()
-        for i in names:
-            data = self.dataDict[i]
-            vec = self.singlesDict[i]
-            ndata, nvec, nbias = ultracorrectSymmetricWithVector(data,
-                                                     vec, M=M,
-                                                     tolerance=tolerance)
-            self.dataDict[i] = ndata
-            self.singlesDict[i] = nvec
-            vec[nvec == 0] = 1
-            nvec[nvec == 0] = 1
-            self.biasDict[i] = nbias
-
-        self.appliedOperations["Corrected"] = True
 
     def adaptiveSmoothing(self, smoothness, useOriginalReads="try",
                                  names=None, rawReadDict=None):
