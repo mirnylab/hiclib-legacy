@@ -1204,6 +1204,8 @@ class binnedDataAnalysis(binnedData):
 
     def averageTransMap(self, name, **kwargs):
         "plots and returns average inter-chromosomal inter-arm map"
+        import matplotlib.pyplot as plt
+        from mirnylib.plotting import removeBorder
         data = self.dataDict[name]
         avarms = np.zeros((80, 80))
         avmasks = np.zeros((80, 80))
