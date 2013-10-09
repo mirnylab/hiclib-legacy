@@ -1134,15 +1134,15 @@ class binnedData(object):
         cismap = self.chromosomeIndex[:, None] == self.chromosomeIndex[None, :]
         cissums = np.sum(cismap * data, axis=0)
         allsums = np.sum(data, axis=0)
-        if mode == "All":
+        if mode.lower() == "all":
             cissums += self.singlesDict[filename]
             allsums += self.singlesDict[filename]
-        elif mode == "Dummy":
+        elif mode.lower() == "dummy":
             sm = np.mean(self.singlesDict[filename])
             fakesm = cissums * sm / np.mean(cissums)
             cissums += fakesm
             allsums += fakesm
-        elif mode == "Matrix":
+        elif mode.lower() == "matrix":
             pass
         else:
             raise

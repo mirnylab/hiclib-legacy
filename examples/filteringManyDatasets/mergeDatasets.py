@@ -32,6 +32,7 @@ def genomeFolder(name):
 
 
 def source(ID):
+    return ID
     return "/net/tamm/home/magus/gigareadHiC/data/%s.fastq.hdf5" % ID
 
 
