@@ -54,52 +54,62 @@ Note about suggested usage
 This library consists of three parts: mapping pipeline, fragment-level filtering pipeline 
 and a binned data analysis toolset. 
 
-Originally, all three tools were developed for analysis of the 2009 Hi-C data, 
+Originally, all three tools were developed for analysis of the (Lieberman 2009) Hi-C data, 
 and were used mostly for analysis of inter-chromosomal data at low resolution 
-(>= 200 kb, see Imakaev et. al 2012). 
+(>= 200 kb, see Imakaev 2012). 
 
 As times passes, Hi-C data gets more and more reads, and requires higher and higher resolution. 
 FragmentHiC and mapping pipelines were written with that in mind, and were able to keep up with the current 
 increase of the Hi-C sequencing depth. 
-For example, as of 2013-Nov-25, they were used to map, filter and combine all published IMR90 and HES datasets 
+As a proof of principle, they were used to map, filter and combine all published IMR90 and HES datasets from
+(Jin, 2013) and (Dixon, 2012),
 totalling to over a billion  mapped double-sided reads. It was then used to build 
 a by-chromosome whole-genome heatmap at 40kb resolution (saveByChromosomeHeatmap), as well as 
 a by-chromosome within-chromosome-only heatmap at 10kb resolution (saveHiResHeatmapWithOverlaps). 
 All these tasks were performed using a mere 16GB of RAM, though 32GB would probably be recommended. 
-All mapping and filtering of (Naumova et al 2013), and (Le et al 2013) were performed
+All mapping and filtering of (Naumova 2013), and (Le 2013) were performed
 with these two pipelines. 
 
 A BinnedData class was originally build to perform synchronized analysis of multiple Hi-C 
 datasets at low resolution (200k+, maybe 100k). The footprint of this class is quadratic with 
-the number of bins, and therefore it cannot be used to analyze Hi-C data at resolutions of about 40kb.
+the number of bins, and therefore it cannot be used to analyze Hi-C data at resolutions much less than 100kb. 
 This class is still used by me to perform low-resolution cross-dataset analysis of 
 the whole-map features of the Hi-C data, such as to extract A-B compartment profile at 100kb resolution 
 and to analyze cis-trans ratios and translocations. 
 
 To analyze whole-genome data at low resolution (200k+), we used a whole-genome iterative 
-correction (see Imakaev et al 2012, Nature Methods). 
-In 2012 we developed a tool to perform whole-genome iterative correcton of Hi-C datasets at a very high resolution
-(up to 20kb) using HiResBinnedData module. This module was written as a sketch and proof-of-concept, and wasn't actively developed since then. 
+correction (see Imakaev 2012, Nature Methods). 
+In late 2012 we developed a tool to perform whole-genome iterative correcton of Hi-C datasets at a very high resolution
+(up to 20kb) using HiResBinnedData module. This module was written as a sketch and proof-of-concept, and wasn't actively developed or used since then. 
+We also developes a fragment-based iterative correction (FragmentHiC.IterativeCorrectionFromMax) which was in fact used often. 
 
-In our current research (see for example Naumova et. al 2013), we mostly analyzed within-chromosome Hi-C interaction data. 
+In our current research (see for example Naumova 2013), we mostly analyzed within-chromosome Hi-C interaction data. 
 For that purpose, we performe only within-chromosome iterative correction, without using between-chromosome interaction data. 
 We use it in project-specific scripts using mirnylib.ultracorrect function.
 
 The rationale for omitting between-chromosome data from iterative correction is as follows. 
 First, cross-dataset analysis of cis/trans ratio shows that this parameter is very experiment-dependent. 
 Though it could reflect biological variation between cells, it might also be an artifact of the
-Hi-C protocol, such as between-molecular ligation (Imakaev 2012). 
+Hi-C protocol, such as between-molecular ligation (Imakaev, 2012). 
 Second, inter-chromosomal interactions may contain translocations (in cancer cell lines). 
 Therefore, we usually restrain from performing whole-genome IC for within-chromosome analyses. 
 We perform regular by-chromosome iterative correction using mirnylib.ultracorrect, after removing 
 all the bins which have less than some cutoff (e.g. 50 or 100) reads. 
 Similarly, we now perform analysis of A- and B-compartments using within-chromosome
-eigenvector expansion, as described in (Naumova 2013). However, their slowly-changing nature 
-We did this for (Naumova 2013), as well as many of our current projects.
+eigenvector expansion, as described in (Naumova, 2013). However, their slowly-changing nature 
+We did this for (Naumova, 2013), as well as many of our current projects.
 
 To summarize, our current Hi-C analysis pipeline builds around iterative mapping and fragment-level Hi-C analysis. 
 However, a separate project-specific set of scripts is used to perform downstream analysis. 
 A BinnedData class is still used, but for a specific subset of low-resolution (100k+) analyses of the Hi-C data. 
+
+Tiny bibliography:
+(Lieberman, 2009) Comprehensive Mapping of Long-Range Interactions Reveals Folding Principles of the Human Genome;
+(Dixon, 2012) Topological domains in mammalian genomes identified by analysis of chromatin interactions;
+(Imakaev, 2012) Iterative correction of Hi-C data reveals hallmarks of chromosome organization;
+(Naumova, 2013) Organization of the Mitotic Chromosome;
+(Le, 2013) High-Resolution Mapping of the Spatial Organization of a Bacterial Chromosome;
+(Jin, 2013) A high-resolution map of the three-dimensional chromatin interactome in human cells;
 
 Please contact Maxim Imakaev (imakaev@mit.edu) with any questions. (2013-11-25) 
 

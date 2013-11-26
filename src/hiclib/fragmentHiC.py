@@ -1013,6 +1013,8 @@ class HiCdataset(object):
 
             high2 = (self.mids2[mask] + self.fraglens2[mask] / 2) / float(resolution)
 
+            del mask
+
             N = len(low1)
 
             heatmapSize = int(self.genome.chrmLensBin[chrom])
@@ -1102,6 +1104,11 @@ class HiCdataset(object):
             else:
                 raise ValueError("Bad value for countDiagonalReads")
             tosave["{0} {0}".format(chrom)] = counts
+
+            del diag
+            del heatmap
+            del counts
+
 
 
     def buildSinglesCoverage(self, resolution):
