@@ -862,8 +862,9 @@ class HiCdataset(object):
             restriction fragment resolution.
         countDiagonalReads : "once" or "twice"
             How many times to count reads in the diagonal bin
-        maxBinSpawn : bool
-            If True, then take weights from 'weights' variable. False by default.
+        maxBinSpawn : int, optional, not more than 10
+            Discard read if it spawns more than maxBinSpawn bins
+
         """
 
 
@@ -889,8 +890,6 @@ class HiCdataset(object):
             high2 = np.asarray(high2, dtype="float32")
             high2 += (self.mids2 + self.fraglens2 / 2) / float(resolution)
 
-            mappedBases = np.concatenate(self.genome.mappedBasesBin)
-            mappedBases = mappedBases / float(resolution)
 
             heatmap = np.zeros((self.genome.numBins, self.genome.numBins),
                                dtype="float64", order="C")
@@ -959,7 +958,7 @@ class HiCdataset(object):
         """
         weave.inline(code,
                      ['low1', "high1", "low2", "high2",
-                      "dr", "N", "heatmap", "maxBinSpawn",
+                       "N", "heatmap", "maxBinSpawn",
                       "heatmapSize",
                        ],
                      extra_compile_args=['-march=native  -O3 '],
@@ -980,9 +979,133 @@ class HiCdataset(object):
             raise ValueError("Bad value for countDiagonalReads")
         return counts
 
+    def saveHiResHeatmapWithOverlaps(self, resolution, filename, countDiagonalReads="Twice", maxBinSpawn=10,):
+        """Creates within-chromosome heatmaps at very high resolution,
+        assigning each fragment to all the bins it overlaps with,
+        proportional to the area of overlaps.
+
+        Parameters
+        ----------
+        resolution : int or str
+            Resolution of a heatmap.
+        countDiagonalReads : "once" or "twice"
+            How many times to count reads in the diagonal bin
+        maxBinSpawn : int, optional, not more than 10
+            Discard read if it spawns more than maxBinSpawn bins
+
+        """
+        tosave = h5dict(filename)
+
+        self.genome.setResolution(resolution)
+
+        for chrom in range(self.genome.chrmCount):
+            print "Saving chromosome {0}".format(chrom)
+            mask = (self.chrms1 == chrom) * (self.chrms2 == chrom)
+
+            if mask.sum() == 0:
+                continue
+
+            low1 = (self.mids1[mask] - self.fraglens1[mask] / 2) / float(resolution)
+
+            high1 = (self.mids1[mask] + self.fraglens1[mask] / 2) / float(resolution)
+
+            low2 = (self.mids2[mask] - self.fraglens2[mask] / 2) / float(resolution)
+
+            high2 = (self.mids2[mask] + self.fraglens2[mask] / 2) / float(resolution)
+
+            N = len(low1)
+
+            heatmapSize = int(self.genome.chrmLensBin[chrom])
+
+            heatmap = np.zeros((heatmapSize, heatmapSize),
+                               dtype="float64", order="C")
+
+            from scipy import weave
+            code = """
+            #line 1045 "fragmentHiC.py"
+            double vector1[100];
+            double vector2[100];
+
+            for (int readNum = 0;  readNum < N; readNum++)
+            {
+                for (int i=0; i<10; i++)
+                {
+                    vector1[i] = 0;
+                    vector2[i] = 0;
+                }
+
+                double l1 = low1[readNum];
+                double l2 = low2[readNum];
+                double h1 = high1[readNum];
+                double h2 = high2[readNum];
+
+
+                if ((h1 - l1) > maxBinSpawn) continue;
+                if ((h2 - l2) > maxBinSpawn) continue;
+
+                int binNum1 = ceil(h1) - floor(l1);
+                int binNum2 = ceil(h2) - floor(l2);
+                double binLen1 = h1 - l1;
+                double binLen2 = h2 - l2;
+
+                int b1 = floor(l1);
+                int b2 = floor(l2);
+
+                if (binNum1 == 1)
+                    vector1[0] = 1.;
+                else
+                    {
+                    vector1[0] = (ceil(l1 + 0.00001) - l1) / binLen1;
+                    for (int t = 1; t< binNum1 - 1; t++)
+                        {vector1[t] = 1. / binLen1;}
+                    vector1[binNum1 - 1] = (h1 - floor(h1)) / binLen1;
+                    }
+
+                if (binNum2 == 1) vector2[0] = 1.;
+
+                else
+                    {
+                    vector2[0] = (ceil(l2 + 0.0001) - l2) / binLen2;
+                    for (int t = 1; t< binNum2 - 1; t++)
+                        {vector2[t] = 1. / binLen2;}
+                    vector2[binNum2 - 1] = (h2 - floor(h2)) / binLen2;
+                    }
+
+                for (int i = 0; i< binNum1; i++)
+                    {
+                    for (int j = 0; j < binNum2; j++)
+                        {
+                        heatmap[(b1 + i) * heatmapSize +  b2 + j] += vector1[i] * vector2[j];
+                        }
+                    }
+                }
+        """
+            weave.inline(code,
+                         ['low1', "high1", "low2", "high2",
+                           "N", "heatmap", "maxBinSpawn",
+                          "heatmapSize",
+                           ],
+                         extra_compile_args=['-march=native  -O3 '],
+                         support_code=r"""
+                        #include <stdio.h>
+                        #include <math.h>""")
+
+            counts = heatmap
+            for i in xrange(len(counts)):
+                counts[i, i:] += counts[i:, i]
+                counts[i:, i] = counts[i, i:]
+            if countDiagonalReads.lower() == "once":
+                diag = np.diag(counts)
+                fillDiagonal(counts, diag / 2)
+            elif countDiagonalReads.lower() == "twice":
+                pass
+            else:
+                raise ValueError("Bad value for countDiagonalReads")
+            tosave["{0} {0}".format(chrom)] = counts
+
+
     def buildSinglesCoverage(self, resolution):
-        """creates an SS coverage vector heatmap in accordance with the
-        output of the 'genome' class"""
+        """deprecated"""
         return np.zeros(self.genome.numBins)
 
     def buildFragmetCoverage(self, resolution):
