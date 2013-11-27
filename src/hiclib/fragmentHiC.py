@@ -970,8 +970,8 @@ class HiCdataset(object):
         for i in xrange(len(counts)):
             counts[i, i:] += counts[i:, i]
             counts[i:, i] = counts[i, i:]
-        if countDiagonalReads.lower() == "once":
             diag = np.diag(counts)
+        if countDiagonalReads.lower() == "once":
             fillDiagonal(counts, diag / 2)
         elif countDiagonalReads.lower() == "twice":
             pass
@@ -979,7 +979,7 @@ class HiCdataset(object):
             raise ValueError("Bad value for countDiagonalReads")
         return counts
 
-    def saveHiResHeatmapWithOverlaps(self, resolution, filename, countDiagonalReads="Twice", maxBinSpawn=10,):
+    def saveHiResHeatmapWithOverlaps(self, resolution, filename, countDiagonalReads="Twice", maxBinSpawn=10, chromosomes="all"):
         """Creates within-chromosome heatmaps at very high resolution,
         assigning each fragment to all the bins it overlaps with,
         proportional to the area of overlaps.
@@ -997,8 +997,9 @@ class HiCdataset(object):
         tosave = h5dict(filename)
 
         self.genome.setResolution(resolution)
-
-        for chrom in range(self.genome.chrmCount):
+        if chromosomes == "all":
+            chromosomes = range(self.genome.chrmCount)
+        for chrom in chromosomes:
             print "Saving chromosome {0}".format(chrom)
             mask = (self.chrms1 == chrom) * (self.chrms2 == chrom)
 
@@ -1105,7 +1106,6 @@ class HiCdataset(object):
                 raise ValueError("Bad value for countDiagonalReads")
             tosave["{0} {0}".format(chrom)] = counts
 
-            del diag
             del heatmap
             del counts
 
