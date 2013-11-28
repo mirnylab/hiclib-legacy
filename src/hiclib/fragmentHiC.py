@@ -873,6 +873,7 @@ class HiCdataset(object):
             #many bytes per record + heatmap
             self.genome.setResolution(resolution)
             N = self.N
+            N = int(N)
 
             low1 = self.genome.chrmStartsBinCont[self.chrms1]
             low1 = np.asarray(low1, dtype="float32")
@@ -1105,6 +1106,7 @@ class HiCdataset(object):
             else:
                 raise ValueError("Bad value for countDiagonalReads")
             tosave["{0} {0}".format(chrom)] = counts
+
 
             del heatmap
             del counts
