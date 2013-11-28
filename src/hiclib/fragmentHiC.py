@@ -980,7 +980,7 @@ class HiCdataset(object):
             raise ValueError("Bad value for countDiagonalReads")
         return counts
 
-    def saveHiResHeatmapWithOverlaps(self, resolution, filename, countDiagonalReads="Twice", maxBinSpawn=10, chromosomes="all"):
+    def saveHiResHeatmapWithOverlaps(self, filename, resolution, countDiagonalReads="Twice", maxBinSpawn=10, chromosomes="all"):
         """Creates within-chromosome heatmaps at very high resolution,
         assigning each fragment to all the bins it overlaps with,
         proportional to the area of overlaps.
@@ -1110,6 +1110,7 @@ class HiCdataset(object):
 
             del heatmap
             del counts
+        print "----> By chromosome Heatmap saved to '{0}' at {1} resolution".format(filename, resolution)
 
 
 
@@ -1466,6 +1467,10 @@ class HiCdataset(object):
                     useFragmentOverlap=False):
         """
         Saves heatmap to filename at given resolution.
+        For small genomes where number of fragments per bin is small,
+        please set useFragmentOverlap to True.
+        This will assign each fragment to all bins over which the fragment
+        spawns.
 
         Parameters
         ----------
@@ -1478,6 +1483,10 @@ class HiCdataset(object):
             How many times to count reads in the diagonal bin
         useWeights : bool
             If True, then take weights from 'weights' variable. False by default.
+            If using iterativeCorrectionFromMax (fragment-level IC), use weights.
+        useFragmentOverlap : bool (optional)
+            Set this to true if you have few fragments per bin (bin size <20kb for HindIII)
+            It will consume more RAM and be slower.
         """
 
         try:
@@ -1589,6 +1598,8 @@ class HiCdataset(object):
                     if countDiagonalReads.lower() == "once":
                         fillDiagonal(mymap, np.diag(mymap).copy() / 2)
                 mydict["%d %d" % (chrom, chrom2)] = mymap
+        print "----> By chromosome Heatmap saved to '{0}' at {1} resolution".format(filename, resolution)
+
         return
 
     def exitProgram(self, a):
