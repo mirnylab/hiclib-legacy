@@ -77,8 +77,10 @@ API documentation
 
 import warnings
 import os
+import traceback
 from copy import copy
 from mirnylib.genome import Genome
+import sys
 import hiclib.mapping
 import numpy as np
 import math
@@ -199,6 +201,7 @@ class HiCdataset(object):
                                       "when memory is not an issue"))
 
         #-------Initialization of the genome and parameters-----
+        self.mode = mode
         if type(genome) == str:
             self.genome = Genome(genomePath=genome, readChrms=["#", "X"])
         else:
@@ -285,7 +288,21 @@ class HiCdataset(object):
             self.rebuildFragments()
 
     def _dumpMetadata(self):
-        self.h5dict["metadata"] = self.metadata
+
+        if self.mode in ["r"]:
+            warnings.warn(RuntimeWarning("Cannot dump metadata in read mode"))
+            return
+
+        try:
+            self.h5dict["metadata"] = self.metadata
+
+        except Exception, err:
+            print "-" * 20 + "Got Exception when saving metadata" + "-" * 20
+            traceback.print_exc()
+            print Exception, err
+            print "-" * 60
+            warnings.warn(RuntimeWarning("Got exception when saving metadata"))
+
 
     def evaluate(self, expression, internalVariables, externalVariables={},
                  constants={"np": np},

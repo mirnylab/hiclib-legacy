@@ -1494,7 +1494,7 @@ class experimentalBinnedData(binnedData):
                 print "bla"
 
     def loadWigFile(self, filenames, label, control=None,
-                    wigFileType="Auto", functionToAverage=np.log, internalResolution=5000):
+                    wigFileType="Auto", functionToAverage=np.log, internalResolution=1000):
         byChromosome = self.genome.parseAnyWigFile(filenames=filenames,
                                                    control=control,
                                                    wigFileType=wigFileType,
