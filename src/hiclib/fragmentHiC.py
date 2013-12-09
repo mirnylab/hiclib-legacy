@@ -1481,7 +1481,7 @@ class HiCdataset(object):
     def saveHeatmap(self, filename, resolution=1000000,
                     countDiagonalReads="Once",
                     useWeights=False,
-                    useFragmentOverlap=False):
+                    useFragmentOverlap=False,maxBinSpawn=10):
         """
         Saves heatmap to filename at given resolution.
         For small genomes where number of fragments per bin is small,
@@ -1515,7 +1515,7 @@ class HiCdataset(object):
         if not useFragmentOverlap:
             heatmap = self.buildAllHeatmap(resolution, countDiagonalReads, useWeights)
         else:
-            heatmap = self.buildHeatmapWithOverlapCpp(resolution, countDiagonalReads)
+            heatmap = self.buildHeatmapWithOverlapCpp(resolution, countDiagonalReads,maxBinSpawn)
 
         tosave["heatmap"] = heatmap
         del heatmap
