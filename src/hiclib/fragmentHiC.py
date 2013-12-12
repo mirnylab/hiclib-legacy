@@ -183,10 +183,8 @@ class HiCdataset(object):
             "strands1": "bool", "strands2": "bool",
             }
         self.metadata = {}
-            #'rfragIdxs1': 'int32',
-            #'rfragIdxs2':'int32',
-            #'absRfragIdxs1':'int32',
-            #'absRfragIdxs2':'int32'}
+            #'rfragAbsIdxs1':'int32',
+            #'rfragAbsIdxs2':'int32'}
 
         #--------Deprecation warnings-------
         if override != "deprecated":
@@ -831,6 +829,7 @@ class HiCdataset(object):
             label *= numBins
             label += self.genome.chrmStartsBinCont[self.chrms2]
             label += self.mids2 / resolution
+
         elif resolution == 'fragment':
             numBins = self.genome.numRfrags
             label = self.rfragAbsIdxs1
@@ -1337,6 +1336,10 @@ class HiCdataset(object):
             Fraction of the fragments with lowest cis-to-total ratio
             to be removed.
         """
+
+        if 'rfragAbsIdxs1' not in self.vectors:
+            raise Exception('Run setRfragAbsIdxs() first!')
+
         concRfragAbsIdxs = np.r_[self.rfragAbsIdxs1, self.rfragAbsIdxs2]
         concCis = np.r_[self.chrms1 == self.chrms2, self.chrms1 == self.chrms2]
 
@@ -1369,6 +1372,9 @@ class HiCdataset(object):
         Remove fragment pairs separated by less then `minRsitesDist`
         restriction sites within the same chromosome.
         """
+
+        if 'rfragAbsIdxs1' not in self.vectors:
+            raise Exception('Run setRfragAbsIdxs() first!')
 
         mask = (
             (np.abs(self.rfragAbsIdxs1 - self.rfragAbsIdxs2) < minRsitesDist)
@@ -1624,50 +1630,24 @@ class HiCdataset(object):
         print "     ----> Bye! :) <----"
         exit()
 
-    def setRfragIdxs(self, rEnzyme=None):
-        if self.genome.hasEnzyme() == False:
-            if rEnzyme is None:
-                raise Exception("Please specify the restriction enzyme.")
-            else:
-                self.genome.setEnzyme(rEnzyme)
 
-        rfragIdxs1 = np.ones(self.N, dtype='int32') * -1
-        rfragIdxs2 = np.ones(self.N, dtype='int32') * -1
-        for i in range(max(self.chrms1.max(), self.chrms2.max()) + 1):
-            allMids = (self.genome.rsites[i] + np.r_[0, self.genome.rsites[i][:-1]]) / 2
-            mask1 = (self.chrms1 == i)
-            rfragIdxs1[mask1] = np.searchsorted(
-                allMids, self.mids1[mask1], side='left').astype('int32')
-            mask2 = (self.chrms2 == i)
-            rfragIdxs2[mask2] = np.searchsorted(
-                allMids, self.mids2[mask2], side='left').astype('int32')
-            print 'Chromosome #{0}: {1} out of {2} rfragIdxs are restored correctly'.format(
-                i,
-                (allMids[rfragIdxs1[mask1]] == self.mids1[mask1]).sum()
-                + (allMids[rfragIdxs2[mask2]] == self.mids2[mask2]).sum(),
-                mask1.sum() + mask2.sum())
+    def setRfragAbsIdxs(self, rEnzyme):
+        """Cache the absolute indices of restriction fragments.
+        """
 
-        rfragAbsIdxs1 = self.genome.chrmStartsRfragCont[self.chrms1] + rfragIdxs1
-        rfragAbsIdxs2 = self.genome.chrmStartsRfragCont[self.chrms2] + rfragIdxs2
-        rfragAbsIdxs1[self.chrms1 == -1] = -1
-        rfragAbsIdxs2[self.chrms2 == -1] = -1
-
-        self.vectors['rfragIdxs1'] = 'int32'
-        self.vectors['rfragIdxs2'] = 'int32'
         self.vectors['rfragAbsIdxs1'] = 'int32'
         self.vectors['rfragAbsIdxs2'] = 'int32'
 
-        self.rfragIdxs1 = rfragIdxs1
-        self.rfragIdxs2 = rfragIdxs2
-        self.rfragAbsIdxs1 = rfragAbsIdxs1
-        self.rfragAbsIdxs2 = rfragAbsIdxs2
+        self.genome.setEnzyme(rEnzyme)
+        self.rfragAbsIdxs1 = self.genome.getRfragAbsIdxs(self.fragids1)
+        self.rfragAbsIdxs2 = self.genome.getRfragAbsIdxs(self.fragids2)
 
     def iterativeCorrection(self, numsteps=10, normToLen=False):
         '''
-        This function performs fragment-based iterative correction of Hi-C data.
+        Perform fragment-based iterative correction of Hi-C data.
         '''
         if 'rfragAbsIdxs1' not in self.vectors:
-            raise Exception('Run setRfragIdxs() first!')
+            raise Exception('Run setRfragAbsIdxs() first!')
 
         rfragLensConc = np.concatenate(self.genome.rfragLens)
         weights = np.ones(self.N, dtype=np.float32)
