@@ -42,6 +42,12 @@ for expName in os.listdir("caul"):  # this directory contains folders with names
                                                        # This is one bin-pair per 10 bins, i.e. negligible. But will help to 
                                                        # get rid of PCR blowouts and other artifacts 
         # Before doing this step, I got sure that sum of reads in each row/column of the heatmap is more than 100 
+        """
+        If I was working with eucaryotes, or with highly reprtitive genomes, I would do this: 
+        mask = np.sum(heatmap, axis=0) < 100 #take all bins with less than 100 reads
+        heatmap[mask,:] = 0 
+        heatmap[:,mask] = 0   #set these rows and columns to zero
+        """
         heatmap = ultracorrect(heatmap)  # performing iterative correction 
         correctedHeatmap = np.array(heatmap)  # just making a copy (np.asarray does not make a copy, np.array does by default) 
         mask = np.sum(correctedHeatmap, axis=0) == 0  # record mask of rows/columns which have a sum of zero (e.g. no fragments).
