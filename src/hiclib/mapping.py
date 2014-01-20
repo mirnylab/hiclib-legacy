@@ -481,7 +481,7 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
 
 
 def _parse_ss_sams(sam_basename, out_dict, genome_db,
-                   max_seq_len= -1, reverse_complement=False):
+                   max_seq_len= -1, reverse_complement=False, save_seqs=False):
     """Parse SAM files with single-sided reads.
     """
     def _for_each_unique_read(sam_basename, genome_db, action):
@@ -558,28 +558,47 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
     cutBuf = np.zeros((sam_stats['num_reads'],), dtype=np.int64)
     idBuf = np.zeros(
         (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['id_len'])
-    seqBuf = np.zeros(
-        (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['seq_len'])
 
     _write_to_array.i = 0
-    _for_each_unique_read(sam_basename, genome_db,
-        action=lambda read: (_write_to_array(read, chrmBuf, read.tid),
-                             _write_to_array(read, strandBuf, not read.is_reverse),
-                             _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
-                             _write_to_array(read, idBuf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname),
-                             _write_to_array(read, seqBuf, Bio.Seq.reverse_complement(read.seq) if read.is_reverse and reverse_complement else read.seq),
-                             inc(_write_to_array)))
 
-    out_dict['chrms'] = chrmBuf
-    out_dict["strands"] = strandBuf
-    out_dict["cuts"] = cutBuf
-    out_dict["ids"] = idBuf
-    out_dict['seqs'] = seqBuf
+    if save_seqs:
+        seqBuf = np.zeros(
+            (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['seq_len'])
+
+        _for_each_unique_read(sam_basename, genome_db,
+            action=lambda read: (_write_to_array(read, chrmBuf, read.tid),
+                                 _write_to_array(read, strandBuf, not read.is_reverse),
+                                 _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
+                                 _write_to_array(read, idBuf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname),
+                                 _write_to_array(read, seqBuf, Bio.Seq.reverse_complement(read.seq) if read.is_reverse and reverse_complement else read.seq),
+                                 inc(_write_to_array)))
+
+        out_dict['chrms'] = chrmBuf
+        out_dict["strands"] = strandBuf
+        out_dict["cuts"] = cutBuf
+        out_dict["ids"] = idBuf
+        out_dict['seqs'] = seqBuf
+    else:
+        print "In a recent update by default we're not saving sequences!!!"
+        print "use parse_sams(save_seqs=True) to save sequences"
+        warnings.warn(RuntimeWarning("Since 14-01-20 we're not saving sequences by default"))
+        _for_each_unique_read(sam_basename, genome_db,
+            action=lambda read: (_write_to_array(read, chrmBuf, read.tid),
+                                 _write_to_array(read, strandBuf, not read.is_reverse),
+                                 _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
+                                 _write_to_array(read, idBuf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname),
+                                 inc(_write_to_array)))
+
+        out_dict['chrms'] = chrmBuf
+        out_dict["strands"] = strandBuf
+        out_dict["cuts"] = cutBuf
+        out_dict["ids"] = idBuf
+
 
     return out_dict
 
 
-def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, **kwargs):
+def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, save_seqs=False, **kwargs):
     '''Parse SAM/BAM files with HiC reads.
 
     Parameters
@@ -647,11 +666,11 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, **kwargs):
 
     log.info('Parse the first side of the reads from %s' % sam_basename1)
     _parse_ss_sams(sam_basename1, ss_lib[1], genome_db,
-                   1 if not max_seq_len else max_seq_len, reverse_complement)
+                   1 if not max_seq_len else max_seq_len, reverse_complement, save_seqs=save_seqs)
 
     log.info('Parse the second side of the reads from %s' % sam_basename2)
     _parse_ss_sams(sam_basename2, ss_lib[2], genome_db,
-                   1 if not max_seq_len else max_seq_len, reverse_complement)
+                   1 if not max_seq_len else max_seq_len, reverse_complement, save_seqs=save_seqs)
 
     # Determine the number of double-sided reads.
     all_ids = np.unique(np.concatenate((ss_lib[1]['ids'], ss_lib[2]['ids'])))
