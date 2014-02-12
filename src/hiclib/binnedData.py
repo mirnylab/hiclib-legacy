@@ -996,7 +996,7 @@ class binnedData(object):
         All PCs are oriented to have positive correlation with GC.
 
         Writes the main result (PCs) in the self.PCADict dictionary.
-        Additionally, returns correlation coefficients by chromosome.
+        Additionally, returns correlation coefficients with GC; by chromosome.
 
         Parameters
         ----------

@@ -1011,8 +1011,9 @@ class HiCdataset(object):
             Discard read if it spawns more than maxBinSpawn bins
 
         """
-        tosave = h5dict(filename)
+        from scipy import weave
 
+        tosave = h5dict(filename)
         self.genome.setResolution(resolution)
         if chromosomes == "all":
             chromosomes = range(self.genome.chrmCount)
@@ -1040,7 +1041,7 @@ class HiCdataset(object):
             heatmap = np.zeros((heatmapSize, heatmapSize),
                                dtype="float64", order="C")
 
-            from scipy import weave
+
             code = """
             #line 1045 "fragmentHiC.py"
             double vector1[100];
@@ -1109,23 +1110,26 @@ class HiCdataset(object):
                          support_code=r"""
                         #include <stdio.h>
                         #include <math.h>""")
+            del high1, low1, high2, low2
 
-            counts = heatmap
-            for i in xrange(len(counts)):
-                counts[i, i:] += counts[i:, i]
-                counts[i:, i] = counts[i, i:]
+
+            for i in xrange(len(heatmap)):
+                heatmap[i, i:] += heatmap[i:, i]
+                heatmap[i:, i] = heatmap[i, i:]
             if countDiagonalReads.lower() == "once":
-                diag = np.diag(counts)
-                fillDiagonal(counts, diag / 2)
+                diag = np.diag(heatmap).copy()
+                fillDiagonal(heatmap, diag / 2)
+                del diag
             elif countDiagonalReads.lower() == "twice":
                 pass
             else:
                 raise ValueError("Bad value for countDiagonalReads")
-            tosave["{0} {0}".format(chrom)] = counts
-
-
+            tosave["{0} {0}".format(chrom)] = heatmap
+            tosave.flush()
             del heatmap
-            del counts
+            weave.inline("")  # to release all buffers of weave.inline
+            import gc
+            gc.collect()
         print "----> By chromosome Heatmap saved to '{0}' at {1} resolution".format(filename, resolution)
 
 
@@ -1487,7 +1491,7 @@ class HiCdataset(object):
     def saveHeatmap(self, filename, resolution=1000000,
                     countDiagonalReads="Once",
                     useWeights=False,
-                    useFragmentOverlap=False,maxBinSpawn=10):
+                    useFragmentOverlap=False, maxBinSpawn=10):
         """
         Saves heatmap to filename at given resolution.
         For small genomes where number of fragments per bin is small,
@@ -1521,7 +1525,7 @@ class HiCdataset(object):
         if not useFragmentOverlap:
             heatmap = self.buildAllHeatmap(resolution, countDiagonalReads, useWeights)
         else:
-            heatmap = self.buildHeatmapWithOverlapCpp(resolution, countDiagonalReads,maxBinSpawn)
+            heatmap = self.buildHeatmapWithOverlapCpp(resolution, countDiagonalReads, maxBinSpawn)
 
         tosave["heatmap"] = heatmap
         del heatmap
