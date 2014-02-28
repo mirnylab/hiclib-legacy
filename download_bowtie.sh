@@ -1,4 +1,4 @@
-echo "Download Bowtie2 binaries"
+echo "Download Bowtie2 binaries" 
 mkdir -p bin/bowtie2
 cd bin/bowtie2
 
