@@ -337,7 +337,7 @@ class binnedData(object):
                               "data is not integer")
                 return None
 
-    def simpleLoad(self, in_data, name):
+    def simpleLoad(self, in_data, name, chromosomeOrder=None):
         """Loads data from h5dict file or dict-like object
 
         Parameters
@@ -349,6 +349,8 @@ class binnedData(object):
             stored under the key "singles".
         name : str
             Key under which to store dataset in self.dataDict
+        chromosomeOrder : None or list
+            If file to load is a byChromosome map, use this to define chromosome order
 
         """
         if type(in_data) == str:
@@ -358,6 +360,19 @@ class binnedData(object):
             alldata = h5dict(path, mode="r")
         else:
             alldata = in_data
+        if type(alldata) == h5dict:
+            if ("0 0" in alldata.keys()) and ("heatmap" not in alldata.keys()):
+                if chromosomeOrder != None:
+                    chromosomes = chromosomeOrder
+                else:
+                    chromosomes = xrange(self.chromosomeCount)
+                datas = []
+                for i in chromosomes:
+                    datas.append(np.concatenate([alldata["{0} {1}".format(i, j)] for j in chromosomes], axis=1))
+                newdata = {"heatmap": np.concatenate(datas)}
+                for i in alldata.keys():
+                    newdata[i] = alldata[i]
+                alldata = newdata
 
         self.dataDict[name] = np.asarray(alldata["heatmap"], dtype=np.double)
         try:
@@ -365,7 +380,10 @@ class binnedData(object):
         except:
             print "No SS reads found"
         try:
-            self.fragsDict[name] = alldata["frags"]
+            if len(alldata["frags"]) == self.genome.numBins:
+                self.fragsDict[name] = alldata["frags"]
+            else:
+                print "Different bin number in frag dict"
         except:
             pass
         if "resolution" in alldata:
@@ -564,6 +582,7 @@ class binnedData(object):
             self.dataDict[i][transmask] = tdata
         self.appliedOperations["TruncedTrans"] = True
 
+
     def removeCis(self):
         "sets to zero all cis contacts"
 
@@ -586,6 +605,7 @@ class binnedData(object):
         mask : NxN boolean array or "CisCounts"
             Mask of elements to be faked.
             If set to "CisCounts", cis counts will be faked
+            When mask is used, cis elements are NOT faked.
         silent : bool
             Do not print anything
 
@@ -613,7 +633,7 @@ class binnedData(object):
             self.appliedOperations["RemovedCis"] = True
             self.appliedOperations["FakedCis"] = True
 
-    def fakeCis(self, force=False):
+    def fakeCis(self, force=False, mask="CisCounts"):
         """This method fakes cis contacts in an interative way
         It is done to achieve faking cis contacts that is
         independent of normalization of the data.
@@ -622,12 +642,13 @@ class binnedData(object):
         ----------
         Force : bool (optional)
             Set this to avoid checks for iterative correction
+        mask : see fakeCisOnce
         """
         self.removeCis()
         self.iterativeCorrectWithoutSS(force=force)
-        self.fakeCisOnce(silent=True)
+        self.fakeCisOnce(silent=True, mask=mask)
         self.iterativeCorrectWithoutSS(force=force)
-        self.fakeCisOnce(silent=True)
+        self.fakeCisOnce(silent=True, mask=mask)
         self.iterativeCorrectWithoutSS(force=force)
         print("All cis counts are substituted with faked counts")
         print("Data is iteratively corrected as a part of faking cis counts")
@@ -806,7 +827,7 @@ class binnedData(object):
                     curMask = mask2D[st1:end1, st2:end2]
 
                     s = adaptiveSmoothing(matrix=cur,
-                                         parameter=smoothness,
+                                         cutoff=smoothness,
                                          alpha=0.5,
                                          mask=curMask,
                                          originalCounts=curReads)
@@ -878,12 +899,10 @@ class binnedData(object):
         for mydict in self.dicts:
             for key in mydict.keys():
                 if len(mydict[key]) != N:
-                    raise ValueError("Wrong dimensions of data %i: \
-                    %d instead of %d" % (key, len(mydict[key]), N))
+                    raise ValueError("Wrong dimensions of data {0}: {1} instead of {2}".format(key, len(mydict[key]), N))
                 mydict[key] = mydict[key][s]
         for mydict in self.eigDicts:
             for key in mydict.keys():
-
                 mydict[key] = mydict[key][:, s]
                 if len(mydict[key][0]) != N:
                     raise ValueError("Wrong dimensions of data %i: \

@@ -1147,6 +1147,10 @@ class HiCdataset(object):
         positions = self.ufragments % self.fragIDmult
         label = self.genome.chrmStartsBinCont[chroms] + positions / resolution
         counts = np.bincount(label, minlength=self.genome.numBins)
+        if len(counts) > self.genome.numBins:
+            print "Extra chromosomes found in the data; ignoring"
+            counts = counts[:self.genome.numBins]
+        assert len(counts) == self.genome.numBins
         return counts
 
     def fragmentFilter(self, fragments):
