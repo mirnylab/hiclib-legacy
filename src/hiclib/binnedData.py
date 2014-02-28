@@ -527,7 +527,7 @@ class binnedData(object):
         self.appliedOperations["RemovedUnsequenced"] = True
         pass
 
-    def removePoorRegions(self, names=None, cutoff=2, coverage=False):
+    def removePoorRegions(self, names=None, cutoff=2, coverage=False, trans=False):
         """Removes "cutoff" percent of bins with least counts
 
         Parameters
@@ -543,6 +543,9 @@ class binnedData(object):
             names = self.dataDict.keys()
         for i in names:
             data = self.dataDict[i]
+            if trans:
+                data = data.copy()
+                data[self.chromosomeIndex[:, None] == self.chromosomeIndex[None, :]] = 0
             datasum = np.sum(data, axis=0)
             datamask = datasum > 0
             mask *= datamask
