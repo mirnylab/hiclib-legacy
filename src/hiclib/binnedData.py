@@ -158,7 +158,7 @@ import warnings
 from mirnylib.numutils import PCA, EIG, correct, \
     ultracorrectSymmetricWithVector, isInteger, \
     observedOverExpected, ultracorrect, adaptiveSmoothing, \
-    removeDiagonals
+    removeDiagonals, projectOnEigenvalues, projectOnEigenvectors, fillDiagonal
 from mirnylib.genome import Genome
 import numpy as np
 from math import exp
@@ -1035,10 +1035,13 @@ class binnedData(object):
             Function to calculate principal components of a square matrix.
             Accepts: N by N matrix
             returns: numPCs by N matrix
+
             Default does iterative correction, then observed over expected.
-            Then iterates IS and OOE 2 more times.
+            Then IC
             Then calculates correlation matrix.
             Then calculates PCA of correlation matrix.
+
+            other options: metaphasePaper (like in Naumova, Science 2013)
 
         .. note:: Main output of this function is written to self.PCADict
 
@@ -1055,16 +1058,53 @@ class binnedData(object):
 
         """
         corr = corrFunction
-        if domainFunction == "default":
-            def domainFunction(chrom):
-                chrom = ultracorrect(chrom)
-                chrom = observedOverExpected(chrom)
-                chrom = ultracorrect(chrom, M=10)
-                chrom = observedOverExpected(chrom)
-                chrom = ultracorrect(chrom, M=10)
-                chrom = np.corrcoef(chrom)
-                PCs = PCA(chrom, numPCs)[0]
-                return PCs
+        if (type(domainFunction) == str):
+            domainFunction = domainFunction.lower()
+            if domainFunction in ["metaphasepaper", "default", "lieberman",
+                                  "erez", "geoff", "lieberman+", "erez+"]:
+                fname = domainFunction
+
+                def domainFunction(chrom):
+                    #orig = chrom.copy()
+                    M = len(chrom.flat)
+                    toclip = 100 * min(0.999, (M - 10.) / M)
+                    removeDiagonals(chrom, 1)
+                    chrom = ultracorrect(chrom)
+                    chrom = observedOverExpected(chrom)
+                    chrom = np.clip(chrom, -1e10, np.percentile(chrom, toclip))
+
+                    for i in [-1, 0, 1]:
+                        fillDiagonal(chrom, 1, i)
+                    if fname in ["default", "lieberman+", "erez+"]:
+                        #upgrade of (Lieberman 2009)
+                        # does IC, then OoE, then IC, then corrcoef, then PCA
+
+                        chrom = ultracorrect(chrom)
+                        chrom = np.corrcoef(chrom)
+                        PCs = PCA(chrom, numPCs)[0]
+                        return PCs
+                    elif fname in ["lieberman", "erez"]:
+                        #slight upgrade of (Lieberman 2009)
+                        # does IC, then OoE, then corrcoef, then PCA
+
+                        chrom = np.corrcoef(chrom)
+                        PCs = PCA(chrom, numPCs)[0]
+                        return PCs
+                    elif fname in ["metaphasepaper", "geoff"]:
+                        chrom = ultracorrect(chrom)
+                        PCs = EIG(chrom, numPCs)[0]
+                        return PCs
+                    else:
+                        raise
+            if domainFunction in ["lieberman-", "erez-"]:
+                #simplest function presented in (Lieberman 2009)
+                #Closest to (Lieberman 2009) that we could do
+                def domainFunction(chrom):
+                    removeDiagonals(chrom, 1)
+                    chrom = observedOverExpected(chrom)
+                    chrom = np.corrcoef(chrom)
+                    PCs = PCA(chrom, numPCs)[0]
+                    return PCs
 
         corrdict, lengthdict = {}, {}
             #dict of per-chromosome correlation coefficients
