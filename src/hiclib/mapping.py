@@ -251,8 +251,8 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         raise Exception(
             'The output folder already contains files with the same SAM prefix '
             'or some the previously mapped files were already lost.'
-            'Found files: ' + sorted(glob.glob(out_sam_path+'*')) +
-            '\nAlready mapped files: ' + sorted(already_mapped)
+            'Found files: ' + str(sorted(glob.glob(out_sam_path+'*'))) +
+            '\nAlready mapped files: ' + str(sorted(already_mapped))
             )
 
     seq_start = kwargs.get('seq_start', 0)
