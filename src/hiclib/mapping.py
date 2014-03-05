@@ -342,18 +342,20 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     reading_process.terminate()
 
     if kwargs.get('first_iteration', True):
+        has_old_files = False
         for path in sorted(glob.glob(out_sam_path+'.*')):
             try:
                 mapped_len = int(path[len(out_sam_path)+1:])
                 if ((mapped_len - min_seq_len) % len_step != 0) and (mapped_len != raw_seq_len):
-                    raise Exception(
-                        'The output folder contains a SAM file mapped '
-                        'to a different length range. '
-                        'Most likely, this is an artifact of previous mappings.'
-                        )
+                    has_old_files = True
             except:
                 pass
 
+        if has_old_files:
+            raise Exception(
+                'The output folder contains a SAM file mapped '
+                'to a different length range. '
+                'Most likely, this is an artifact of previous mappings.')
 
     if (seq_start < 0
         or seq_start > raw_seq_len
