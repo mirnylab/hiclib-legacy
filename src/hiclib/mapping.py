@@ -243,7 +243,12 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         raise Exception(
             'The fastq file is not found '
             'at the specified path: {0}.'.format(fastq_path))
+
     out_sam_path = os.path.abspath(os.path.expanduser(out_sam_path))
+    if glob.glob(out_sam_path+'*'):
+        raise Exception(
+            'The output folder already contains files with the same sam prefix.'
+            )
 
     seq_start = kwargs.get('seq_start', 0)
     seq_end = kwargs.get('seq_end', None)
