@@ -238,16 +238,21 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             'The bowtie binary is not found '
             'at the specified path: {0}.'.format(bowtie_path))
     bowtie_index_path = os.path.abspath(os.path.expanduser(bowtie_index_path))
+
     fastq_path = os.path.abspath(os.path.expanduser(fastq_path))
     if not os.path.isfile(fastq_path):
         raise Exception(
             'The fastq file is not found '
             'at the specified path: {0}.'.format(fastq_path))
 
+    already_mapped = kwargs.get('already_mapped', [])
     out_sam_path = os.path.abspath(os.path.expanduser(out_sam_path))
-    if glob.glob(out_sam_path+'*'):
+    if sorted(glob.glob(out_sam_path+'*')) != sorted(already_mapped):
         raise Exception(
-            'The output folder already contains files with the same sam prefix.'
+            'The output folder already contains files with the same SAM prefix '
+            'or some the previously mapped files were already lost.'
+            'Found files: ' + sorted(glob.glob(out_sam_path+'*')) +
+            '\nAlready mapped files: ' + sorted(already_mapped)
             )
 
     seq_start = kwargs.get('seq_start', 0)
@@ -355,6 +360,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         trim_5 = seq_start
         trim_3 = raw_seq_len - seq_start - min_seq_len
         local_out_sam = out_sam_path + '.' + str(min_seq_len)
+        kwargs['already_mapped'] = kwargs.get('already_mapped',[]) + [local_out_sam]
         mapping_command = [
             bowtie_path, '-x', bowtie_index_path, '-q', '-',
             '-5', str(trim_5), '-3', str(trim_3), '-p', str(nthreads)
