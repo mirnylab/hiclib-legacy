@@ -247,13 +247,6 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
     already_mapped = kwargs.get('already_mapped', [])
     out_sam_path = os.path.abspath(os.path.expanduser(out_sam_path))
-    if sorted(glob.glob(out_sam_path+'*')) != sorted(already_mapped):
-        raise Exception(
-            'The output folder already contains files with the same SAM prefix '
-            'or some the previously mapped files were already lost.'
-            'Found files: ' + str(sorted(glob.glob(out_sam_path+'*'))) +
-            '\nAlready mapped files: ' + str(sorted(already_mapped))
-            )
 
     seq_start = kwargs.get('seq_start', 0)
     seq_end = kwargs.get('seq_end', None)
@@ -348,6 +341,20 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     log.info('The length of whole sequences in the file: %d', raw_seq_len)
     reading_process.terminate()
 
+    if kwargs.get('first_iteration', True):
+        for path in sorted(glob.glob(out_sam_path+'.*')):
+            try:
+                mapped_len = int(path[len(out_sam_path)+1:])
+                if ((mapped_len - min_seq_len) % len_step != 0) and (mapped_len != raw_seq_len):
+                    raise Exception(
+                        'The output folder contains a SAM file mapped '
+                        'to a different length range. '
+                        'Most likely, this is an artifact of previous mappings.'
+                        )
+            except:
+                pass
+
+
     if (seq_start < 0
         or seq_start > raw_seq_len
         or (seq_end and seq_end > raw_seq_len)):
@@ -360,7 +367,6 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         trim_5 = seq_start
         trim_3 = raw_seq_len - seq_start - min_seq_len
         local_out_sam = out_sam_path + '.' + str(min_seq_len)
-        kwargs['already_mapped'] = kwargs.get('already_mapped',[]) + [local_out_sam]
         mapping_command = [
             bowtie_path, '-x', bowtie_index_path, '-q', '-',
             '-5', str(trim_5), '-3', str(trim_3), '-p', str(nthreads)
@@ -413,6 +419,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         log.info(('{0} non-unique reads out of '
                   '{1} are sent the next iteration.').format(num_filtered,
                                                              num_total))
+        kwargs['first_iteration'] = False
 
         iterative_mapping(bowtie_path, bowtie_index_path, unmapped_fastq_path,
                           out_sam_path,
