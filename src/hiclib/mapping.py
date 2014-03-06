@@ -238,11 +238,14 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             'The bowtie binary is not found '
             'at the specified path: {0}.'.format(bowtie_path))
     bowtie_index_path = os.path.abspath(os.path.expanduser(bowtie_index_path))
+
     fastq_path = os.path.abspath(os.path.expanduser(fastq_path))
     if not os.path.isfile(fastq_path):
         raise Exception(
             'The fastq file is not found '
             'at the specified path: {0}.'.format(fastq_path))
+
+    already_mapped = kwargs.get('already_mapped', [])
     out_sam_path = os.path.abspath(os.path.expanduser(out_sam_path))
 
     seq_start = kwargs.get('seq_start', 0)
@@ -338,6 +341,22 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     log.info('The length of whole sequences in the file: %d', raw_seq_len)
     reading_process.terminate()
 
+    if kwargs.get('first_iteration', True):
+        has_old_files = False
+        for path in sorted(glob.glob(out_sam_path+'.*')):
+            try:
+                mapped_len = int(path[len(out_sam_path)+1:])
+                if ((mapped_len - min_seq_len) % len_step != 0) and (mapped_len != raw_seq_len):
+                    has_old_files = True
+            except:
+                pass
+
+        if has_old_files:
+            raise Exception(
+                'The output folder contains a SAM file mapped '
+                'to a different length range. '
+                'Most likely, this is an artifact of previous mappings.')
+
     if (seq_start < 0
         or seq_start > raw_seq_len
         or (seq_end and seq_end > raw_seq_len)):
@@ -402,6 +421,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         log.info(('{0} non-unique reads out of '
                   '{1} are sent the next iteration.').format(num_filtered,
                                                              num_total))
+        kwargs['first_iteration'] = False
 
         iterative_mapping(bowtie_path, bowtie_index_path, unmapped_fastq_path,
                           out_sam_path,

@@ -158,7 +158,7 @@ import warnings
 from mirnylib.numutils import PCA, EIG, correct, \
     ultracorrectSymmetricWithVector, isInteger, \
     observedOverExpected, ultracorrect, adaptiveSmoothing, \
-    removeDiagonals
+    removeDiagonals, projectOnEigenvalues, projectOnEigenvectors, fillDiagonal
 from mirnylib.genome import Genome
 import numpy as np
 from math import exp
@@ -337,7 +337,7 @@ class binnedData(object):
                               "data is not integer")
                 return None
 
-    def simpleLoad(self, in_data, name):
+    def simpleLoad(self, in_data, name, chromosomeOrder=None):
         """Loads data from h5dict file or dict-like object
 
         Parameters
@@ -349,6 +349,8 @@ class binnedData(object):
             stored under the key "singles".
         name : str
             Key under which to store dataset in self.dataDict
+        chromosomeOrder : None or list
+            If file to load is a byChromosome map, use this to define chromosome order
 
         """
         if type(in_data) == str:
@@ -358,6 +360,19 @@ class binnedData(object):
             alldata = h5dict(path, mode="r")
         else:
             alldata = in_data
+        if type(alldata) == h5dict:
+            if ("0 0" in alldata.keys()) and ("heatmap" not in alldata.keys()):
+                if chromosomeOrder != None:
+                    chromosomes = chromosomeOrder
+                else:
+                    chromosomes = xrange(self.chromosomeCount)
+                datas = []
+                for i in chromosomes:
+                    datas.append(np.concatenate([alldata["{0} {1}".format(i, j)] for j in chromosomes], axis=1))
+                newdata = {"heatmap": np.concatenate(datas)}
+                for i in alldata.keys():
+                    newdata[i] = alldata[i]
+                alldata = newdata
 
         self.dataDict[name] = np.asarray(alldata["heatmap"], dtype=np.double)
         try:
@@ -365,7 +380,10 @@ class binnedData(object):
         except:
             print "No SS reads found"
         try:
-            self.fragsDict[name] = alldata["frags"]
+            if len(alldata["frags"]) == self.genome.numBins:
+                self.fragsDict[name] = alldata["frags"]
+            else:
+                print "Different bin number in frag dict"
         except:
             pass
         if "resolution" in alldata:
@@ -509,7 +527,7 @@ class binnedData(object):
         self.appliedOperations["RemovedUnsequenced"] = True
         pass
 
-    def removePoorRegions(self, names=None, cutoff=2, coverage=False):
+    def removePoorRegions(self, names=None, cutoff=2, coverage=False, trans=False):
         """Removes "cutoff" percent of bins with least counts
 
         Parameters
@@ -525,6 +543,9 @@ class binnedData(object):
             names = self.dataDict.keys()
         for i in names:
             data = self.dataDict[i]
+            if trans:
+                data = data.copy()
+                data[self.chromosomeIndex[:, None] == self.chromosomeIndex[None, :]] = 0
             datasum = np.sum(data, axis=0)
             datamask = datasum > 0
             mask *= datamask
@@ -564,6 +585,7 @@ class binnedData(object):
             self.dataDict[i][transmask] = tdata
         self.appliedOperations["TruncedTrans"] = True
 
+
     def removeCis(self):
         "sets to zero all cis contacts"
 
@@ -586,6 +608,7 @@ class binnedData(object):
         mask : NxN boolean array or "CisCounts"
             Mask of elements to be faked.
             If set to "CisCounts", cis counts will be faked
+            When mask is used, cis elements are NOT faked.
         silent : bool
             Do not print anything
 
@@ -613,7 +636,7 @@ class binnedData(object):
             self.appliedOperations["RemovedCis"] = True
             self.appliedOperations["FakedCis"] = True
 
-    def fakeCis(self, force=False):
+    def fakeCis(self, force=False, mask="CisCounts"):
         """This method fakes cis contacts in an interative way
         It is done to achieve faking cis contacts that is
         independent of normalization of the data.
@@ -622,12 +645,13 @@ class binnedData(object):
         ----------
         Force : bool (optional)
             Set this to avoid checks for iterative correction
+        mask : see fakeCisOnce
         """
         self.removeCis()
         self.iterativeCorrectWithoutSS(force=force)
-        self.fakeCisOnce(silent=True)
+        self.fakeCisOnce(silent=True, mask=mask)
         self.iterativeCorrectWithoutSS(force=force)
-        self.fakeCisOnce(silent=True)
+        self.fakeCisOnce(silent=True, mask=mask)
         self.iterativeCorrectWithoutSS(force=force)
         print("All cis counts are substituted with faked counts")
         print("Data is iteratively corrected as a part of faking cis counts")
@@ -806,7 +830,7 @@ class binnedData(object):
                     curMask = mask2D[st1:end1, st2:end2]
 
                     s = adaptiveSmoothing(matrix=cur,
-                                         parameter=smoothness,
+                                         cutoff=smoothness,
                                          alpha=0.5,
                                          mask=curMask,
                                          originalCounts=curReads)
@@ -878,12 +902,10 @@ class binnedData(object):
         for mydict in self.dicts:
             for key in mydict.keys():
                 if len(mydict[key]) != N:
-                    raise ValueError("Wrong dimensions of data %i: \
-                    %d instead of %d" % (key, len(mydict[key]), N))
+                    raise ValueError("Wrong dimensions of data {0}: {1} instead of {2}".format(key, len(mydict[key]), N))
                 mydict[key] = mydict[key][s]
         for mydict in self.eigDicts:
             for key in mydict.keys():
-
                 mydict[key] = mydict[key][:, s]
                 if len(mydict[key][0]) != N:
                     raise ValueError("Wrong dimensions of data %i: \
@@ -996,7 +1018,7 @@ class binnedData(object):
         All PCs are oriented to have positive correlation with GC.
 
         Writes the main result (PCs) in the self.PCADict dictionary.
-        Additionally, returns correlation coefficients by chromosome.
+        Additionally, returns correlation coefficients with GC; by chromosome.
 
         Parameters
         ----------
@@ -1013,10 +1035,13 @@ class binnedData(object):
             Function to calculate principal components of a square matrix.
             Accepts: N by N matrix
             returns: numPCs by N matrix
+
             Default does iterative correction, then observed over expected.
-            Then iterates IS and OOE 2 more times.
+            Then IC
             Then calculates correlation matrix.
             Then calculates PCA of correlation matrix.
+
+            other options: metaphasePaper (like in Naumova, Science 2013)
 
         .. note:: Main output of this function is written to self.PCADict
 
@@ -1033,16 +1058,53 @@ class binnedData(object):
 
         """
         corr = corrFunction
-        if domainFunction == "default":
-            def domainFunction(chrom):
-                chrom = ultracorrect(chrom)
-                chrom = observedOverExpected(chrom)
-                chrom = ultracorrect(chrom, M=10)
-                chrom = observedOverExpected(chrom)
-                chrom = ultracorrect(chrom, M=10)
-                chrom = np.corrcoef(chrom)
-                PCs = PCA(chrom, numPCs)[0]
-                return PCs
+        if (type(domainFunction) == str):
+            domainFunction = domainFunction.lower()
+            if domainFunction in ["metaphasepaper", "default", "lieberman",
+                                  "erez", "geoff", "lieberman+", "erez+"]:
+                fname = domainFunction
+
+                def domainFunction(chrom):
+                    #orig = chrom.copy()
+                    M = len(chrom.flat)
+                    toclip = 100 * min(0.999, (M - 10.) / M)
+                    removeDiagonals(chrom, 1)
+                    chrom = ultracorrect(chrom)
+                    chrom = observedOverExpected(chrom)
+                    chrom = np.clip(chrom, -1e10, np.percentile(chrom, toclip))
+
+                    for i in [-1, 0, 1]:
+                        fillDiagonal(chrom, 1, i)
+                    if fname in ["default", "lieberman+", "erez+"]:
+                        #upgrade of (Lieberman 2009)
+                        # does IC, then OoE, then IC, then corrcoef, then PCA
+
+                        chrom = ultracorrect(chrom)
+                        chrom = np.corrcoef(chrom)
+                        PCs = PCA(chrom, numPCs)[0]
+                        return PCs
+                    elif fname in ["lieberman", "erez"]:
+                        #slight upgrade of (Lieberman 2009)
+                        # does IC, then OoE, then corrcoef, then PCA
+
+                        chrom = np.corrcoef(chrom)
+                        PCs = PCA(chrom, numPCs)[0]
+                        return PCs
+                    elif fname in ["metaphasepaper", "geoff"]:
+                        chrom = ultracorrect(chrom)
+                        PCs = EIG(chrom, numPCs)[0]
+                        return PCs
+                    else:
+                        raise
+            if domainFunction in ["lieberman-", "erez-"]:
+                #simplest function presented in (Lieberman 2009)
+                #Closest to (Lieberman 2009) that we could do
+                def domainFunction(chrom):
+                    removeDiagonals(chrom, 1)
+                    chrom = observedOverExpected(chrom)
+                    chrom = np.corrcoef(chrom)
+                    PCs = PCA(chrom, numPCs)[0]
+                    return PCs
 
         corrdict, lengthdict = {}, {}
             #dict of per-chromosome correlation coefficients
