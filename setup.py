@@ -7,9 +7,6 @@ setup(
     package_dir={'': 'src'},
     packages=['hiclib'],
     install_requires=[
-        'numpy>=1.6',
-        'scipy',
-        'matplotlib',
         'biopython',
         'mirnylib',
         'pysam',

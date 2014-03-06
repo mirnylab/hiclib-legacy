@@ -14,16 +14,19 @@ Installation requirements
 
 ### Python dependencies
 
-Getting the basic Scientific Python stack (numpy/scipy/matplotlib) can be trickier on some platforms than others. For more details, see the [instructions on scipy.org](http://www.scipy.org/install.html). It is recommended that you already have these dependencies installed and running correctly before attempting to install this package.
+Required:
 
-Installed by setuptools if missing:
+Getting the basic Scientific Python stack (numpy/scipy/matplotlib) can be trickier on some platforms than others. For more details, see the [instructions on scipy.org](http://www.scipy.org/install.html). You should already have these dependencies installed and running correctly before attempting to install this package.
 
 - numpy (1.6+)
 - scipy
 - matplotlib
+
+Installed by setuptools if missing:
+
 - biopython
 - pysam
-- mirnylib
+- [mirnylib](https://bitbucket.org/mirnylab/mirnylib)
 
 Optional:
 
