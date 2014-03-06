@@ -954,6 +954,7 @@ class binnedData(object):
                 mydict[key][s] = a
 
         for mydict in self.eigDicts:
+            #print mydict
             for key in mydict.keys():
                 a = mydict[key]
                 mydict[key] = np.zeros((len(a), N), dtype=a.dtype) * value

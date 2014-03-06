@@ -1,4 +1,7 @@
 """
+.. note:: 
+    This is the old version of the script from 2011
+
 This example script does the following:
 
 -Loads individual files from the location defined by source(ID)
