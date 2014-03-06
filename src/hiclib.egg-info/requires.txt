@@ -1,0 +1,6 @@
+numpy>=1.6
+scipy
+matplotlib
+biopython
+mirnylib
+pysam
