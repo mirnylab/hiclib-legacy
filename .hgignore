@@ -3,8 +3,11 @@ syntax: glob
 
 *~
 *.pyc
+.DS_Store
 doc/build
 tests/mapping/tmp
 bin/
+build/
+sdist/
 data/
 fasta/
