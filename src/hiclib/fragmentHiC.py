@@ -301,6 +301,38 @@ class HiCdataset(object):
             print "-" * 60
             warnings.warn(RuntimeWarning("Got exception when saving metadata"))
 
+    def _checkConsistency(self):
+        """
+        Internal method to automatically check consistency with the genome
+        Every time rebuildFragments is getting called
+        """
+        c1 = self.chrms1
+        p1 = self.cuts1
+        if len(c1) > 1000000:
+            c1 = c1[::100]
+            p1 = p1[::100]
+        if c1.max() >= self.genome.chrmCount:
+            print 'Genome length', self.genome.chrmCount
+            print "Maximum chromosome", c1.max()
+            print "note that chromosomes are 0-based, so go",
+            print  "from 0 to {0}".format(self.genome.chrmCount)
+            raise ValueError("Chromosomes do not fit in the genome")
+        maxPos = self.genome.chrmLens[c1]
+        dif = p1 - maxPos
+        if dif.max() > 0:
+            print "Some reads map after chromosome end"
+            print 'However, deviation  of {0} is not big enough to call an error'.format(dif.max())
+            warnings.warn("Reads map {0} bp after the end of chromosome".format(dif.max()))
+            if dif.max() > 100:
+                print "Possible genome mismatch found"
+                print 'Maximum deviation is {0}'.format(dif.max())
+                for chrom in range(self.genome.chrmCount):
+                    posmax = (p1[c1 == chrom]).max()
+                    chrLens = self.genome.chrmLens[chrom]
+                    if posmax > chrLens:
+                        print "Maximum position for chr {0} is {1}".format(chrom, posmax)
+                        print "Length of chr {0} is {1}".format(chrom, chrLens)
+                raise ValueError("Wrong chromosome lengths")
 
     def evaluate(self, expression, internalVariables, externalVariables={},
                  constants={"np": np},
@@ -1145,6 +1177,9 @@ class HiCdataset(object):
         self.genome.setResolution(resolution)
         chroms = self.ufragments / self.fragIDmult
         positions = self.ufragments % self.fragIDmult
+        mask = chroms < self.genome.chrmCount
+        chroms = chroms[mask]
+        positions = positions[mask]
         label = self.genome.chrmStartsBinCont[chroms] + positions / resolution
         counts = np.bincount(label, minlength=self.genome.numBins)
         if len(counts) > self.genome.numBins:
@@ -1227,6 +1262,7 @@ class HiCdataset(object):
         self.ufragments, ind = np.unique(uall, True)
         self.ufragmentlen = ulen[ind]
         self._dumpMetadata()
+        self._checkConsistency()
 
     def filterExtreme(self, cutH=0.005, cutL=0):
         """removes fragments with most and/or least # counts
