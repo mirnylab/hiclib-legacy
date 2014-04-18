@@ -1,6 +1,6 @@
 """
 This scripts takes fastq files from fastq directory, maps them to the genome and
-saves them to .hdf5 files in a directory "caul".
+saves them to .hdf5 files in a directory "genomeName-mapped".
 Please follow comments along the text.
 """
 
