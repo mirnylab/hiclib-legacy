@@ -208,20 +208,20 @@ print experiments
 
 for experiment in experiments:
     workingGenome = experiment[1]
-    myExperimentNames = [i[1] + "_refined.frag" for i in combinedExperimentNames if (i[0], i[3]) == (experiment[0], experiment[2])]
+    myExperimentNames = [i[1] + "_refined.frag" for i in combinedExperimentNames if (i[0], i[2], i[3]) == (experiment[0], experiment[1],experiment[2])]    
     assert len(myExperimentNames) > 0
     if len(myExperimentNames) > 1:
         #If we have more than one experiment (replica) for the same data, we can combine. 
-        TR = HiCdataset(os.path.join(workingGenome, "%s-all_refined.frag" %
-                                     experiment[0]), genome=genomeFolder(workingGenome))
-        statSaveName = os.path.join("statistics", workingGenome, "%s-all_refined.stat" % experiment[0])
+        TR = HiCdataset(os.path.join(workingGenome, "%s-all-%s_refined.frag" %
+                                     (experiment[0],experiment[2])), genome=genomeFolder(workingGenome))
+        statSaveName = os.path.join("statistics", workingGenome, "%s-all-%s_refined.stat" % (experiment[0], experiment[2]))
 
         TR.merge(myExperimentNames)
         TR.printMetadata(saveTo=statSaveName)
         for res in wholeGenomeResolutionsKb:    
-            TR.saveHeatmap(os.path.join(workingGenome, "%s-all-{0}k.hm" % experiment[0]).format(res), res*1000)
+            TR.saveHeatmap(os.path.join(workingGenome, "%s-all-%s-{0}k.hm" % (experiment[0], experiment[2])).format(res), res*1000)
         for res in byChromosomeResolutionsKb: 
-            TR.saveByChromosomeHeatmap(os.path.join(workingGenome, "%s-all-{0}k.hm" % experiment[0]).format(res), res*1000)
+            TR.saveByChromosomeHeatmap(os.path.join(workingGenome, "%s-all-%s-{0}k.hm" % (experiment[0], experiment[2])).format(res), res*1000)
         for res in HiResWithOverlapResolutionsKb:
-            TR.saveHiResHeatmapWithOverlaps(os.path.join(workingGenome, "%s-all-{0}k.hm" % experiment[0]).format(res), res*1000)
+            TR.saveHiResHeatmapWithOverlaps(os.path.join(workingGenome, "%s-all-%s-{0}k.hm" % (experiment[0], experiment[2])).format(res), res*1000)
 

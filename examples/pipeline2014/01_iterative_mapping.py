@@ -39,7 +39,16 @@ for i in sorted(os.listdir("fastq")):
     lengthFile = os.path.join("lengths", expName)
     length = (int(open(lengthFile).readlines()[0]) - 1)/2
     print length
-    finalName = '%s/%s' % (savePath,expName)
+    minlen = 30
+    step = 15 
+    if (length < 40) and (length > 35):
+        step = length - minlen
+    
+        
+    
+    
+    finalName = '%s/%s.hdf5' % (savePath,expName.replace(".sra",""))
+    print finalName
     if os.path.exists(finalName):
         print "skipping", finalName
         continue
@@ -50,8 +59,8 @@ for i in sorted(os.listdir("fastq")):
         bowtie_index_path=bowtieIndex,
         fastq_path=file1,
         out_sam_path='sams/%s_1.bam' % expName,
-        min_seq_len=30,  # for bacteria mimimal mappable length is 15 bp, so I start with something slightly longer
-        len_step=10,  # and go with a usualy step
+        min_seq_len=minlen,  # for bacteria mimimal mappable length is 15 bp, so I start with something slightly longer
+        len_step=step,  # and go with a usualy step
         nthreads=6,  # on intel corei7 CPUs 4 threads are as fast as
                      # 8, but leave some room for you other applications
         #max_reads_per_chunk = 10000000,  #optional, on low-memory machines
@@ -66,8 +75,8 @@ for i in sorted(os.listdir("fastq")):
         bowtie_index_path=bowtieIndex,
         fastq_path=file1,
         out_sam_path='sams/%s_2.bam' % expName,
-        min_seq_len=30,
-        len_step=10,
+        min_seq_len=minlen,
+        len_step=step,
         nthreads=6,  # on intel corei7 CPUs 4 threads are as fast as
                      # 8, but leave some room for you other applications
         #max_reads_per_chunk = 10000000,  #optional, on low-memory machines
