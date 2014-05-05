@@ -221,7 +221,7 @@ for experiment in experiments:
         for res in wholeGenomeResolutionsKb:    
             TR.saveHeatmap(os.path.join(workingGenome, "%s-all-%s-{0}k.hm" % (experiment[0], experiment[2])).format(res), res*1000)
         for res in byChromosomeResolutionsKb: 
-            TR.saveByChromosomeHeatmap(os.path.join(workingGenome, "%s-all-%s-{0}k.hm" % (experiment[0], experiment[2])).format(res), res*1000)
+            TR.saveByChromosomeHeatmap(os.path.join(workingGenome, "%s-all-%s-{0}k.byChr" % (experiment[0], experiment[2])).format(res), res*1000)
         for res in HiResWithOverlapResolutionsKb:
-            TR.saveHiResHeatmapWithOverlaps(os.path.join(workingGenome, "%s-all-%s-{0}k.hm" % (experiment[0], experiment[2])).format(res), res*1000)
+            TR.saveHiResHeatmapWithOverlaps(os.path.join(workingGenome, "%s-all-%s-{0}k_HighRes.byChr" % (experiment[0], experiment[2])).format(res), res*1000)
 

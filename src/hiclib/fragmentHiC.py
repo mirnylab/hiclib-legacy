@@ -537,6 +537,9 @@ class HiCdataset(object):
         else:
             noRsites = True
 
+        if enzymeToFillRsites != None:  # we should be able to override rsites
+            noRsites = True
+
         "---Filling in chromosomes and positions - mandatory objects---"
         a = dictLike["chrms1"]
         self.trackLen = len(a)

@@ -1469,7 +1469,7 @@ class experimentalBinnedData(binnedData):
             support = """
             #include <math.h>
             """
-            weave.inline(code, ['transmap', 'data', "N"],
+            weave.inline(code, ['transmap', 'data', "N"],  #@UndefinedVariable
                          extra_compile_args=['-march=native -malign-double'],
                          support_code=support)
             self.dataDict[i] = data
@@ -1525,7 +1525,7 @@ class experimentalBinnedData(binnedData):
             #include <math.h>
             """
             for _ in xrange(5):
-                weave.inline(code, ['transmask', 'mask', 'data', "N"],
+                weave.inline(code, ['transmask', 'mask', 'data', "N"],  #@UndefinedVariable
                              extra_compile_args=['-march=native'
                                                    ' -malign-double -O3'],
                              support_code=support)
