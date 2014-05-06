@@ -125,6 +125,7 @@ def _filter_fastq(ids, in_fastq, out_fastq):
     num_total = 0
     while True:
         line = in_file.readline()
+
         if not line:
             break
 
@@ -343,9 +344,9 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
     if kwargs.get('first_iteration', True):
         has_old_files = False
-        for path in sorted(glob.glob(out_sam_path+'.*')):
+        for path in sorted(glob.glob(out_sam_path + '.*')):
             try:
-                mapped_len = int(path[len(out_sam_path)+1:])
+                mapped_len = int(path[len(out_sam_path) + 1:])
                 if ((mapped_len - min_seq_len) % len_step != 0) and (mapped_len != raw_seq_len):
                     has_old_files = True
             except:
