@@ -45,6 +45,31 @@ import mirnylib.genome
 
 log = logging.getLogger(__name__)
 
+
+def commandExists(command):
+    "checks if the bash command exists"
+    command = command.split()[0]
+    if subprocess.call(['which', command]) != 0:
+        return False
+    return True
+
+def gzipWriter(filename):
+    """
+    creates a writing process with gzip or parallel gzip (pigz) attached to it
+    """
+    filename = os.path.abspath(filename)
+    if commandExists("pigz"):
+        writer = "pigz -c -4"
+    else:
+        writer = "gzip -c -1"
+        warnings.warn("Please install 'pigz' parallel gzip for faster speed")
+    bashLine = "{writer} > {filename}".format(writer=writer, filename=filename)
+    log.info("""Writer created with command "{0}" """.format(bashLine))
+    pwrite = subprocess.Popen([bashLine], stdin=subprocess.PIPE,
+                               shell=True, bufsize= -1)
+    return pwrite.stdin
+
+
 def _detect_quality_coding_scheme(in_fastq, num_entries=10000):
     in_file = open(in_fastq)
     max_ord = 0
@@ -66,13 +91,6 @@ def _detect_quality_coding_scheme(in_fastq, num_entries=10000):
         i += 1
 
     return min_ord, max_ord
-
-
-def _gzopen(path):
-    if path.endswith('.gz'):
-        return gzip.open(path)
-    else:
-        return open(path)
 
 
 def _line_count(path):
@@ -113,36 +131,37 @@ def _chunk_file(in_path, out_basename, max_num_lines):
     return out_paths
 
 
-def _filter_fastq(ids, in_fastq, out_fastq):
+def _filter_fastq(ids, inStream, out_fastq, in_filename="none"):
     '''Filter FASTQ sequences by their IDs.
 
     Read entries from **in_fastq** and store in **out_fastq** only those
     the whose ID are in **ids**.
     '''
-    out_file = open(out_fastq, 'w')
-    in_file = _gzopen(in_fastq)
+    writingProcess = gzipWriter(out_fastq)
+
     num_filtered = 0
     num_total = 0
     while True:
-        line = in_file.readline()
+        line = inStream.readline()
 
         if not line:
             break
 
         if not line.startswith('@'):
             raise Exception(
-                '{0} does not comply with the FASTQ standards.'.format(in_fastq))
+                '{0} does not comply with the FASTQ standards.'.format(in_filename))
 
-        fastq_entry = [line, in_file.readline(),
-                       in_file.readline(), in_file.readline()]
+        fastq_entry = [line, inStream.readline(),
+                       inStream.readline(), inStream.readline()]
         read_id = line.split()[0][1:]
         if read_id in ids:
-            out_file.writelines(fastq_entry)
+            writingProcess.writelines(fastq_entry)
             num_filtered += 1
         num_total += 1
     return num_total, num_filtered
 
-def _filter_unmapped_fastq(in_fastq, in_sam, nonunique_fastq):
+
+def _filter_unmapped_fastq(in_stream, in_sam, nonunique_fastq, in_filename="none"):
     '''Read raw sequences from **in_fastq** and alignments from
     **in_sam** and save the non-uniquely aligned and unmapped sequences
     to **unique_sam**.
@@ -160,7 +179,7 @@ def _filter_unmapped_fastq(in_fastq, in_sam, nonunique_fastq):
             nonunique_ids.add(read_id)
 
     num_total, num_filtered = _filter_fastq(
-        nonunique_ids, in_fastq, nonunique_fastq)
+        nonunique_ids, in_stream, nonunique_fastq, in_filename=in_filename)
 
     return num_total, num_filtered
 
@@ -273,11 +292,14 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     if bash_reader is None:
         extension = fastq_path.split('.')[-1].lower()
         if extension == 'gz':
-            bash_reader = 'gunzip -c'
+            if commandExists("pigz"):
+                bash_reader = "pigz -dc"
+            else:
+                bash_reader = 'gunzip -c'
         else:
             bash_reader = 'cat'
     else:
-        if subprocess.call(['which', bash_reader]) != 0:
+        if not commandExists(bash_reader):
             bash_reader = os.path.abspath(os.path.expanduser(bash_reader))
             if not os.path.isfile(bash_reader.split()[0]):
                 raise Exception(
@@ -288,25 +310,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
     # If bash reader is not 'cat', convert file to FASTQ first and
     # run iterative_mapping recursively on the converted file.
-    if bash_reader != 'cat':
-        converted_fastq = os.path.join(temp_dir, os.path.split(fastq_path)[1] + '.fastq')
-        log.info('Bash reader is not trivial, read input with %s, store in %s',
-                 ' '.join(reading_command), converted_fastq)
-        converting_process = subprocess.Popen(
-            ' '.join(reading_command),
-            stdout=open(converted_fastq, 'w'),
-            shell=True)
-        converting_process.wait()
 
-        kwargs['bash_reader'] = 'cat'
-        log.info('Run iterative_mapping recursively on %s', converted_fastq)
-        iterative_mapping(
-            bowtie_path, bowtie_index_path, converted_fastq,
-            out_sam_path, min_seq_len, len_step,
-            **kwargs)
-
-        os.remove(converted_fastq)
-        return
 
     output_is_bam = (out_sam_path.split('.')[-1].lower() == 'bam')
     bamming_command = ['samtools', 'view', '-bS', '-'] if output_is_bam else []
@@ -413,16 +417,25 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         # Recursively go to the next iteration.
         log.info('Save the unique aligments and send the '
                      'non-unique ones to the next iteration')
+        reading_process = subprocess.Popen(reading_command,
+                                       stdout=subprocess.PIPE,
+                                       bufsize= -1)
 
         unmapped_fastq_path = os.path.join(
-            temp_dir, os.path.split(fastq_path)[1] + '.%d' % min_seq_len)
+            temp_dir, os.path.split(fastq_path)[1] + '.%d' % min_seq_len + ".fastq.gz")
+
         num_total, num_filtered = _filter_unmapped_fastq(
-            fastq_path, local_out_sam, unmapped_fastq_path)
+            reading_process.stdout, local_out_sam, unmapped_fastq_path, in_filename=fastq_path)
 
         log.info(('{0} non-unique reads out of '
                   '{1} are sent the next iteration.').format(num_filtered,
                                                              num_total))
         kwargs['first_iteration'] = False
+        if commandExists("pigz"):
+            kwargs["bash_reader"] = "pigz -dc"
+        else:
+            kwargs["bash_reader"] = 'gunzip -c'
+
 
         iterative_mapping(bowtie_path, bowtie_index_path, unmapped_fastq_path,
                           out_sam_path,
