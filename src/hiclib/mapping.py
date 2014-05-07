@@ -693,7 +693,7 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, save_seqs=False
         genome_db = mirnylib.genome.Genome(genome_db)
     assert isinstance(genome_db, mirnylib.genome.Genome)
 
-    # Parse the single-sided reads.
+    # Parse the single-sided  reads.
     ss_lib = {}
     ss_lib[1] = mirnylib.h5dict.h5dict()
     ss_lib[2] = mirnylib.h5dict.h5dict()
