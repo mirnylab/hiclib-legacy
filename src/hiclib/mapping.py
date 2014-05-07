@@ -67,7 +67,7 @@ def gzipWriter(filename):
     log.info("""Writer created with command "{0}" """.format(bashLine))
     pwrite = subprocess.Popen([bashLine], stdin=subprocess.PIPE,
                                shell=True, bufsize= -1)
-    return pwrite.stdin
+    return pwrite
 
 
 def _detect_quality_coding_scheme(in_fastq, num_entries=10000):
@@ -155,9 +155,14 @@ def _filter_fastq(ids, inStream, out_fastq, in_filename="none"):
                        inStream.readline(), inStream.readline()]
         read_id = line.split()[0][1:]
         if read_id in ids:
-            writingProcess.writelines(fastq_entry)
+            writingProcess.stdin.writelines(fastq_entry)
             num_filtered += 1
         num_total += 1
+    writingProcess.stdin.flush()
+    writingProcess.stdin.close()
+    writingProcess.communicate()
+    if writingProcess.returncode != 0:
+        raise RuntimeError("Writing process return code {0}".format(writingProcess.returncode))
     return num_total, num_filtered
 
 
