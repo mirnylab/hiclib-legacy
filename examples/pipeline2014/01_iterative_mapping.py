@@ -20,7 +20,7 @@ bowtiePath = "../bin/bowtie2/bowtie2"
 if not os.path.exists(bowtiePath): raise
 fastqDir = "fastq"
 bowtieIndex = "../bin/bowtie2/index/{0}".format(genomeName)
-tmpDir = "/net/evolution/home/magus/Temp"
+tmpDir = "/tmp"
 
 savePath = "{0}-mapped".format(genomeName)
 
@@ -86,6 +86,7 @@ for i in sorted(os.listdir("fastq")):
         seq_start=0,
         seq_end=length,
         bash_reader="fastq-dump -Z",
+        bowtie_flags=" --very-sensitive ",
         )
 
     mapping.iterative_mapping(
@@ -102,6 +103,7 @@ for i in sorted(os.listdir("fastq")):
         seq_start=length,
         seq_end=2 * length,
         bash_reader="fastq-dump -Z",
+        bowtie_flags=" --very-sensitive ",
         )
 
     # B. Parse the mapped sequences into a Python data structure,
