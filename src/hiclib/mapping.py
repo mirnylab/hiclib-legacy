@@ -53,6 +53,7 @@ def commandExists(command):
         return False
     return True
 
+
 def gzipWriter(filename):
     """
     creates a writing process with gzip or parallel gzip (pigz) attached to it
@@ -316,7 +317,6 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     # If bash reader is not 'cat', convert file to FASTQ first and
     # run iterative_mapping recursively on the converted file.
 
-
     output_is_bam = (out_sam_path.split('.')[-1].lower() == 'bam')
     bamming_command = ['samtools', 'view', '-bS', '-'] if output_is_bam else []
 
@@ -431,6 +431,12 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
         num_total, num_filtered = _filter_unmapped_fastq(
             reading_process.stdout, local_out_sam, unmapped_fastq_path, in_filename=fastq_path)
+
+        reading_process.stdout.flush()
+        reading_process.terminate()
+        if reading_process.returncode != 0:
+            raise RuntimeError("Writing process return code {0}".format(reading_process.returncode))
+
 
         log.info(('{0} non-unique reads out of '
                   '{1} are sent the next iteration.').format(num_filtered,

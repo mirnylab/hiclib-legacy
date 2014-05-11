@@ -158,7 +158,7 @@ import warnings
 from mirnylib.numutils import PCA, EIG, correct, \
     ultracorrectSymmetricWithVector, isInteger, \
     observedOverExpected, ultracorrect, adaptiveSmoothing, \
-    removeDiagonals, projectOnEigenvalues, projectOnEigenvectors, fillDiagonal
+    removeDiagonals, fillDiagonal
 from mirnylib.genome import Genome
 import numpy as np
 from math import exp
@@ -585,7 +585,6 @@ class binnedData(object):
             self.dataDict[i][transmask] = tdata
         self.appliedOperations["TruncedTrans"] = True
 
-
     def removeCis(self):
         "sets to zero all cis contacts"
 
@@ -730,7 +729,6 @@ class binnedData(object):
             if i in self.singlesDict:
                 self.singlesDict[i] = self.singlesDict[i] / bias.astype(float)
         self.appliedOperations["Corrected"] = True
-
 
     def adaptiveSmoothing(self, smoothness, useOriginalReads="try",
                                  names=None, rawReadDict=None):
@@ -1184,7 +1182,6 @@ class binnedDataAnalysis(binnedData):
     def plotScaling(self, name, label="BLA", color=None, plotUnit=1000000):
         "plots scaling of a heatmap,treating arms separately"
         import matplotlib.pyplot as plt
-        from mirnylib.plotting import removeBorder
         data = self.dataDict[name]
         bins = numutils.logbins(
             2, self.genome.maxChrmArm / self.resolution, 1.17)
@@ -1469,7 +1466,7 @@ class experimentalBinnedData(binnedData):
             support = """
             #include <math.h>
             """
-            weave.inline(code, ['transmap', 'data', "N"],  #@UndefinedVariable
+            weave.inline(code, ['transmap', 'data', "N"],
                          extra_compile_args=['-march=native -malign-double'],
                          support_code=support)
             self.dataDict[i] = data
@@ -1525,7 +1522,7 @@ class experimentalBinnedData(binnedData):
             #include <math.h>
             """
             for _ in xrange(5):
-                weave.inline(code, ['transmask', 'mask', 'data', "N"],  #@UndefinedVariable
+                weave.inline(code, ['transmask', 'mask', 'data', "N"],
                              extra_compile_args=['-march=native'
                                                    ' -malign-double -O3'],
                              support_code=support)
