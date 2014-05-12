@@ -433,9 +433,8 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             reading_process.stdout, local_out_sam, unmapped_fastq_path, in_filename=fastq_path)
 
         reading_process.stdout.flush()
+        reading_process.stdout.close()
         reading_process.terminate()
-        if reading_process.returncode != 0:
-            raise RuntimeError("Writing process return code {0}".format(reading_process.returncode))
 
 
         log.info(('{0} non-unique reads out of '
