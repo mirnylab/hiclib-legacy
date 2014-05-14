@@ -21,13 +21,14 @@ if not os.path.exists(bowtiePath): raise
 fastqDir = "fastq"
 bowtieIndex = "../bin/bowtie2/index/{0}".format(genomeName)
 tmpDir = "/tmp"
+samFolder = "sams-{0}".format(genomeName)
 
-savePath = "{0}-mapped".format(genomeName)
+savePath = "mapped-{0}".format(genomeName)
 
-if not os.path.exists("sams"):
-    os.mkdir("sams")
+if not os.path.exists(samFolder):
+    os.mkdir(samFolder)
 else:
-    os.system("rm -rf sams/*")
+    os.system("rm -rf {0}/*".format(samFolder))
 
 if not os.path.exists(savePath):
     os.mkdir(savePath)
@@ -76,7 +77,7 @@ for i in sorted(os.listdir("fastq")):
         bowtie_path=bowtiePath,
         bowtie_index_path=bowtieIndex,
         fastq_path=file1,
-        out_sam_path='sams/%s_1.bam' % expName,
+        out_sam_path='{0}/{1}_1.bam'.format(samFolder, expName),
         min_seq_len=minlen,  # for bacteria mimimal mappable length is 15 bp, so I start with something slightly longer
         len_step=step,  # and go with a usualy step
         nthreads=threads,  # on intel corei7 CPUs 4 threads are as fast as
@@ -93,7 +94,7 @@ for i in sorted(os.listdir("fastq")):
         bowtie_path=bowtiePath,
         bowtie_index_path=bowtieIndex,
         fastq_path=file1,
-        out_sam_path='sams/%s_2.bam' % expName,
+        out_sam_path='{0}/{1}_2.bam'.format(samFolder, expName),
         min_seq_len=minlen,
         len_step=step,
         nthreads=threads,  # on intel corei7 CPUs 4 threads are as fast as
@@ -112,8 +113,8 @@ for i in sorted(os.listdir("fastq")):
     genome_db = genome.Genome('../data/{0}'.format(genomeName), readChrms=["#", "X"])
 
     mapping.parse_sam(
-        sam_basename1='sams/%s_1.bam' % expName,
-        sam_basename2='sams/%s_2.bam' % expName,
+        sam_basename1='{0}/{1}_1.bam'.format(samFolder,expName),
+        sam_basename2='{0}/{1}_2.bam'.format(samFolder,expName),
         out_dict=mapped_reads,
         genome_db=genome_db,
 	save_seqs=False)

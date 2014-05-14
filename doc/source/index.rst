@@ -48,6 +48,9 @@ Detailed documentation for each module can be found in API documentation below.
 Note about suggested usage
 --------------------------
 
+.. note :: "**Update from 2014-05-14**" I've tried to streamline the pipeline which does read mapping of .sra files from GEO. 
+           It is in examples/pipeline2014. Mapping performance was significantly increased. 
+
 .. warning:: This comment mostly applies human/mouse Hi-C data, as well as other multi-chromosomal organisms with long genomes.  
              It indicates what we have changed recently and how we deal with billion-read Hi-C datasets.  
 
