@@ -175,14 +175,15 @@ To install the library in Linux, do the following procedure:
 2. Download the latest version of the 
    `hiclib <https://bitbucket.org/mirnylab/hiclib/get/tip.zip>`_
    and unpack it into an empty folder. This folder will be called 
-   "the hiclib folder" all throughout the document.
+   "the hiclib folder" all throughout the document. You can also pull it from 
+   bitbucket directly using mercurial: "hg clone http://bitbucket.org/mirnylab/hiclib".
 3. Run install_linux.py in the hiclib folder. This script modifies the .bashrc 
    and .bash_profile scripts and adds the the hiclib folder to the PYTHONPATH 
    environment variable. After restarting the terminal, python will be able to 
    locate the hiclib library.
 4. Download `mirnylib <https://bitbucket.org/mirnylab/mirnylib/get/tip.zip>`_,
+   (or pull it from Bitbucket). 
    unpack it into a separate folder and run install_linux.py.
-   Failure during installation of mirnylib often means that cython is not up to date. 
 5. Run download_bowtie.sh script to download and install the bowtie2 mapping
    software.
 6. Run ./make_hg19.sh and ./make_sacCer3.sh scripts to download and index 
@@ -193,6 +194,9 @@ To install the library in Linux, do the following procedure:
    to change the GENOME_NAME variable of the make_hg19.sh script to the name 
    of the target genome, i.e. 'mm10' or 'bosTau7'.
 7. Test the installation using the scripts from the /tests folders.
+
+.. note:: As of May 2014, both Ubuntu 12.04 and 14.04 provide packages which 
+          are recent enough for the library to run successfully. 
 
 .. note:: If you're upgrading a package (numpy/scipy/matplotlib/cython/etc...) 
           using the pip Python package manager, use "pip install PACKAGENAME",

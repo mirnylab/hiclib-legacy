@@ -35,6 +35,8 @@ import Bio.SeqIO
 import Bio.Seq
 import Bio.Restriction
 import pysam
+import time
+import gc 
 
 import mirnylib.h5dict
 import mirnylib.genome
@@ -45,6 +47,19 @@ import mirnylib.genome
 
 log = logging.getLogger(__name__)
 
+
+def sleep():
+    """sleep for a second, run garbage collector, sleep again. 
+    Sleep is split in small pieces to allow some callbacks to 
+    possibly terminate in between (I don't know if it makes sense, but 
+    it definitely does not hurt)"""
+    for _ in range(10):
+        time.sleep(0.1)
+    gc.collect()
+    for _ in range(10):
+        time.sleep(0.1)
+    
+    
 
 def commandExists(command):
     "checks if the bash command exists"
@@ -161,7 +176,8 @@ def _filter_fastq(ids, inStream, out_fastq, in_filename="none"):
         num_total += 1
     writingProcess.stdin.flush()
     writingProcess.stdin.close()
-    writingProcess.communicate()
+    writingProcess.wait()
+    sleep()
     if writingProcess.returncode != 0:
         raise RuntimeError("Writing process return code {0}".format(writingProcess.returncode))
     return num_total, num_filtered
@@ -186,6 +202,7 @@ def _filter_unmapped_fastq(in_stream, in_sam, nonunique_fastq, in_filename="none
 
     num_total, num_filtered = _filter_fastq(
         nonunique_ids, in_stream, nonunique_fastq, in_filename=in_filename)
+    sleep()
 
     return num_total, num_filtered
 
@@ -345,11 +362,12 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
     # Convert input relative arguments to the absolute length scale.
     reading_process = subprocess.Popen(reading_command,
-                                       stdout=subprocess.PIPE)
+                                       stdout=subprocess.PIPE)    
     reading_process.stdout.readline()
     raw_seq_len = len(reading_process.stdout.readline().strip())
     log.info('The length of whole sequences in the file: %d', raw_seq_len)
     reading_process.terminate()
+    sleep()
 
     if kwargs.get('first_iteration', True):
         has_old_files = False
@@ -388,27 +406,28 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         try:
             log.info('Reading command: %s', ' '.join(reading_command))
             pipeline.append(
-                subprocess.Popen(reading_command, stdout=subprocess.PIPE))
+                subprocess.Popen(reading_command, stdout=subprocess.PIPE,bufsize=-1))
             if bamming_command:
                 log.info('Mapping command: %s', ' '.join(mapping_command))
                 pipeline.append(
                     subprocess.Popen(mapping_command,
                                      stdin=pipeline[-1].stdout,
-                                     stdout=subprocess.PIPE))
+                                     stdout=subprocess.PIPE,bufsize=-1))
 
                 log.info('Output formatting command: %s', ' '.join(bamming_command))
                 pipeline.append(
                     subprocess.Popen(bamming_command,
                                      stdin=pipeline[-1].stdout,
-                                     stdout=open(local_out_sam, 'w')))
+                                     stdout=open(local_out_sam, 'w'),bufsize=-1))
             else:
                 log.info('Mapping command: %s', ' '.join(mapping_command))
                 pipeline.append(
                     subprocess.Popen(mapping_command,
                                      stdin=pipeline[-1].stdout,
-                                     stdout=open(local_out_sam, 'w')))
+                                     stdout=open(local_out_sam, 'w'),bufsize=-1))
             pipeline[-1].wait()
         finally:
+            sleep()
             for process in pipeline:
                 if process.poll() is None:
                     process.terminate()
@@ -435,6 +454,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         reading_process.stdout.flush()
         reading_process.stdout.close()
         reading_process.terminate()
+        sleep()
 
 
         log.info(('{0} non-unique reads out of '
