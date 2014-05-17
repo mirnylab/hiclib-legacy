@@ -510,9 +510,8 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
             ('\nDetermined many ({0}) reads that map after the end of chromosome!'
              '\n Maximum deviation is {1} bp ').format(len(badCuts), maxDev))
         if maxDev > 50:
-            raise StandardError("Deviation is too large. Probably, genome mismatch.")
-        badCuts = np.array(badCuts, dtype=int)
-        cuts[badCuts] = genome.chrmLens[np.array(chrms[badCuts], dtype=int)] - 1
+            raise StandardError("Deviation is too large. Probably, genome mismatch.")        
+        cuts[badCuts] = np.array(genome.chrmLens[np.array(chrms[badCuts], dtype=int)] - 1, dtype=cuts.dtype)
     if len(badCuts) > 10000:
         raise StandardError("Determined too many (%s) reads that map after "
                             "the end of chromosome!" % len(badCuts))
