@@ -1,0 +1,7 @@
+Based on numerous requests, here we present some simple scripts to do iterative correction of the whole-genome data and by-chromosome data. 
+
+These scripts are slightly updated from what we used in 2012 Nature Methods paper, to account for the fact that the new data is cleaner. 
+
+Those scripts also show how to save data. 
+
+
