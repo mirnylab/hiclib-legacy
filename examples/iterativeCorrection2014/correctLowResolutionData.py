@@ -2,7 +2,7 @@
 This is a draft of a script which corrects one or multiple Hi-C datasets. 
 It uses BinnedData, meaning that you need to have resolution of 200kb or more
 """
-
+from  mirnylib.h5dictUtils.h5dictToTxt import convertFile  # save txt
 from hiclib import binnedData
 
 fnames = ["fname1","fname2"]
@@ -34,9 +34,7 @@ a.removePoorRegions(cutoff = 0.5, coverage=True)  # remove .5% bins with the low
 a.removePoorRegions(cutoff = 0.5, coverage=False)  # standart filter. Cutoff reduced to 0.5 from 2. 
 a.truncTrans() # remove PCR blowouts from trans data
 a.iterativeCorrectWithoutSS()             #do iterative correction 
-a.export(name,exportname)
+for name, exportname in names, exportnames: 
+    a.export(name,exportname)
 
-from  mirnylib.h5dictUtils.h5dictToTxt import convertFile  # save txt 
-#replace h5dictToMat with h5dictToTxt to save to matlab format
-
-convertFile(exportname, exportname+"_txt") #actually convert the file 
+    convertFile(exportname, exportname+"_txt") #actually convert the file 
