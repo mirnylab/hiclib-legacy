@@ -1,9 +1,10 @@
 """
-This scripts takes fastq files from fastq directory, maps them to the genome and
+This scripts takes .sra files from fastq directory, maps them to the genome and
 saves them to .hdf5 files in a directory "genomeName-mapped".
 Please follow comments along the text.
 """
 
+import atexit
 import glob
 import os
 import logging
@@ -12,6 +13,10 @@ from mirnylib import h5dict, genome
 
 import numpy as np
 logging.basicConfig(level=logging.DEBUG)
+
+def cleanFile(filename):
+    if os.path.exists(filename):
+        os.remove(filename)
 
 
 genomeName = "mm10"
@@ -22,13 +27,10 @@ fastqDir = "fastq"
 bowtieIndex = "../bin/bowtie2/index/{0}".format(genomeName)
 tmpDir = "/tmp"
 samFolder = "sams-{0}".format(genomeName)
-
 savePath = "mapped-{0}".format(genomeName)
 
 if not os.path.exists(samFolder):
     os.mkdir(samFolder)
-else:
-    os.system("rm -rf {0}/*".format(samFolder))
 
 if not os.path.exists(savePath):
     os.mkdir(savePath)
@@ -53,8 +55,9 @@ def calculateStep(length, minlen, approxStep=10, maxSteps=4):
     return minlen, actualStep
 
 
-
-for i in sorted(os.listdir("fastq")):
+#three times because we want to get sure that if some other process got killed and left an 
+#un-mapped file (which we skipped because it had a lock on it), then we would map it as well. 
+for i in 3 * sorted(os.listdir("fastq")):
     expName = i
     print i
     file1 = os.path.join(fastqDir, expName)
@@ -67,12 +70,31 @@ for i in sorted(os.listdir("fastq")):
 
 
     finalName = '%s/%s.hdf5' % (savePath, expName.replace(".sra", ""))
+    lockName = finalName + ".lock"
     print finalName
-    if os.path.exists(finalName):
+    
+    if os.path.exists(finalName) and not os.path.exists(lockName):
         print "skipping", finalName
+        continue    
+    
+    if os.path.exists(lockName):
+        print "someone is working on", finalName
         continue
+    
+    lock = open(lockName,"w")
+    lock.close()
+    
+    atexit.register(cleanFile, lockName)
+        
 
-# A. Map the reads iteratively.
+    os.system("rm -rf {0}/{1}*".format(samFolder,expName.replace(".sra","")))
+    
+    
+    
+    
+    
+
+# First step. Map the reads iteratively.
     mapping.iterative_mapping(
         bowtie_path=bowtiePath,
         bowtie_index_path=bowtieIndex,
@@ -107,7 +129,7 @@ for i in sorted(os.listdir("fastq")):
         bowtie_flags=" --very-sensitive ",
         )
 
-    # B. Parse the mapped sequences into a Python data structure,
+    # Second step. Parse the mapped sequences into a Python data structure,
     #    assign the ultra-sonic fragments to restriction fragments.
     mapped_reads = h5dict.h5dict(finalName)
     genome_db = genome.Genome('../data/{0}'.format(genomeName), readChrms=["#", "X"])
@@ -118,4 +140,6 @@ for i in sorted(os.listdir("fastq")):
         out_dict=mapped_reads,
         genome_db=genome_db,
 	save_seqs=False)
+    
+    os.remove(lockName)
 
