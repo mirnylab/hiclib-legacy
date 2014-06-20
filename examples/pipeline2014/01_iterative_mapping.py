@@ -29,6 +29,9 @@ tmpDir = "/tmp"
 samFolder = "sams-{0}".format(genomeName)
 savePath = "mapped-{0}".format(genomeName)
 
+# Specify location of the genome files here
+genome_db = genome.Genome('../data/{0}'.format(genomeName), readChrms=["#", "X"])
+
 if not os.path.exists(samFolder):
     os.mkdir(samFolder)
 
@@ -55,8 +58,8 @@ def calculateStep(length, minlen, approxStep=10, maxSteps=4):
     return minlen, actualStep
 
 
-#three times because we want to get sure that if some other process got killed and left an 
-#un-mapped file (which we skipped because it had a lock on it), then we would map it as well. 
+# three times because we want to get sure that if some other process got killed and left an
+# un-mapped file (which we skipped because it had a lock on it), then we would map it as well.
 for i in 3 * sorted(os.listdir("fastq")):
     expName = i
     print i
@@ -72,27 +75,27 @@ for i in 3 * sorted(os.listdir("fastq")):
     finalName = '%s/%s.hdf5' % (savePath, expName.replace(".sra", ""))
     lockName = finalName + ".lock"
     print finalName
-    
+
     if os.path.exists(finalName) and not os.path.exists(lockName):
         print "skipping", finalName
-        continue    
-    
+        continue
+
     if os.path.exists(lockName):
         print "someone is working on", finalName
         continue
-    
-    lock = open(lockName,"w")
-    lock.close()
-    
-    atexit.register(cleanFile, lockName)
-        
 
-    os.system("rm -rf {0}/{1}*".format(samFolder,expName.replace(".sra","")))
-    
-    
-    
-    
-    
+    lock = open(lockName, "w")
+    lock.close()
+
+    atexit.register(cleanFile, lockName)
+
+
+    os.system("rm -rf {0}/{1}*".format(samFolder, expName.replace(".sra", "")))
+
+
+
+
+
 
 # First step. Map the reads iteratively.
     mapping.iterative_mapping(
@@ -104,7 +107,7 @@ for i in 3 * sorted(os.listdir("fastq")):
         len_step=step,  # and go with a usualy step
         nthreads=threads,  # on intel corei7 CPUs 4 threads are as fast as
                      # 8, but leave some room for you other applications
-        #max_reads_per_chunk = 10000000,  #optional, on low-memory machines
+        # max_reads_per_chunk = 10000000,  #optional, on low-memory machines
         temp_dir=tmpDir,
         seq_start=0,
         seq_end=length,
@@ -121,7 +124,7 @@ for i in 3 * sorted(os.listdir("fastq")):
         len_step=step,
         nthreads=threads,  # on intel corei7 CPUs 4 threads are as fast as
                      # 8, but leave some room for you other applications
-        #max_reads_per_chunk = 10000000,  #optional, on low-memory machines
+        # max_reads_per_chunk = 10000000,  #optional, on low-memory machines
         temp_dir=tmpDir,
         seq_start=length,
         seq_end=2 * length,
@@ -132,14 +135,13 @@ for i in 3 * sorted(os.listdir("fastq")):
     # Second step. Parse the mapped sequences into a Python data structure,
     #    assign the ultra-sonic fragments to restriction fragments.
     mapped_reads = h5dict.h5dict(finalName)
-    genome_db = genome.Genome('../data/{0}'.format(genomeName), readChrms=["#", "X"])
 
     mapping.parse_sam(
-        sam_basename1='{0}/{1}_1.bam'.format(samFolder,expName),
-        sam_basename2='{0}/{1}_2.bam'.format(samFolder,expName),
+        sam_basename1='{0}/{1}_1.bam'.format(samFolder, expName),
+        sam_basename2='{0}/{1}_2.bam'.format(samFolder, expName),
         out_dict=mapped_reads,
         genome_db=genome_db,
 	save_seqs=False)
-    
+
     os.remove(lockName)
 
