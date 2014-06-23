@@ -1,4 +1,4 @@
-#(c) 2012 Massachusetts Institute of Technology. All Rights Reserved
+# (c) 2012 Massachusetts Institute of Technology. All Rights Reserved
 # Code written by: Anton Goloborodko (golobor@mit.edu)
 
 '''
@@ -36,30 +36,30 @@ import Bio.Seq
 import Bio.Restriction
 import pysam
 import time
-import gc 
+import gc
 
 import mirnylib.h5dict
 import mirnylib.genome
 
-##TODO: write some autodetection of chromosome lengthes base on genome folder
-##TODO: throw an exception if no chromosomes found in chromosome folder
-##TODO: fix #-to-ID correspondence for other species.
+# #TODO: write some autodetection of chromosome lengthes base on genome folder
+# #TODO: throw an exception if no chromosomes found in chromosome folder
+# #TODO: fix #-to-ID correspondence for other species.
 
 log = logging.getLogger(__name__)
 
 
 def sleep():
-    """sleep for a second, run garbage collector, sleep again. 
-    Sleep is split in small pieces to allow some callbacks to 
-    possibly terminate in between (I don't know if it makes sense, but 
+    """sleep for a second, run garbage collector, sleep again.
+    Sleep is split in small pieces to allow some callbacks to
+    possibly terminate in between (I don't know if it makes sense, but
     it definitely does not hurt)"""
     for _ in range(10):
         time.sleep(0.1)
     gc.collect()
     for _ in range(10):
         time.sleep(0.1)
-    
-    
+
+
 
 def commandExists(command):
     "checks if the bash command exists"
@@ -82,7 +82,7 @@ def gzipWriter(filename):
     bashLine = "{writer} > {filename}".format(writer=writer, filename=filename)
     log.info("""Writer created with command "{0}" """.format(bashLine))
     pwrite = subprocess.Popen([bashLine], stdin=subprocess.PIPE,
-                               shell=True, bufsize= -1)
+                               shell=True, bufsize=-1)
     return pwrite
 
 
@@ -362,7 +362,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
     # Convert input relative arguments to the absolute length scale.
     reading_process = subprocess.Popen(reading_command,
-                                       stdout=subprocess.PIPE)    
+                                       stdout=subprocess.PIPE)
     reading_process.stdout.readline()
     raw_seq_len = len(reading_process.stdout.readline().strip())
     log.info('The length of whole sequences in the file: %d', raw_seq_len)
@@ -406,25 +406,25 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         try:
             log.info('Reading command: %s', ' '.join(reading_command))
             pipeline.append(
-                subprocess.Popen(reading_command, stdout=subprocess.PIPE,bufsize=-1))
+                subprocess.Popen(reading_command, stdout=subprocess.PIPE, bufsize=-1))
             if bamming_command:
                 log.info('Mapping command: %s', ' '.join(mapping_command))
                 pipeline.append(
                     subprocess.Popen(mapping_command,
                                      stdin=pipeline[-1].stdout,
-                                     stdout=subprocess.PIPE,bufsize=-1))
+                                     stdout=subprocess.PIPE, bufsize=-1))
 
                 log.info('Output formatting command: %s', ' '.join(bamming_command))
                 pipeline.append(
                     subprocess.Popen(bamming_command,
                                      stdin=pipeline[-1].stdout,
-                                     stdout=open(local_out_sam, 'w'),bufsize=-1))
+                                     stdout=open(local_out_sam, 'w'), bufsize=-1))
             else:
                 log.info('Mapping command: %s', ' '.join(mapping_command))
                 pipeline.append(
                     subprocess.Popen(mapping_command,
                                      stdin=pipeline[-1].stdout,
-                                     stdout=open(local_out_sam, 'w'),bufsize=-1))
+                                     stdout=open(local_out_sam, 'w'), bufsize=-1))
             pipeline[-1].wait()
         finally:
             sleep()
@@ -443,7 +443,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
                      'non-unique ones to the next iteration')
         reading_process = subprocess.Popen(reading_command,
                                        stdout=subprocess.PIPE,
-                                       bufsize= -1)
+                                       bufsize=-1)
 
         unmapped_fastq_path = os.path.join(
             temp_dir, os.path.split(fastq_path)[1] + '.%d' % min_seq_len + ".fastq.gz")
@@ -484,7 +484,7 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     side = str(side)
 
     chrms = lib['chrms' + side]
-        #setting to zero chromosomes that are over the limit of the genome
+        # setting to zero chromosomes that are over the limit of the genome
     removeMask = chrms >= genome.chrmCount
     chrms[removeMask] = -1
     lib['chrms' + side] = chrms
@@ -510,7 +510,7 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
             ('\nDetermined many ({0}) reads that map after the end of chromosome!'
              '\n Maximum deviation is {1} bp ').format(len(badCuts), maxDev))
         if maxDev > 50:
-            raise StandardError("Deviation is too large. Probably, genome mismatch.")        
+            raise StandardError("Deviation is too large. Probably, genome mismatch.")
         cuts[badCuts] = np.array(genome.chrmLens[np.array(chrms[badCuts], dtype=int)] - 1, dtype=cuts.dtype)
     if len(badCuts) > 10000:
         raise StandardError("Determined too many (%s) reads that map after "
@@ -538,6 +538,81 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
             downrsites[too_close_idxs],
             uprsites[too_close_idxs])
 
+
+
+
+
+    lib['rfragIdxs' + side] = rfragIdxs
+    lib['uprsites' + side] = uprsites
+    lib['downrsites' + side] = downrsites
+    lib['rsites' + side] = rsites
+
+
+def _find_rfrags_inplace_new(lib, genome, min_frag_size, side):
+    '''Private: assign mapped reads to restriction fragments by
+    their 5' end position.
+    '''
+    assert isinstance(genome, mirnylib.genome.Genome)  # make Pydev happy
+    side = str(side)
+
+    chrms = lib['chrms' + side]
+        # setting to zero chromosomes that are over the limit of the genome
+    removeMask = chrms >= genome.chrmCount
+    chrms[removeMask] = -1
+    del removeMask
+    lib['chrms' + side] = chrms
+    cuts = lib['cuts' + side]
+    cuts[removeMask] = -1
+    lib['cuts' + side] = cuts
+
+    rfragIdxs = np.zeros(len(chrms), dtype=np.int64)
+    rsites = np.zeros(len(chrms), dtype=np.int64)
+
+    # If the fragment was not mapped.
+    rfragIdxs[chrms == -1] = -1
+    rsites[chrms == -1] = -1
+
+
+    badCuts = np.nonzero(cuts >= genome.chrmLens[chrms])[0]
+    if len(badCuts) > 0:
+        maxDev = np.max(cuts[badCuts] - genome.chrmLens[chrms[badCuts]])
+        warnings.warn(
+            ('\nDetermined many ({0}) reads that map after the end of chromosome!'
+             '\n Maximum deviation is {1} bp ').format(len(badCuts), maxDev))
+        if maxDev > 50:
+            raise StandardError("Deviation is too large. Probably, genome mismatch.")
+        cuts[badCuts] = np.array(genome.chrmLens[np.array(chrms[badCuts], dtype=int)] - 1, dtype=cuts.dtype)
+    if len(badCuts) > 10000:
+        raise StandardError("Determined too many (%s) reads that map after "
+                            "the end of chromosome!" % len(badCuts))
+
+
+    strands = lib['strands' + side]
+    for chrm_idx in xrange(genome.chrmCount):
+        all_rsites = np.r_[0, genome.rsites[chrm_idx]]
+        idxs = (chrms == chrm_idx)
+
+        # Find the indexes of the restriction fragment...
+        rfragIdxs[idxs] = np.searchsorted(all_rsites, cuts[idxs]) - 1
+        uprsites[idxs] = all_rsites[rfragIdxs[idxs]]
+        downrsites[idxs] = all_rsites[rfragIdxs[idxs] + 1]
+        rsites[idxs] = np.where(
+            strands[idxs], downrsites[idxs], uprsites[idxs])
+
+        too_close = (np.abs(rsites[idxs] - cuts[idxs]) <= min_frag_size)
+        too_close_idxs = np.where(idxs)[0][too_close]
+        rfragIdxs[too_close_idxs] += strands[too_close_idxs] * 2 - 1
+        uprsites[too_close_idxs] = all_rsites[rfragIdxs[too_close_idxs]]
+        downrsites[too_close_idxs] = all_rsites[rfragIdxs[too_close_idxs] + 1]
+        rsites[too_close_idxs] = np.where(
+            strands[too_close_idxs],
+            downrsites[too_close_idxs],
+            uprsites[too_close_idxs])
+
+
+
+
+
     lib['rfragIdxs' + side] = rfragIdxs
     lib['uprsites' + side] = uprsites
     lib['downrsites' + side] = downrsites
@@ -545,7 +620,7 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
 
 
 def _parse_ss_sams(sam_basename, out_dict, genome_db,
-                   max_seq_len= -1, reverse_complement=False, save_seqs=False):
+                   max_seq_len=-1, reverse_complement=False, save_seqs=False):
     """Parse SAM files with single-sided reads.
     """
     def _for_each_unique_read(sam_basename, genome_db, action):
