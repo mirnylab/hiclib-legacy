@@ -3,8 +3,8 @@ hiclib
 
 Read the [documentation](http://mirnylab.bitbucket.org/hiclib/index.html).
 
-Install
--------
+Installation
+------------
 The easiest way is to use pip, but see notes below:
 
 `$ pip install https://bitbucket.org/mirnylab/hiclib/get/tip.tar.gz`
