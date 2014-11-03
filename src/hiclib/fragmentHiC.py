@@ -1,4 +1,4 @@
-#(c) 2012 Massachusetts Institute of Technology. All Rights Reserved
+# (c) 2012 Massachusetts Institute of Technology. All Rights Reserved
 # Code written by: Maksim Imakaev (imakaev@mit.edu)
 """
 This is a module class for fragment-level Hi-C data analysis.
@@ -157,9 +157,9 @@ class HiCdataset(object):
 
             'a'  - Read/write if exists, create otherwise (default)
         """
-        #-->>> Important::: do not define any variables before vectors!!! <<<--
-        #These are fields that will be kept on a hard drive
-        #You can learn what variables mean from here too.
+        # -->>> Important::: do not define any variables before vectors!!! <<<--
+        # These are fields that will be kept on a hard drive
+        # You can learn what variables mean from here too.
         self.vectors = {
             # chromosomes for each read.
             "chrms1": "int8", "chrms2": "int8",
@@ -172,7 +172,7 @@ class HiCdataset(object):
 
             "distances": "int32",
             # distance between fragments. If -1, different chromosomes.
-            #If -2, different arms.
+            # If -2, different arms.
 
             "fragids1": "int64", "fragids2": "int64",
             # IDs of fragments. fragIDmult * chromosome + location
@@ -183,8 +183,8 @@ class HiCdataset(object):
             "strands1": "bool", "strands2": "bool",
             }
         self.metadata = {}
-            #'rfragAbsIdxs1':'int32',
-            #'rfragAbsIdxs2':'int32'}
+            # 'rfragAbsIdxs1':'int32',
+            # 'rfragAbsIdxs2':'int32'}
 
         #--------Deprecation warnings-------
         if override != "deprecated":
@@ -387,16 +387,16 @@ class HiCdataset(object):
                 outVariable = (outVariable, "ToDefine")
 
         code = compile(expression, '<string>', 'exec')
-            #compile because we're launching it many times
+            # compile because we're launching it many times
 
         bins = range(0, self.N, chunkSize) + [self.N]
-            #creating bins to perform evaluation
+            # creating bins to perform evaluation
         bins = zip(bins[:-1], bins[1:])
         for start, end in bins:
 
             variables = copy(constants)
             # dictionary to pass to the evaluator.
-            #It's safer than to use the default locals()
+            # It's safer than to use the default locals()
 
             for name in internalVariables:
                 if name not in self.h5dict.keys():
@@ -449,7 +449,7 @@ class HiCdataset(object):
         h5dicts = [h5dict(i, mode='r') for i in filenames]
         if all(["metadata" in i for i in h5dicts]):
             metadatas = [mydict["metadata"] for mydict in h5dicts]
-            #print metadatas
+            # print metadatas
             newMetadata = metadatas.pop()
             for oldData in metadatas:
                 for key, value in oldData.items():
@@ -583,11 +583,11 @@ class HiCdataset(object):
                         warnings.warn("genome.enzymeName "
                                       "different from supplied enzyme")
                 self.genome.setEnzyme(enzymeToFillRsites)
-            #enzymeToFillRsites has preference over self.genome's enzyme
+            # enzymeToFillRsites has preference over self.genome's enzyme
 
             print "Filling rsites"
             rsitedict = h5dict(in_memory=self.inMemory)
-                #creating dict to pass to fillRsite's code
+                # creating dict to pass to fillRsite's code
             rsitedict["chrms1"] = self.chrms1
             rsitedict["chrms2"] = self.chrms2
             rsitedict["cuts1"] = self.cuts1
@@ -828,11 +828,11 @@ class HiCdataset(object):
         mysum = np.array(self.fragmentSum(), float)
         self.fragmentWeights = np.ones(N, float)
         meanSum = np.mean(np.array(mysum, float))
-        #watch = np.zeros(len(mysum),int)
+        # watch = np.zeros(len(mysum),int)
         for i in np.arange(0, 0.991, 0.01):
             b1, b2 = pls[i * N], pls[(i + 0.01) * N]
             p = (b1 <= fragmentLength) * (b2 > fragmentLength)
-            #watch[p] += 1
+            # watch[p] += 1
             value = np.mean(mysum[p])
             if p.sum() > 0:
                 self.fragmentWeights[p] = value / meanSum
@@ -855,7 +855,7 @@ class HiCdataset(object):
             If True, then take weights from 'weights' variable. False by default.
         """
         if type(resolution) == int:
-            #8 bytes per record + heatmap
+            # 8 bytes per record + heatmap
             self.genome.setResolution(resolution)
             numBins = self.genome.numBins
             label = self.genome.chrmStartsBinCont[self.chrms1]
@@ -921,7 +921,7 @@ class HiCdataset(object):
 
         if type(resolution) == int:
 
-            #many bytes per record + heatmap
+            # many bytes per record + heatmap
             self.genome.setResolution(resolution)
             N = self.N
             N = int(N)
@@ -1216,7 +1216,7 @@ class HiCdataset(object):
         mask : array of bools
             Indexes of reads to keep
         """
-        #Uses 16 bytes per read
+        # Uses 16 bytes per read
 
         length = 0
         ms = mask.sum()
@@ -1255,7 +1255,7 @@ class HiCdataset(object):
             self.fragids2,
             return_index=True, chunksize=self.chunksize)
 
-        #Funding unique fragments and unique fragment IDs
+        # Funding unique fragments and unique fragment IDs
         ufragment1len = self.fraglens1[ufragids1ind]
         ufragment2len = self.fraglens2[ufragids2ind]
 
@@ -1326,7 +1326,7 @@ class HiCdataset(object):
 
         """
 
-        #TODO:(MI) fix this so that it agrees with the definition.
+        # TODO:(MI) fix this so that it agrees with the definition.
 
         print "----->Semi-dangling end filter: remove guys who start %d"\
         " bp near the rsite" % offset
@@ -1344,7 +1344,7 @@ class HiCdataset(object):
     def filterDuplicates(self):
         "removes duplicate molecules in DS reads"
         "TODO: rewrite it when Anton allows direct creation of Hi-C datasets"
-        #Uses a lot!
+        # Uses a lot!
         print "----->Filtering duplicates in DS reads: "
 
         Nds = self.N
@@ -1361,7 +1361,7 @@ class HiCdataset(object):
         dups.sort(axis=1)
         dups.shape = (Nds * 2)
         strings = dups.view("|S16")
-            #Converting two indices to a single string to run unique
+            # Converting two indices to a single string to run unique
         uids = uniqueIndex(strings)
         del strings, dups
         stay = np.zeros(Nds, bool)
@@ -1451,7 +1451,7 @@ class HiCdataset(object):
         useWeights : bool, optional
             If set to True, will give a fragment sum with weights adjusted for iterative correction.
         """
-        #Uses 16 bytes per read
+        # Uses 16 bytes per read
         self._buildFragments()
         if fragments is None:
             fragments = self.ufragments
@@ -1626,7 +1626,7 @@ class HiCdataset(object):
                              .format(res=resolution), "mids2")
         chr1 = self.chrms1
         chr2 = self.chrms2
-        #DS = self.DS  # 13 bytes per read up to now, 16 total
+        # DS = self.DS  # 13 bytes per read up to now, 16 total
         mydict = h5dict(filename)
 
         for chrom in xrange(self.genome.chrmCount):
@@ -1637,8 +1637,8 @@ class HiCdataset(object):
             # Located chromosomes and positions of chromosomes
             c1, c2, p1, p2 = chr1[mask], chr2[mask], pos1[mask], pos2[mask]
             if includeTrans == True:
-                #moving different chromosomes to c2
-                #c1 == chrom now
+                # moving different chromosomes to c2
+                # c1 == chrom now
                 mask = (c2 == chrom) * (c1 != chrom)
                 c1[mask], c2[mask], p1[mask], p2[mask] = c2[mask].copy(), c1[
                     mask].copy(), p2[mask].copy(), p1[mask].copy()
@@ -1765,19 +1765,19 @@ class HiCStatistics(HiCdataset):
 
     def plotScaling(self, fragids1=None, fragids2=None,
                     # IDs of fragments for which to plot scaling.
-                    #One can, for example, limit oneself to
-                    #only fragments shorter than 1000 bp
-                    #Or calculate scaling only between different arms
+                    # One can, for example, limit oneself to
+                    # only fragments shorter than 1000 bp
+                    # Or calculate scaling only between different arms
 
                     useWeights=False,
                         # use weights associated with fragment length
                     excludeNeighbors=None, enzyme=None,
                         # number of neighboring fragments to exclude.
-                        #Enzyme is needed for that!
+                        # Enzyme is needed for that!
                     normalize=True, normRange=None,
                         # normalize the final plot to sum to one
                     withinArms=True,
-                        #Treat chromosomal arms separately
+                        # Treat chromosomal arms separately
                     mindist=10000,
                         # Scaling was proved to be unreliable
                         # under 10000 bp for 6-cutter enzymes
@@ -1787,8 +1787,8 @@ class HiCStatistics(HiCdataset):
                     regions=None,
                     # Array of tuples (chrom, start, end)
                     # for which scaling should be calculated
-                    #Note that calculation might be extremely long
-                    #(it might be proportional to # of regions for # > 100)
+                    # Note that calculation might be extremely long
+                    # (it might be proportional to # of regions for # > 100)
 
                     appendReadCount=True, **kwargs
                         # Append read count to the plot label
@@ -1860,14 +1860,14 @@ class HiCStatistics(HiCdataset):
         (bins,probabilities) - values to plot on the scaling plot
 
         """
-        #TODO:(MI) write an ab-initio test for scaling calculation
+        # TODO:(MI) write an ab-initio test for scaling calculation
         import matplotlib.pyplot as plt
         self._buildFragments()
         if excludeNeighbors <= 0:
             excludeNeighbors = None  # Not excluding neighbors
 
-        #use all fragments if they're not specified
-        #parse fragment array if it's bool
+        # use all fragments if they're not specified
+        # parse fragment array if it's bool
         if (fragids1 is None) and (fragids2 is None):
             allFragments = True
         else:
@@ -1881,7 +1881,7 @@ class HiCStatistics(HiCdataset):
         if fragids2.dtype == np.bool:
             fragids2 = self.ufragments[fragids2]
 
-        #Calculate regions if not specified
+        # Calculate regions if not specified
         if regions is None:
             if withinArms == False:
                 regions = [(i, 0, self.genome.chrmLens[i])
@@ -1952,7 +1952,7 @@ class HiCStatistics(HiCdataset):
             numutils.logbins(mindist, maxdist, 1.12), float) + 0.1  # bins of lengths
         numBins = len(bins) - 1  # number of bins
 
-        #Keeping reads for fragments in use
+        # Keeping reads for fragments in use
         # Consider only double-sided fragment pairs.
         validFragPairs = (regionID >= 0)
         if allFragments == False:
@@ -1982,7 +1982,7 @@ class HiCStatistics(HiCdataset):
         distances = np.sort(self.distances[validFragPairs])
 
         "calculating fragments lengths for exclusions to expected # of counts"
-        #sorted fragment IDs and lengthes
+        # sorted fragment IDs and lengthes
         args = np.argsort(self.ufragments)
         usort = self.ufragments[args]
 
@@ -2012,7 +2012,7 @@ class HiCStatistics(HiCdataset):
             if (len(mask1) == 0) or (len(mask2) == 0):
                 continue
             bp1, bp2 = fragpos1[mask1], fragpos2[mask2]
-                #positions of fragments on chromosome
+                # positions of fragments on chromosome
 
             p2arg = np.argsort(bp2)
             p2 = bp2[p2arg]  # sorted positions on the second fragment
@@ -2023,7 +2023,7 @@ class HiCStatistics(HiCdataset):
                 excFrag1, excFrag2 = self.genome.getPairsLessThanDistance(
                     fragids1[mask1], fragids2[mask2], excludeNeighbors, enzyme)
                 excDists = np.abs(excFrag2 - excFrag1)
-                    #distances between excluded fragment pairs
+                    # distances between excluded fragment pairs
                 if useWeights == True:
                     correctionWeights = weights1[numutils.arraySearch(
                         fragids1, excFrag1)]
@@ -2034,7 +2034,7 @@ class HiCStatistics(HiCdataset):
             if useWeights == True:
                 w1, w2 = weights1[mask1], weights2[mask2]
                 sw2 = np.r_[0, np.cumsum(w2[p2arg])]
-                    #cumsum for sorted weights on 2 strand
+                    # cumsum for sorted weights on 2 strand
 
             for minDist, maxDist, binIndex in zip(binBegs, binEnds, range(numBins)):
                 "Now calculating actual number of fragment pairs for a "\

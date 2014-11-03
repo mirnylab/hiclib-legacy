@@ -80,9 +80,10 @@ def gzipWriter(filename):
         writer = "gzip -c -1"
         warnings.warn("Please install 'pigz' parallel gzip for faster speed")
     bashLine = "{writer} > {filename}".format(writer=writer, filename=filename)
-    log.info("""Writer created with command "{0}" """.format(bashLine))
+
     pwrite = subprocess.Popen([bashLine], stdin=subprocess.PIPE,
                                shell=True, bufsize=-1)
+    log.info("""Writer created with command "{0}" """.format(bashLine))
     return pwrite
 
 
@@ -158,8 +159,8 @@ def _filter_fastq(ids, inStream, out_fastq, in_filename="none"):
     num_filtered = 0
     num_total = 0
     while True:
-        line = inStream.readline()
 
+        line = inStream.readline()
         if not line:
             break
 
@@ -547,76 +548,6 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     lib['downrsites' + side] = downrsites
     lib['rsites' + side] = rsites
 
-
-def _find_rfrags_inplace_new(lib, genome, min_frag_size, side):
-    '''Private: assign mapped reads to restriction fragments by
-    their 5' end position.
-    '''
-    assert isinstance(genome, mirnylib.genome.Genome)  # make Pydev happy
-    side = str(side)
-
-    chrms = lib['chrms' + side]
-        # setting to zero chromosomes that are over the limit of the genome
-    removeMask = chrms >= genome.chrmCount
-    chrms[removeMask] = -1
-    del removeMask
-    lib['chrms' + side] = chrms
-    cuts = lib['cuts' + side]
-    cuts[removeMask] = -1
-    lib['cuts' + side] = cuts
-
-    rfragIdxs = np.zeros(len(chrms), dtype=np.int64)
-    rsites = np.zeros(len(chrms), dtype=np.int64)
-
-    # If the fragment was not mapped.
-    rfragIdxs[chrms == -1] = -1
-    rsites[chrms == -1] = -1
-
-
-    badCuts = np.nonzero(cuts >= genome.chrmLens[chrms])[0]
-    if len(badCuts) > 0:
-        maxDev = np.max(cuts[badCuts] - genome.chrmLens[chrms[badCuts]])
-        warnings.warn(
-            ('\nDetermined many ({0}) reads that map after the end of chromosome!'
-             '\n Maximum deviation is {1} bp ').format(len(badCuts), maxDev))
-        if maxDev > 50:
-            raise StandardError("Deviation is too large. Probably, genome mismatch.")
-        cuts[badCuts] = np.array(genome.chrmLens[np.array(chrms[badCuts], dtype=int)] - 1, dtype=cuts.dtype)
-    if len(badCuts) > 10000:
-        raise StandardError("Determined too many (%s) reads that map after "
-                            "the end of chromosome!" % len(badCuts))
-
-
-    strands = lib['strands' + side]
-    for chrm_idx in xrange(genome.chrmCount):
-        all_rsites = np.r_[0, genome.rsites[chrm_idx]]
-        idxs = (chrms == chrm_idx)
-
-        # Find the indexes of the restriction fragment...
-        rfragIdxs[idxs] = np.searchsorted(all_rsites, cuts[idxs]) - 1
-        uprsites[idxs] = all_rsites[rfragIdxs[idxs]]
-        downrsites[idxs] = all_rsites[rfragIdxs[idxs] + 1]
-        rsites[idxs] = np.where(
-            strands[idxs], downrsites[idxs], uprsites[idxs])
-
-        too_close = (np.abs(rsites[idxs] - cuts[idxs]) <= min_frag_size)
-        too_close_idxs = np.where(idxs)[0][too_close]
-        rfragIdxs[too_close_idxs] += strands[too_close_idxs] * 2 - 1
-        uprsites[too_close_idxs] = all_rsites[rfragIdxs[too_close_idxs]]
-        downrsites[too_close_idxs] = all_rsites[rfragIdxs[too_close_idxs] + 1]
-        rsites[too_close_idxs] = np.where(
-            strands[too_close_idxs],
-            downrsites[too_close_idxs],
-            uprsites[too_close_idxs])
-
-
-
-
-
-    lib['rfragIdxs' + side] = rfragIdxs
-    lib['uprsites' + side] = uprsites
-    lib['downrsites' + side] = downrsites
-    lib['rsites' + side] = rsites
 
 
 def _parse_ss_sams(sam_basename, out_dict, genome_db,

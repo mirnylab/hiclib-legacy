@@ -14,9 +14,10 @@ from mirnylib.genome import Genome
 from hiclib.binnedData import binnedData
 from mirnylib.h5dict import h5dict
 import numpy as np
+import sys
 import os
 
-genome = Genome("../../../data/hg19", readChrms=["1", "2", "3", "4", "5"])
+genome = Genome(sys.argv[1], readChrms=["1", "2", "3", "4", "5"])
 
 a = HiResHiC(genome, 1000000, "hiResDict", mode='w')
 a.loadData(dictLike="../fragmentHiC/test-1M-byChr.hm")

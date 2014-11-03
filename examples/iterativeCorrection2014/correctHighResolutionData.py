@@ -17,6 +17,7 @@ numChromosomes = len(cisKeys)
 for chromosome in range(numChromosomes):
 
     chromosomeHeatmap = dataset["{0} {0}".format(chromosome)] #extracting cis heatmap
+    
 
     #This line executes proper Iterative Correction, which accounts for regions with low coverage
     #It only works for cis (symmetric) heatmaps. 
