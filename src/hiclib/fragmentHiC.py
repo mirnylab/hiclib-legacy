@@ -1427,7 +1427,14 @@ class HiCdataset(object):
             (np.abs(self.rfragAbsIdxs1 - self.rfragAbsIdxs2) < minRsitesDist)
             * (self.chrms1 == self.chrms2))
         self.metadata["360_closeFragmentsRemoved"] = mask.sum()
+        print '360_closeFragmentsRemoved: ', mask.sum()
+        self.maskFilter(-mask)
 
+    def filterOrientation(self):
+        # Keep only --> -->  or <-- <-- pairs, discard --> <-- and <-- -->
+        mask = (self.strands1 == self.strands2)
+        self.metadata["370_differentOrientationReadsRemoved"] = mask.sum()
+        print '370_differentOrientationReadsRemoved: ', mask.sum()
         self.maskFilter(-mask)
 
     def writeFilteringStats(self):
