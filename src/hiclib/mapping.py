@@ -73,17 +73,17 @@ def gzipWriter(filename):
     """
     creates a writing process with gzip or parallel gzip (pigz) attached to it
     """
+    print "---> Note that the writer has changed (11/03/14)"
     filename = os.path.abspath(filename)
-    if commandExists("pigz"):
-        writer = "pigz -c -4"
-    else:
-        writer = "gzip -c -1"
-        warnings.warn("Please install 'pigz' parallel gzip for faster speed")
-    bashLine = "{writer} > {filename}".format(writer=writer, filename=filename)
+    with open(filename, 'wb') as outFile:
+        if commandExists("pigz"):
+            writer = ["pigz", "-c", "-4"]
+        else:
+            writer = ["gzip", "-c", "-1"]
+            warnings.warn("Please install 'pigz' parallel gzip for faster speed")
 
-    pwrite = subprocess.Popen([bashLine], stdin=subprocess.PIPE,
-                               shell=True, bufsize=-1)
-    log.info("""Writer created with command "{0}" """.format(bashLine))
+        pwrite = subprocess.Popen(writer, stdin=subprocess.PIPE, stdout=outFile, shell=False, bufsize=-1)
+    log.info("""Writer created with command "{0}" """.format(writer))
     return pwrite
 
 
@@ -454,7 +454,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
         reading_process.stdout.flush()
         reading_process.stdout.close()
-        reading_process.terminate()
+        reading_process.wait()
         sleep()
 
 
