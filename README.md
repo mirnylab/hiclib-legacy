@@ -7,7 +7,15 @@ Installation
 ------------
 The easiest way is to use pip, but see notes below:
 
+First, install [mirnylib](https://bitbucket.org/mirnylab/mirnylib):
+
+`$ pip install https://bitbucket.org/mirnylab/mirnylib/get/tip.tar.gz`
+
+Then install hiclib:
+
 `$ pip install https://bitbucket.org/mirnylab/hiclib/get/tip.tar.gz`
+
+Alternatively, there is a linux install script that doesn't use pip.
 
 Installation requirements
 -------------------------
@@ -32,7 +40,6 @@ Installed by setuptools if missing:
 
 - biopython
 - pysam
-- [mirnylib](https://bitbucket.org/mirnylab/mirnylib)
 
 Optional:
 
