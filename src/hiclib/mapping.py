@@ -46,7 +46,7 @@ import mirnylib.genome
 # #TODO: fix #-to-ID correspondence for other species.
 
 log = logging.getLogger(__name__)
-
+log.setLevel(logging.DEBUG)
 
 def sleep():
     """sleep for a second, run garbage collector, sleep again.
@@ -179,12 +179,11 @@ def _filter_fastq(ids, inStream, out_fastq, in_filename="none"):
             writingProcess.stdin.writelines(fastq_entry)
             num_filtered += 1
         num_total += 1
-    writingProcess.stdin.flush()
+
+
     sleep()
-    writingProcess.stdin.close()
-    sleep()
-    writingProcess.wait()
-    sleep()
+    writingProcess.communicate()
+
     if writingProcess.returncode != 0:
         raise RuntimeError("Writing process return code {0}".format(writingProcess.returncode))
     return num_total, num_filtered
@@ -458,11 +457,11 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         num_total, num_filtered = _filter_unmapped_fastq(
             reading_process.stdout, local_out_sam, unmapped_fastq_path, in_filename=fastq_path)
 
-        reading_process.stdout.flush()
-        sleep()
-        reading_process.stdout.close()
-        sleep()
-        reading_process.wait()
+        # reading_process.stdout.flush()
+        # sleep()
+        # reading_process.stdout.close()
+        # sleep()
+        reading_process.communicate()
         sleep()
 
 
