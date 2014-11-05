@@ -53,10 +53,10 @@ def sleep():
     Sleep is split in small pieces to allow some callbacks to
     possibly terminate in between (I don't know if it makes sense, but
     it definitely does not hurt)"""
-    for _ in range(10):
+    for _ in range(3):
         time.sleep(0.1)
     gc.collect()
-    for _ in range(10):
+    for _ in range(3):
         time.sleep(0.1)
 
 
@@ -161,22 +161,28 @@ def _filter_fastq(ids, inStream, out_fastq, in_filename="none"):
     while True:
 
         line = inStream.readline()
-        if not line:
+
+        try:
+            assert line[0] == '@'
+        except AssertionError:
+            print 'Not fastq'
+        except IndexError:
             break
 
-        if not line.startswith('@'):
-            raise Exception(
-                '{0} does not comply with the FASTQ standards.'.format(in_filename))
 
-        fastq_entry = [line, inStream.readline(),
-                       inStream.readline(), inStream.readline()]
+        # raise Exception('{0} does not comply with the FASTQ standards.'.format(in_filename))
+
+        fastq_entry = (line, inStream.readline(),
+                       inStream.readline(), inStream.readline())
         read_id = line.split()[0][1:]
         if read_id in ids:
             writingProcess.stdin.writelines(fastq_entry)
             num_filtered += 1
         num_total += 1
     writingProcess.stdin.flush()
+    sleep()
     writingProcess.stdin.close()
+    sleep()
     writingProcess.wait()
     sleep()
     if writingProcess.returncode != 0:
@@ -453,7 +459,9 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             reading_process.stdout, local_out_sam, unmapped_fastq_path, in_filename=fastq_path)
 
         reading_process.stdout.flush()
+        sleep()
         reading_process.stdout.close()
+        sleep()
         reading_process.wait()
         sleep()
 
