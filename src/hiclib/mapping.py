@@ -48,6 +48,10 @@ import mirnylib.genome
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
+MIN_MAPQ = 31
+
+print "hello from new mapping"
+
 def sleep():
     """sleep for a second, run garbage collector, sleep again.
     Sleep is split in small pieces to allow some callbacks to
@@ -73,7 +77,6 @@ def gzipWriter(filename):
     """
     creates a writing process with gzip or parallel gzip (pigz) attached to it
     """
-    print "---> Note that the writer has changed (11/03/14)"
     filename = os.path.abspath(filename)
     with open(filename, 'wb') as outFile:
         if commandExists("pigz"):
@@ -85,6 +88,51 @@ def gzipWriter(filename):
         pwrite = subprocess.Popen(writer, stdin=subprocess.PIPE, stdout=outFile, shell=False, bufsize=-1)
     log.info("""Writer created with command "{0}" """.format(writer))
     return pwrite
+
+
+def splitSRA(filename, outFile="auto", splitBy=4000000, FASTQ_BINARY="./fastq-dump", FASTQ_ARGS=[]):
+
+    inFile = os.path.abspath(filename)
+    if outFile == "auto":
+        outFile = filename.replace(".sra", "") + "_{0}_side{1}.fastq.gz"
+    pread = subprocess.Popen([FASTQ_BINARY, inFile, "-Z", "--split-files"] + FASTQ_ARGS ,
+                             stdout=subprocess.PIPE, bufsize=-1)
+    inStream = pread.stdout
+
+    halted = False
+    for counter in xrange(1000000):
+
+        outProc1 = gzipWriter(outFile.format(counter, 1))
+        outProc2 = gzipWriter(outFile.format(counter, 2))
+        outStream1 = outProc1.stdin
+        outStream2 = outProc2.stdin
+
+        for _ in xrange(splitBy):
+
+            line = inStream.readline()
+
+            try:
+                assert line[0] == "@"
+            except AssertionError:
+                print 'Not fastq'
+                raise IOError("File is not fastq: {0}".format(filename))
+            except IndexError:
+                halted = True
+                break
+
+
+            fastq_entry = (line, inStream.readline(),
+                           inStream.readline(), inStream.readline())
+
+            outStream1.writelines(fastq_entry)
+            outStream2.writelines((inStream.readline(), inStream.readline(),
+                       inStream.readline(), inStream.readline()))
+
+        outProc1.communicate()
+        outProc2.communicate()
+        print "finished block number", counter
+        if halted:
+            return
 
 
 def _detect_quality_coding_scheme(in_fastq, num_entries=10000):
@@ -127,25 +175,6 @@ def _line_count(path):
 
     return lines
 
-
-def _chunk_file(in_path, out_basename, max_num_lines):
-    '''Slice lines from a large file.
-    The line numbering is as in Python slicing notation.
-    '''
-    num_lines = _line_count(in_path)
-    if num_lines <= max_num_lines:
-        return [in_path, ]
-
-    out_paths = []
-
-    for i, line in enumerate(open(in_path)):
-        if i % max_num_lines == 0:
-            out_path = out_basename + '.%d' % (i // max_num_lines + 1)
-            out_paths.append(out_path)
-            out_file = file(out_path, 'w')
-        out_file.write(line)
-
-    return out_paths
 
 
 def _filter_fastq(ids, inStream, out_fastq, in_filename="none"):
@@ -203,7 +232,7 @@ def _filter_unmapped_fastq(in_stream, in_sam, nonunique_fastq, in_filename="none
 
         # If exists, the option 'XS' contains the score of the second
         # best alignment. Therefore, its presence means a non-unique alignment.
-        if 'XS' in tags_dict or read.is_unmapped:
+        if ('XS' in tags_dict) or (read.mapq < MIN_MAPQ):
             nonunique_ids.add(read_id)
 
     num_total, num_filtered = _filter_fastq(
@@ -265,11 +294,6 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     bowtie_flags : str, optional
         Extra command-line flags for Bowtie2. Default is ''.
 
-    max_reads_per_chunk : int, optional
-        If positive then split input into several chunks with
-        `max_reads_per_chunk` each and map them separately. Use for large
-        datasets and low-memory machines.
-
     temp_dir : str, optional
         The path to the temporary folder. If not specified, this path is
         supplied by the OS.
@@ -300,7 +324,6 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     seq_start = kwargs.get('seq_start', 0)
     seq_end = kwargs.get('seq_end', None)
     nthreads = kwargs.get('nthreads', 4)
-    max_reads_per_chunk = kwargs.get('max_reads_per_chunk', -1)
     bowtie_flags = kwargs.get('bowtie_flags', '')
 
     if subprocess.call(['which', 'samtools']) != 0:
@@ -345,26 +368,6 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
     # Split input files if required and apply iterative mapping to each
     # segment separately.
-    if max_reads_per_chunk > 0:
-        kwargs['max_reads_per_chunk'] = -1
-        log.info('Split input file %s into chunks', fastq_path)
-        chunked_files = _chunk_file(
-            fastq_path,
-            os.path.join(temp_dir, os.path.split(fastq_path)[1]),
-            max_reads_per_chunk * 4)
-        log.debug('%d chunks obtained', len(chunked_files))
-        for i, fastq_chunk_path in enumerate(chunked_files):
-            log.info('Run iterative_mapping recursively on %s', fastq_chunk_path)
-            iterative_mapping(
-                bowtie_path, bowtie_index_path, fastq_chunk_path,
-                out_sam_path + '.%d' % (i + 1), min_seq_len, len_step,
-                **kwargs)
-
-            # Delete chunks only if the file was really chunked.
-            if len(chunked_files) > 1:
-                log.info('Remove the chunks: %s', ' '.join(chunked_files))
-                os.remove(fastq_chunk_path)
-        return
 
     # Convert input relative arguments to the absolute length scale.
     reading_process = subprocess.Popen(reading_command,
@@ -439,9 +442,10 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
                     process.terminate()
 
         # Check if the next iteration is required.
-        if len_step <= 0:
-            return
-        if min_seq_len + len_step > local_seq_end - seq_start:
+        if (len_step <= 0) or (min_seq_len + len_step > local_seq_end - seq_start):
+            if kwargs.get("first_iteration", True) == False:
+                print "Deleting previous file", fastq_path
+                os.remove(fastq_path)
             return
 
         # Recursively go to the next iteration.
@@ -457,31 +461,27 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         num_total, num_filtered = _filter_unmapped_fastq(
             reading_process.stdout, local_out_sam, unmapped_fastq_path, in_filename=fastq_path)
 
-        # reading_process.stdout.flush()
-        # sleep()
-        # reading_process.stdout.close()
-        # sleep()
         reading_process.communicate()
         sleep()
 
 
         log.info(('{0} non-unique reads out of '
-                  '{1} are sent the next iteration.').format(num_filtered,
-                                                             num_total))
+                  '{1} are sent the next iteration.').format(num_filtered, num_total))
+
+        if kwargs.get("first_iteration", True) == False:
+            print "Deleting previous file", fastq_path
+            os.remove(fastq_path)
+
         kwargs['first_iteration'] = False
         if commandExists("pigz"):
             kwargs["bash_reader"] = "pigz -dc"
         else:
             kwargs["bash_reader"] = 'gunzip -c'
 
-
         iterative_mapping(bowtie_path, bowtie_index_path, unmapped_fastq_path,
                           out_sam_path,
                           min_seq_len=min_seq_len + len_step,
                           len_step=len_step, **kwargs)
-
-        os.remove(unmapped_fastq_path)
-
 
 
 def _find_rfrags_inplace(lib, genome, min_frag_size, side):
@@ -546,10 +546,6 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
             downrsites[too_close_idxs],
             uprsites[too_close_idxs])
 
-
-
-
-
     lib['rfragIdxs' + side] = rfragIdxs
     lib['uprsites' + side] = uprsites
     lib['downrsites' + side] = downrsites
@@ -558,7 +554,7 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
 
 
 def _parse_ss_sams(sam_basename, out_dict, genome_db,
-                   max_seq_len=-1, reverse_complement=False, save_seqs=False):
+                   max_seq_len=-1, reverse_complement=False, save_seqs=False, maxReads=None, IDLen=None):
     """Parse SAM files with single-sided reads.
     """
     def _for_each_unique_read(sam_basename, genome_db, action):
@@ -596,31 +592,34 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
                         action(read)
 
     # Calculate reads statistics.
-    def _count_stats(read):
-        # In Python, function is an object and can have an attribute.
-        # We are using the .cache attribute to store the stats.
-        _count_stats.id_len = max(_count_stats.id_len,
-                                  len(read.qname))
-        _count_stats.seq_len = max(_count_stats.seq_len,
-                                   len(read.seq))
-        _count_stats.num_reads += 1
-    _count_stats.id_len = 0
-    _count_stats.seq_len = 0
-    _count_stats.num_reads = 0
-    _for_each_unique_read(sam_basename, genome_db, _count_stats)
-    sam_stats = {'id_len': _count_stats.id_len,
-                 'seq_len': _count_stats.seq_len,
-                 'num_reads': _count_stats.num_reads}
-    log.info(
-        'Parsing SAM files with basename {0}, # of reads: {1}'.format(
-            sam_basename, sam_stats['num_reads']))
-    if max_seq_len > 0:
-        sam_stats['seq_len'] = min(max_seq_len, sam_stats['seq_len'])
+    if (maxReads is None) or (IDLen is None):
+        def _count_stats(read):
+            # In Python, function is an object and can have an attribute.
+            # We are using the .cache attribute to store the stats.
+            _count_stats.id_len = max(_count_stats.id_len,
+                                      len(read.qname))
+            _count_stats.seq_len = max(_count_stats.seq_len,
+                                       len(read.seq))
+            _count_stats.num_reads += 1
 
-    if sam_stats['num_reads'] == 0:
-        out_dict.update(
-            {'chrms': [], 'strands': [], 'cuts': [], 'seqs': [], 'ids': []})
-        return out_dict
+        _count_stats.id_len = 0
+        _count_stats.seq_len = 0
+        _count_stats.num_reads = 0
+        _for_each_unique_read(sam_basename, genome_db, _count_stats)
+        sam_stats = {'id_len': _count_stats.id_len,
+                     'seq_len': _count_stats.seq_len,
+                     'num_reads': _count_stats.num_reads}
+        log.info(
+            'Parsing SAM files with basename {0}, # of reads: {1}'.format(
+                sam_basename, sam_stats['num_reads']))
+
+        if max_seq_len > 0:
+            sam_stats['seq_len'] = min(max_seq_len, sam_stats['seq_len'])
+
+        if sam_stats['num_reads'] == 0:
+            out_dict.update(
+                {'chrms': [], 'strands': [], 'cuts': [], 'seqs': [], 'ids': []})
+            return out_dict
 
     # Read and save each type of data separately.
     def _write_to_array(read, array, value):
@@ -630,11 +629,18 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
         function.i += 1
 
     # ...chromosome ids
-    chrmBuf = np.zeros((sam_stats['num_reads'],), dtype=np.int8)
-    strandBuf = np.zeros((sam_stats['num_reads'],), dtype=np.bool)
-    cutBuf = np.zeros((sam_stats['num_reads'],), dtype=np.int64)
-    idBuf = np.zeros(
-        (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['id_len'])
+    if maxReads is None:
+        numReads = sam_stats['num_reads']
+    else:
+        numReads = maxReads
+    chrmBuf = np.zeros((numReads,), dtype=np.int8)
+    strandBuf = np.zeros((numReads,), dtype=np.bool)
+    cutBuf = np.zeros((numReads,), dtype=np.int64)
+    if (maxReads is None) or (IDLen is None):
+        idArrayLen = sam_stats['id_len']
+    else:
+        idArrayLen = IDLen
+    idBuf = np.zeros((numReads,), dtype='|S%d' % idArrayLen)
 
     _write_to_array.i = 0
 
@@ -650,10 +656,10 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
                                  _write_to_array(read, seqBuf, Bio.Seq.reverse_complement(read.seq) if read.is_reverse and reverse_complement else read.seq),
                                  inc(_write_to_array)))
 
-        out_dict['chrms'] = chrmBuf
-        out_dict["strands"] = strandBuf
-        out_dict["cuts"] = cutBuf
-        out_dict["ids"] = idBuf
+        if (maxReads is not None) and (IDLen is not None):
+            totReads = _write_to_array.i
+            seqBuf = seqBuf[:totReads]
+
         out_dict['seqs'] = seqBuf
     else:
         print "In a recent update by default we're not saving sequences!!!"
@@ -666,10 +672,18 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
                                  _write_to_array(read, idBuf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname),
                                  inc(_write_to_array)))
 
-        out_dict['chrms'] = chrmBuf
-        out_dict["strands"] = strandBuf
-        out_dict["cuts"] = cutBuf
-        out_dict["ids"] = idBuf
+
+    if (maxReads is not None) and (IDLen is not None):
+        totReads = _write_to_array.i
+        chrmBuf = chrmBuf[:totReads]
+        strandBuf = strandBuf[:totReads]
+        cutBuf = cutBuf[:totReads]
+        idBuf = idBuf[:totReads]
+
+    out_dict['chrms'] = chrmBuf
+    out_dict["strands"] = strandBuf
+    out_dict["cuts"] = cutBuf
+    out_dict["ids"] = idBuf
 
 
     return out_dict
