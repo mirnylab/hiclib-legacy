@@ -50,6 +50,16 @@ log.setLevel(logging.DEBUG)
 
 MIN_MAPQ = 31
 
+def readIsUnmapped(read):
+    if (read.mapq < MIN_MAPQ):
+        return True
+
+    # Skip non-uniquely aligned.
+    for tag in read.tags:
+        if tag[0] == 'XS':
+            return True
+    return False
+
 print "hello from new mapping"
 
 def sleep():
@@ -64,7 +74,6 @@ def sleep():
         time.sleep(0.1)
 
 
-
 def commandExists(command):
     "checks if the bash command exists"
     command = command.split()[0]
@@ -73,14 +82,14 @@ def commandExists(command):
     return True
 
 
-def gzipWriter(filename):
+def gzipWriter(filename, pigzArguments=["-4"]):
     """
     creates a writing process with gzip or parallel gzip (pigz) attached to it
     """
     filename = os.path.abspath(filename)
     with open(filename, 'wb') as outFile:
         if commandExists("pigz"):
-            writer = ["pigz", "-c", "-4"]
+            writer = ["pigz", "-c"] + pigzArguments
         else:
             writer = ["gzip", "-c", "-1"]
             warnings.warn("Please install 'pigz' parallel gzip for faster speed")
@@ -227,13 +236,8 @@ def _filter_unmapped_fastq(in_stream, in_sam, nonunique_fastq, in_filename="none
 
     nonunique_ids = set()
     for read in samfile:
-        tags_dict = dict(read.tags)
-        read_id = read.qname
-
-        # If exists, the option 'XS' contains the score of the second
-        # best alignment. Therefore, its presence means a non-unique alignment.
-        if ('XS' in tags_dict) or (read.mapq < MIN_MAPQ):
-            nonunique_ids.add(read_id)
+        if readIsUnmapped(read):
+            nonunique_ids.add(read.qname)
 
     num_total, num_filtered = _filter_fastq(
         nonunique_ids, in_stream, nonunique_fastq, in_filename=in_filename)
@@ -576,22 +580,15 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
                     tid2idx[i] = genome_db.label2idx[chrm_label]
 
             for read in samfile:
-                # Skip non-mapped reads.
-                if read.is_unmapped:
+                if readIsUnmapped(read):
                     continue
+                # Convert Bowtie's chromosome tids to genome_db indices.
+                # Skip chromosomes that are not in the genome.
+                if read.tid in tid2idx:
+                    read.tid = tid2idx[read.tid]
+                    action(read)
 
-                # Skip non-uniquely aligned.
-                for tag in read.tags:
-                    if tag[0] == 'XS':
-                        break
-                else:
-                    # Convert Bowtie's chromosome tids to genome_db indices.
-                    # Skip chromosomes that are not in the genome.
-                    if read.tid in tid2idx:
-                        read.tid = tid2idx[read.tid]
-                        action(read)
-
-    # Calculate reads statistics.
+    # Calculate reads statistics if we don't know anything about mapping parameters.
     if (maxReads is None) or (IDLen is None):
         def _count_stats(read):
             # In Python, function is an object and can have an attribute.
@@ -620,6 +617,8 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
             out_dict.update(
                 {'chrms': [], 'strands': [], 'cuts': [], 'seqs': [], 'ids': []})
             return out_dict
+    else:
+        print "not counting stats"
 
     # Read and save each type of data separately.
     def _write_to_array(read, array, value):
@@ -633,9 +632,11 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
         numReads = sam_stats['num_reads']
     else:
         numReads = maxReads
+
     chrmBuf = np.zeros((numReads,), dtype=np.int8)
     strandBuf = np.zeros((numReads,), dtype=np.bool)
     cutBuf = np.zeros((numReads,), dtype=np.int64)
+
     if (maxReads is None) or (IDLen is None):
         idArrayLen = sam_stats['id_len']
     else:
@@ -643,7 +644,6 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
     idBuf = np.zeros((numReads,), dtype='|S%d' % idArrayLen)
 
     _write_to_array.i = 0
-
     if save_seqs:
         seqBuf = np.zeros(
             (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['seq_len'])
@@ -661,6 +661,7 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
             seqBuf = seqBuf[:totReads]
 
         out_dict['seqs'] = seqBuf
+
     else:
         print "In a recent update by default we're not saving sequences!!!"
         print "use parse_sams(save_seqs=True) to save sequences"
@@ -671,7 +672,6 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
                                  _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
                                  _write_to_array(read, idBuf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname),
                                  inc(_write_to_array)))
-
 
     if (maxReads is not None) and (IDLen is not None):
         totReads = _write_to_array.i
@@ -746,6 +746,9 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, save_seqs=False
     enzyme_name = kwargs.get('enzyme_name', None)
     min_frag_size = kwargs.get('min_frag_size', None)
 
+    maxReads = kwargs.get("maxReads", None)
+    IDLen = kwargs.get("IDLen", 50)
+
     if isinstance(genome_db, str):
         genome_db = mirnylib.genome.Genome(genome_db)
     assert isinstance(genome_db, mirnylib.genome.Genome)
@@ -757,11 +760,13 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, save_seqs=False
 
     log.info('Parse the first side of the reads from %s' % sam_basename1)
     _parse_ss_sams(sam_basename1, ss_lib[1], genome_db,
-                   1 if not max_seq_len else max_seq_len, reverse_complement, save_seqs=save_seqs)
+                   1 if not max_seq_len else max_seq_len, reverse_complement, save_seqs=save_seqs,
+                   maxReads=maxReads, IDLen=IDLen)
 
     log.info('Parse the second side of the reads from %s' % sam_basename2)
     _parse_ss_sams(sam_basename2, ss_lib[2], genome_db,
-                   1 if not max_seq_len else max_seq_len, reverse_complement, save_seqs=save_seqs)
+                   1 if not max_seq_len else max_seq_len, reverse_complement, save_seqs=save_seqs,
+                   maxReads=maxReads, IDLen=IDLen)
 
     # Determine the number of double-sided reads.
     all_ids = np.unique(np.concatenate((ss_lib[1]['ids'], ss_lib[2]['ids'])))
