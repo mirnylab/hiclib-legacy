@@ -154,7 +154,7 @@ class HiCdataset(object):
             # chromosomes for each read.
             "chrms1": "int8", "chrms2": "int8",
 
-            "fragidsabs1": "int32", "fragidsabs2": "int32",
+            "rfragAbsIdxs1": "int32", "rfragAbsIdxs2": "int32",
             # IDs of fragments. fragIDmult * chromosome + location
             # distance to rsite
             "cuts1": "int32", "cuts2": "int32",
@@ -175,8 +175,6 @@ class HiCdataset(object):
             # If -2, different arms.
             }
         self.metadata = {}
-            # 'rfragAbsIdxs1':'int32',
-            # 'rfragAbsIdxs2':'int32'}
 
 
         #-------Initialization of the genome and parameters-----
@@ -267,32 +265,36 @@ class HiCdataset(object):
 
     def _calculateVector2(self, name, start=None, end=None):
         if name == "fragids1":
-            return self.genome.rfragMidIds[self.fragidsabs1[start:end]]
+            return self.genome.rfragMidIds[self.rfragAbsIdxs1[start:end]]
         elif name == "fragids2":
-            return self.genome.rfragMidIds[self.fragidsabs2[start:end]]
+            return self.genome.rfragMidIds[self.rfragAbsIdxs2[start:end]]
         elif name == "fraglens1":
-            fl1 = self.fraglensAll[self.fragidsabs1[start:end]]
+            fl1 = self.fraglensAll[self.rfragAbsIdxs1[start:end]]
             fl1[self.chrms1 == -1] = 0
             return fl1
         elif name == "fraglens2":
-            fl2 = self.fraglensAll[self.fragidsabs2[start:end]]
+            fl2 = self.fraglensAll[self.rfragAbsIdxs2[start:end]]
             fl2[self.chrms2[start:end] == -1] = 0
             return fl2
         elif name == "dists1":
             cutids1 = self.cuts1[start:end] + np.array(self.chrms1[start:end], dtype=np.int64) * self.fragIDmult
-            d1 = np.abs(cutids1 - self.rsites[self.fragidsabs1[start:end] + self.strands1[start:end] - 1])
+            d1 = np.abs(cutids1 - self.rsites[self.rfragAbsIdxs1[start:end] + self.strands1[start:end] - 1])
             d1[self.chrms1[start:end] == -1] = 0
             return d1
         elif name == "dists2":
             cutids2 = self.cuts2[start:end] + np.array(self.chrms2[start:end], dtype=np.int64) * self.fragIDmult
-            d2 = np.abs(cutids2 - self.rsites[self.fragidsabs2[start:end] + self.strands2[start:end] - 1])
+            d2 = np.abs(cutids2 - self.rsites[self.rfragAbsIdxs2[start:end] + self.strands2[start:end] - 1])
             d2[self.chrms2[start:end] == -1] = 0
             return d2
 
         elif name == "mids1":
-            return self.genome.rfragMidIds[self.fragidsabs1[start:end]]
+            return self.genome.rfragMidIds[self.rfragAbsIdxs1[start:end]]
         elif name == "mids1":
-            return self.genome.rfragMidIds[self.fragidsabs2[start:end]]
+            return self.genome.rfragMidIds[self.rfragAbsIdxs2[start:end]]
+        elif name == "distances":
+            dvec = np.abs(self.mids1[start:end] - self.mids2[start:end])
+            dvec[self.chrms1[start:end] != self.chrms2[start:end]] = -1
+            return dvec
         else:
             raise "unknown vector2"
 
@@ -609,14 +611,14 @@ class HiCdataset(object):
 
 
         cutids1 = self.cuts1 + np.array(self.chrms1, dtype=np.int64) * self.fragIDmult
-        self.fragidsabs1 = np.searchsorted(self.rsites, cutids1 + (2 * self.strands1 - 1) * 3.5)
+        self.rfragAbsIdxs1 = np.searchsorted(self.rsites, cutids1 + (2 * self.strands1 - 1) * 3.5)
 
 
 
 
 
         cutids2 = self.cuts2 + np.array(self.chrms2, dtype=np.int64) * self.fragIDmult
-        self.fragidsabs2 = np.searchsorted(self.rsites, cutids2 + (2 * self.strands2 - 1) * 3.5)
+        self.rfragAbsIdxs2 = np.searchsorted(self.rsites, cutids2 + (2 * self.strands2 - 1) * 3.5)
 
 
         self.metadata["100_TotalReads"] = self.trackLen
@@ -1199,8 +1201,6 @@ class HiCdataset(object):
         assert mask.dtype == np.bool
         self.N = ms
         self.DSnum = self.N
-        if hasattr(self, "ufragments"):
-            del self.ufragmentlen, self.ufragments
         for name in self.vectors:
             data = self._getData(name)
             ld = len(data)
@@ -1215,14 +1215,9 @@ class HiCdataset(object):
             self._setData(name, newdata)
             del newdata
         del mask
-        self.rebuildFragments()
 
     def rebuildFragments(self):
         "recreates a set of fragments - runs when reads have changed"
-        try:
-            past = len(self.ufragments)
-        except:
-            past = 0
         assert len(self.fragids2) == self.N
         ufragids1, ufragids1ind = chunkedUnique(
             self.fragids1,
@@ -1260,7 +1255,7 @@ class HiCdataset(object):
         s = self.fragmentSum()
         ss = np.sort(s)
 
-        valueL, valueH = np.percentile(ss, [100. * cutL, 100 * (1. - cutH)])
+        valueL, valueH = np.percentile(ss[ss > 0], [100. * cutL, 100 * (1. - cutH)])
         news = (s >= valueL) * (s <= valueH)
         N1 = self.N
         self.fragmentFilter(self.ufragments[news])
@@ -1363,8 +1358,6 @@ class HiCdataset(object):
             to be removed.
         """
 
-        if 'rfragAbsIdxs1' not in self.vectors:
-            raise Exception('Run setRfragAbsIdxs() first!')
 
         concRfragAbsIdxs = np.r_[self.rfragAbsIdxs1, self.rfragAbsIdxs2]
         concCis = np.r_[self.chrms1 == self.chrms2, self.chrms1 == self.chrms2]
@@ -1399,8 +1392,6 @@ class HiCdataset(object):
         restriction sites within the same chromosome.
         """
 
-        if 'rfragAbsIdxs1' not in self.vectors:
-            raise Exception('Run setRfragAbsIdxs() first!')
 
         mask = (
             (np.abs(self.rfragAbsIdxs1 - self.rfragAbsIdxs2) < minRsitesDist)
@@ -1659,23 +1650,10 @@ class HiCdataset(object):
         exit()
 
 
-    def setRfragAbsIdxs(self, rEnzyme):
-        """Cache the absolute indices of restriction fragments.
-        """
-
-        self.vectors['rfragAbsIdxs1'] = 'int32'
-        self.vectors['rfragAbsIdxs2'] = 'int32'
-
-        self.genome.setEnzyme(rEnzyme)
-        self.rfragAbsIdxs1 = self.genome.getRfragAbsIdxs(self.fragids1)
-        self.rfragAbsIdxs2 = self.genome.getRfragAbsIdxs(self.fragids2)
-
     def iterativeCorrection(self, numsteps=10, normToLen=False):
         '''
         Perform fragment-based iterative correction of Hi-C data.
         '''
-        if 'rfragAbsIdxs1' not in self.vectors:
-            raise Exception('Run setRfragAbsIdxs() first!')
 
         rfragLensConc = np.concatenate(self.genome.rfragLens)
         weights = np.ones(self.N, dtype=np.float32)
