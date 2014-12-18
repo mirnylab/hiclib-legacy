@@ -93,7 +93,9 @@ from mirnylib.numutils import arrayInArray, sumByArray, \
     uniqueIndex, chunkedUnique, fasterBooleanIndexing, fillDiagonal, arraySearch, \
     arraySumByArray
 import time
-
+from mirnylib.systemutils import setExceptionHook
+USE_NUMEXPR = True
+import numexpr
 r_ = np.r_
 
 
@@ -116,8 +118,7 @@ class HiCdataset(object):
     the content of the current working file.
     Thus, to preserve the data, loading datasets is advised. """
 
-    def __init__(self, filename, genome, maximumMoleculeLength=500,
-                 override="deprecated", autoFlush="deprecated",
+    def __init__(self, filename, genome, enzymeName="fromGenome", maximumMoleculeLength=500,
                  inMemory=False, mode="a"):
         """
         __init__ method
@@ -164,39 +165,30 @@ class HiCdataset(object):
             # chromosomes for each read.
             "chrms1": "int8", "chrms2": "int8",
 
+            "fragidsabs1": "int32", "fragidsabs2": "int32",
+            # IDs of fragments. fragIDmult * chromosome + location
+            # distance to rsite
+            "cuts1": "int32", "cuts2": "int32",
+            "strands1": "bool", "strands2": "bool",
+            }
+        self.vectors2 = {
+             "fraglens1": "int32", "fraglens2": "int32",
+            # fragment lengthes
+            "fragids1": "int64", "fragids2": "int64",
             "mids1": "int32", "mids2": "int32",
             # midpoint of a fragment, determined as "(start+end)/2"
 
-            "fraglens1": "int32", "fraglens2": "int32",
-            # fragment lengthes
+            "dists1": "int32", "dists2": "int32",
+            # precise location of cut-site
 
             "distances": "int32",
             # distance between fragments. If -1, different chromosomes.
             # If -2, different arms.
-
-            "fragids1": "int64", "fragids2": "int64",
-            # IDs of fragments. fragIDmult * chromosome + location
-            # distance to rsite
-            "dists1": "int32", "dists2": "int32",
-            # precise location of cut-site
-            "cuts1": "int32", "cuts2": "int32",
-            "strands1": "bool", "strands2": "bool",
             }
         self.metadata = {}
             # 'rfragAbsIdxs1':'int32',
             # 'rfragAbsIdxs2':'int32'}
 
-        #--------Deprecation warnings-------
-        if override != "deprecated":
-            warnings.warn(UserWarning("Please use a more intuitive flag "
-                                      "'mode =' instead of 'override ='"))
-            mode = 'w'
-        elif override == True:
-            mode = "w"
-        if autoFlush != "deprecated":
-            warnings.warn(UserWarning("Autoflush was deprecated, "
-                                      "inMemory is adviced instead "
-                                      "when memory is not an issue"))
 
         #-------Initialization of the genome and parameters-----
         self.mode = mode
@@ -205,6 +197,15 @@ class HiCdataset(object):
         else:
             self.genome = genome
         assert isinstance(self.genome, Genome)  # bla
+        if enzymeName == "fromGenome":
+            if self.genome.hasEnzyme() == False:
+                raise ValueError("Provide the genome with the enzyme or specify enzyme=...")
+        else:
+            self.genome.setEnzyme(enzymeName)
+
+        self.fraglensAll = np.concatenate(self.genome.rfragLens)
+        self.rsites = self.genome.rsiteIds
+
 
         self.chromosomeCount = self.genome.chrmCount
         self.fragIDmult = self.genome.fragIDmult  # used for building heatmaps
@@ -263,25 +264,63 @@ class HiCdataset(object):
     def __getattribute__(self, x):
         """a method that overrides set/get operation for self.vectors
         o that they're always on HDD"""
-        if x == "vectors":
+        if x in ["vectors", "vectors2"]:
             return object.__getattribute__(self, x)
 
         if x in self.vectors.keys():
             a = self._getData(x)
             return a
+        elif x in self.vectors2:
+            return self._calculateVector2(x)
         else:
             return object.__getattribute__(self, x)
+
+
+    def _calculateVector2(self, name, start=None, end=None):
+        if name == "fragids1":
+            return self.genome.rfragMidIds[self.fragidsabs1[start:end]]
+        elif name == "fragids2":
+            return self.genome.rfragMidIds[self.fragidsabs2[start:end]]
+        elif name == "fraglens1":
+            fl1 = self.fraglensAll[self.fragidsabs1[start:end]]
+            fl1[self.chrms1 == -1] = 0
+            return fl1
+        elif name == "fraglens2":
+            fl2 = self.fraglensAll[self.fragidsabs2[start:end]]
+            fl2[self.chrms2[start:end] == -1] = 0
+            return fl2
+        elif name == "dists1":
+            cutids1 = self.cuts1[start:end] + np.array(self.chrms1[start:end], dtype=np.int64) * self.fragIDmult
+            d1 = np.abs(cutids1 - self.rsites[self.fragidsabs1[start:end] + self.strands1[start:end] - 1])
+            d1[self.chrms1[start:end] == -1] = 0
+            return d1
+        elif name == "dists2":
+            cutids2 = self.cuts2[start:end] + np.array(self.chrms2[start:end], dtype=np.int64) * self.fragIDmult
+            d2 = np.abs(cutids2 - self.rsites[self.fragidsabs2[start:end] + self.strands2[start:end] - 1])
+            d2[self.chrms2[start:end] == -1] = 0
+            return d2
+
+        elif name == "mids1":
+            return self.genome.rfragMidIds[self.fragidsabs1[start:end]]
+        elif name == "mids1":
+            return self.genome.rfragMidIds[self.fragidsabs2[start:end]]
+        else:
+            raise "unknown vector2"
 
     def __setattr__(self, x, value):
         """a method that overrides set/get operation for self.vectors
         so that they're always on HDD"""
-        if x == "vectors":
+        if x in  ["vectors", "vectors2"]:
             return object.__setattr__(self, x, value)
 
         if x in self.vectors.keys():
             self._setData(x, value)
+        elif x in self.vectors2:
+            raise
         else:
             return object.__setattr__(self, x, value)
+
+
 
     def _buildFragments(self):
         if not hasattr(self, "ufragments"):
@@ -401,9 +440,12 @@ class HiCdataset(object):
             # It's safer than to use the default locals()
 
             for name in internalVariables:
-                if name not in self.h5dict.keys():
-                    raise ValueError("{0} not in keys".format(name))
-                variables[name] = self.h5dict.get_dataset(name)[start:end]
+                if name in self.vectors:
+                    variables[name] = self.h5dict.get_dataset(name)[start:end]
+                elif name in self.vectors2:
+                    variables[name] = self._calculateVector2(name, start, end)
+                else:
+                    print "Internal variable not found: ", name
 
             for name, variable in externalVariables.items():
                 variables[name] = variable[start:end]
@@ -481,7 +523,7 @@ class HiCdataset(object):
         self.rebuildFragments()
 
     def parseInputData(self, dictLike, zeroBaseChrom=True,
-                       enzymeToFillRsites=None, **kwargs):
+                        **kwargs):
         """Inputs data from a dictionary-like object,
         containing coordinates of the reads.
         Performs filtering of the reads.
@@ -526,21 +568,12 @@ class HiCdataset(object):
         """
 
 
-        rsite_related = ["rsites1", "rsites2", "uprsites1",
-                         "uprsites2", "downrsites1", "downrsites2"]
+
         if type(dictLike) == str:
             if not os.path.exists(dictLike):
                 raise IOError("File not found: %s" % dictLike)
             print "     loading data from file %s (assuming h5dict)" % dictLike
             dictLike = h5dict(dictLike, 'r')  # attempting to open h5dict
-
-        if all([i in dictLike.keys() for i in rsite_related]):
-            noRsites = False
-        else:
-            noRsites = True
-
-        if enzymeToFillRsites != None:  # we should be able to override rsites
-            noRsites = True
 
         "---Filling in chromosomes and positions - mandatory objects---"
         a = dictLike["chrms1"]
@@ -572,58 +605,34 @@ class HiCdataset(object):
             self.strands2 = dictLike["strands2"]
             noStrand = False  # strand information filled in
 
-        # We have to fill rsites ousrlves. Let's see what enzyme to use!
-        if noRsites == True:
-            if ((enzymeToFillRsites is None) and
-                (self.genome.hasEnzyme() == False)):
-                raise ValueError("Please specify enzyme"
-                                 " if your data has no rsites")
 
-            if enzymeToFillRsites is not None:
-                if self.genome.hasEnzyme() == True:
-                    if enzymeToFillRsites != self.genome.enzymeName:
-                        warnings.warn("genome.enzymeName "
-                                      "different from supplied enzyme")
-                self.genome.setEnzyme(enzymeToFillRsites)
-            # enzymeToFillRsites has preference over self.genome's enzyme
 
-            print "Filling rsites"
-            rsitedict = h5dict(in_memory=self.inMemory)
-                # creating dict to pass to fillRsite's code
-            rsitedict["chrms1"] = self.chrms1
-            rsitedict["chrms2"] = self.chrms2
-            rsitedict["cuts1"] = self.cuts1
-            rsitedict["cuts2"] = self.cuts2
-            rsitedict["strands1"] = self.strands1
-            rsitedict["strands2"] = self.strands2
-            hiclib.mapping.fill_rsites(
-                lib=rsitedict, genome_db=self.genome)
-        else:
-            rsitedict = dictLike  # rsite information is in our dictionary
 
-        "---Now filling all actual values"
-        self.dists1 = np.abs(rsitedict["rsites1"] - self.cuts1)
-        self.dists2 = np.abs(rsitedict["rsites2"] - self.cuts2)
+        setExceptionHook()
 
-        self.mids1 = (rsitedict["uprsites1"] + rsitedict["downrsites1"]) / 2
-        self.mids2 = (rsitedict["uprsites2"] + rsitedict["downrsites2"]) / 2
 
-        self.fraglens1 = np.abs(
-            (rsitedict["uprsites1"] - rsitedict["downrsites1"]))
-        self.fraglens2 = np.abs(
-            (rsitedict["uprsites2"] - rsitedict["downrsites2"]))
+        # first fixing chromosomes
 
-        del rsitedict  # deletes hdf5 file, so it's important
+        c1 = self.chrms1
+        c1 [c1 >= self.genome.chrmCount] = -1
+        self.chrms1 = c1
 
-        self.fragids1 = self.mids1 + np.array(self.chrms1,
-                                              dtype="int64") * self.fragIDmult
-        self.fragids2 = self.mids2 + np.array(self.chrms2,
-                                              dtype="int64") * self.fragIDmult
+        c2 = self.chrms2
+        c2 [c2 >= self.genome.chrmCount] = -1
+        self.chrms2 = c2
 
-        distances = np.abs(self.mids1 - self.mids2)
-        distances[self.chrms1 != self.chrms2] = -1
-        self.distances = distances  # distances between restriction fragments
-        del distances
+
+
+        cutids1 = self.cuts1 + np.array(self.chrms1, dtype=np.int64) * self.fragIDmult
+        self.fragidsabs1 = np.searchsorted(self.rsites, cutids1 + (2 * self.strands1 - 1) * 3.5)
+
+
+
+
+
+        cutids2 = self.cuts2 + np.array(self.chrms2, dtype=np.int64) * self.fragIDmult
+        self.fragidsabs2 = np.searchsorted(self.rsites, cutids2 + (2 * self.strands2 - 1) * 3.5)
+
 
         self.metadata["100_TotalReads"] = self.trackLen
 
@@ -639,6 +648,12 @@ class HiCdataset(object):
 
         self.metadata["152_removedUnusedChromosomes"] = self.trackLen - self.N
         self.metadata["150_ReadsWithoutUnusedChromosomes"] = self.N
+
+
+
+
+
+
 
         # Discard dangling ends and self-circles
         DSmask = (self.chrms1 >= 0) * (self.chrms2 >= 0)
@@ -674,16 +689,17 @@ class HiCdataset(object):
                                  ["cuts1", "cuts2"])
         else:
             # distance between sites facing each other
-            dist = self.evaluate("a = - cuts1 * (2 * strands1 -1) - "
-                                 "cuts2 * (2 * strands2 - 1)",
-                                 ["cuts1", "cuts2", "strands1", "strands2"])
+            dist = self.evaluate("a = numexpr.evaluate('- cuts1 * (2 * strands1 -1) - "
+                                 "cuts2 * (2 * strands2 - 1)')",
+                                 ["cuts1", "cuts2", "strands1", "strands2"],
+                                 constants={"numexpr":numexpr})
 
         readsMolecules = self.evaluate(
-           "a = (chrms1 == chrms2)*(strands1 != strands2) *  (dist >=0) *"
-           " (dist <= maximumMoleculeLength)",
+           "a = numexpr.evaluate('(chrms1 == chrms2)&(strands1 != strands2) &  (dist >=0) &"
+           " (dist <= maximumMoleculeLength)')",
            internalVariables=["chrms1", "chrms2", "strands1", "strands2"],
            externalVariables={"dist": dist},
-           constants={"maximumMoleculeLength": self.maximumMoleculeLength})
+           constants={"maximumMoleculeLength": self.maximumMoleculeLength, "numexpr":numexpr})
         mask *= (readsMolecules == False)
         extraDE = mask.sum()
         self.metadata["220_extraDandlingEndsRemoved"] = -extraDE + noSameFrag
@@ -1333,12 +1349,15 @@ class HiCdataset(object):
         print "----->Semi-dangling end filter: remove guys who start %d"\
         " bp near the rsite" % offset
 
-        expression = "mask = (np.abs(dists1 - fraglens1) >= offset) * "\
-        "((np.abs(dists2 - fraglens2) >= offset) )"
+
+        expression = 'mask = numexpr.evaluate("(abs(dists1 - fraglens1) >= offset) & '\
+        '((abs(dists2 - fraglens2) >= offset))")'
+
+
         mask = self.evaluate(expression,
                              internalVariables=["dists1", "fraglens1",
                                                 "dists2", "fraglens2"],
-                             constants={"offset": offset, "np": np},
+                             constants={"offset": offset, "np": np, "numexpr":numexpr},
                              outVariable=("mask", np.zeros(self.N, bool)))
         self.metadata["310_startNearRsiteRemoved"] = len(mask) - mask.sum()
         self.maskFilter(mask)
@@ -1349,10 +1368,10 @@ class HiCdataset(object):
         # Uses a lot!
         print "----->Filtering duplicates in DS reads: "
 
-        Nds = self.N
+
 
         # an array to determine unique rows. Eats 16 bytes per DS record
-        dups = np.zeros((Nds, 2), dtype="int64", order="C")
+        dups = np.zeros((self.N, 2), dtype="int64", order="C")
 
         dups[:, 0] = self.chrms1
         dups[:, 0] *= self.fragIDmult
@@ -1361,12 +1380,12 @@ class HiCdataset(object):
         dups[:, 1] *= self.fragIDmult
         dups[:, 1] += self.cuts2
         dups.sort(axis=1)
-        dups.shape = (Nds * 2)
+        dups.shape = (self.N * 2)
         strings = dups.view("|S16")
             # Converting two indices to a single string to run unique
         uids = uniqueIndex(strings)
         del strings, dups
-        stay = np.zeros(Nds, bool)
+        stay = np.zeros(self.N, bool)
         stay[uids] = True  # indexes of unique DS elements
         del uids
         uflen = len(self.ufragments)

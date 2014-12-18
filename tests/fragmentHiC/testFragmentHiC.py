@@ -31,7 +31,7 @@ def refine_paper(filename, create=True):
             #Parsing individual files
             if not os.path.exists(onename):
                 raise StandardError("path not found: %s" % onename)
-            TR = HiCdataset("bla", genome=genomeFolder, maximumMoleculeLength=500, inMemory=True)
+            TR = HiCdataset("bla", genome=genomeFolder, enzymeName="HindIII",maximumMoleculeLength=500, inMemory=True)
             print "\nTesting loading new data without rsite information    "
             TR.parseInputData(dictLike=onename,
                               enzymeToFillRsites="HindIII")
@@ -41,11 +41,11 @@ def refine_paper(filename, create=True):
             TR.save(onename + "_parsed.frag")
 
         #Merging files alltogether, applying filters
-        TR = HiCdataset(filename[1] + "_merged.frag",
+        TR = HiCdataset(filename[1] + "_merged.frag",enzymeName = "HindIII",
                         genome=genomeFolder, mode="w")
         TR.merge([i + "_parsed.frag" for i in filename[0]])
 
-        TR = HiCdataset("refined", genome=genomeFolder,
+        TR = HiCdataset("refined", genome=genomeFolder,enzymeName = "HindIII",
                         mode="w", inMemory=True)
 
         print "\nTesting chunking during all tests"
