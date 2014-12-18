@@ -308,6 +308,11 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         The default value is None, that is the app is autodetected by the
         extension (i.e. cat for .fastq, gunzip for .gz).
 
+    drop_sequences : bool, optional
+        If True, than drop the columns with sequences and PHRED qualities
+        from bowtie2 .sam and .bam outputs. Use to save disk space.
+        True by default.
+
     '''
     bowtie_path = os.path.abspath(os.path.expanduser(bowtie_path))
     if not os.path.isfile(bowtie_path):
@@ -366,6 +371,11 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
 
     # If bash reader is not 'cat', convert file to FASTQ first and
     # run iterative_mapping recursively on the converted file.
+    if kwargs.get('drop_sequences', True):
+        drop_seqs_command = ['awk',
+            """{OFS="\\t"; if ($1 ~ !/^@/) { $10="A"; $11="g"; if ($3 ~ /\\*/) $6="*"; else $6="1M"; } print}"""]
+    else:
+        drop_seqs_command = []
 
     output_is_bam = (out_sam_path.split('.')[-1].lower() == 'bam')
     bamming_command = ['samtools', 'view', '-bS', '-'] if output_is_bam else []
@@ -420,24 +430,29 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
             log.info('Reading command: %s', ' '.join(reading_command))
             pipeline.append(
                 subprocess.Popen(reading_command, stdout=subprocess.PIPE, bufsize=-1))
-            if bamming_command:
-                log.info('Mapping command: %s', ' '.join(mapping_command))
-                pipeline.append(
-                    subprocess.Popen(mapping_command,
-                                     stdin=pipeline[-1].stdout,
-                                     stdout=subprocess.PIPE, bufsize=-1))
 
+            log.info('Mapping command: %s', ' '.join(mapping_command))
+            pipeline.append(
+                subprocess.Popen(mapping_command,
+                    stdin=pipeline[-1].stdout,
+                    stdout=subprocess.PIPE if (bamming_command or drop_seqs_command) else open(local_out_sam, 'w'),
+                    bufsize=-1))
+
+            if drop_seqs_command:
+                log.info('Output editing command: %s', ' '.join(drop_seqs_command))
+                pipeline.append(
+                    subprocess.Popen(drop_seqs_command,
+                        stdin=pipeline[-1].stdout,
+                        stdout=subprocess.PIPE if bamming_command else open(local_out_sam, 'w'),
+                        bufsize=-1))
+
+            if bamming_command:
                 log.info('Output formatting command: %s', ' '.join(bamming_command))
                 pipeline.append(
                     subprocess.Popen(bamming_command,
-                                     stdin=pipeline[-1].stdout,
-                                     stdout=open(local_out_sam, 'w'), bufsize=-1))
-            else:
-                log.info('Mapping command: %s', ' '.join(mapping_command))
-                pipeline.append(
-                    subprocess.Popen(mapping_command,
-                                     stdin=pipeline[-1].stdout,
-                                     stdout=open(local_out_sam, 'w'), bufsize=-1))
+                        stdin=pipeline[-1].stdout,
+                        stdout=open(local_out_sam, 'w'),
+                        bufsize=-1))
             pipeline[-1].wait()
         finally:
             sleep()
