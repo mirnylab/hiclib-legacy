@@ -106,10 +106,6 @@ def corr(x, y):
 class HiCdataset(object):
     """Base class to operate on HiC dataset.
 
-    .. warning ::
-        This is the last build to support SS reads; from now on
-        SS reads will be deprecated as noone uses them :(
-
     This class stores all information about HiC reads on a hard drive.
     Whenever a variable corresponding to any record is used,
     it is loaded/saved from/to the HDD.
@@ -137,13 +133,6 @@ class HiCdataset(object):
         maximumMoleculeLength : int, optional
             Maximum length of molecules in the HiC library,
             used as a cutoff for dangling ends filter
-        override : bool, optional, deprecated
-            If true, file will be overwritten. Deprecated,
-            use "mode = 'w'" instead of "override = True".
-        autoFlush : bool, optional, deprecated
-            Set to True to disable autoflush -
-            possibly speeds up read/write operations.
-            Currently deprecated.
         inMemory : bool, optional
             Create dataset in memory. Filename is ignored then,
             but still needs to be specified.
@@ -217,7 +206,7 @@ class HiCdataset(object):
 
         self.filename = os.path.abspath(os.path.expanduser(filename))  # File to save the data
         self.chunksize = 5000000
-        # Chunk size for h5dict operation, external sorting, etc.
+        # Chunk size for h5dict operation, external sorting, etc
 
         self.inMemory = inMemory
 
@@ -470,10 +459,6 @@ class HiCdataset(object):
 
         if type(outVariable) == tuple:
             return outVariable[1]
-
-    def flush(self):
-        warnings.warn(UserWarning(
-            "Autoflush was deprecated, flush is useless now"))
 
     def merge(self, filenames):
         """combines data from multiple datasets
@@ -744,8 +729,7 @@ class HiCdataset(object):
         self.ufragments = np.array(self.ufragmentsOriginal)
         self.ufragmentlen = np.array(self.ufragmentlenOriginal)
 
-    def updateGenome(self, newGenome, removeSSreads="deprecated",
-                     oldGenome="current", putMetadata=False):
+    def updateGenome(self, newGenome, oldGenome="current", putMetadata=False):
         """
         Updates dataset to a new genome, with a fewer number of chromosomes.
         Use it to delete chromosomes.
@@ -766,9 +750,6 @@ class HiCdataset(object):
         oldGenome : Genome object or idx2label of old genome, optional
 
         """
-
-        if removeSSreads != "deprecated":
-            DeprecationWarning("SS reads are deprecated now! Modify your code")
 
         assert isinstance(newGenome, Genome)
         newN = newGenome.chrmCount
@@ -1186,29 +1167,6 @@ class HiCdataset(object):
         print "----> By chromosome Heatmap saved to '{0}' at {1} resolution".format(filename, resolution)
 
 
-
-    def buildSinglesCoverage(self, resolution):
-        """deprecated"""
-        return np.zeros(self.genome.numBins)
-
-    def buildFragmetCoverage(self, resolution):
-        """creates restriction site density vector (visible sites only)
-        in accordance with the 'genome' class"""
-        self._buildFragments()
-        self.genome.setResolution(resolution)
-        chroms = self.ufragments / self.fragIDmult
-        positions = self.ufragments % self.fragIDmult
-        mask = chroms < self.genome.chrmCount
-        chroms = chroms[mask]
-        positions = positions[mask]
-        label = self.genome.chrmStartsBinCont[chroms] + positions / resolution
-        counts = np.bincount(label, minlength=self.genome.numBins)
-        if len(counts) > self.genome.numBins:
-            print "Extra chromosomes found in the data; ignoring"
-            counts = counts[:self.genome.numBins]
-        assert len(counts) == self.genome.numBins
-        return counts
-
     def fragmentFilter(self, fragments):
         """keeps only reads that originate from fragments in 'fragments'
         variable, for DS - on both sides
@@ -1601,17 +1559,12 @@ class HiCdataset(object):
         tosave["heatmap"] = heatmap
         del heatmap
         if resolution != 'fragment':
-            singles = self.buildSinglesCoverage(resolution)
-            frags = self.buildFragmetCoverage(resolution)
             chromosomeStarts = np.array(self.genome.chrmStartsBinCont)
             numBins = self.genome.numBins
         else:
-            singles, frags = [], []
             chromosomeStarts = np.array(self.genome.chrmStartsRfragCont)
             numBins = self.genome.numRfrags
         tosave["resolution"] = resolution
-        tosave["singles"] = singles
-        tosave["frags"] = frags
         tosave["genomeBinNum"] = numBins
         tosave["genomeIdxToLabel"] = self.genome.idx2label
         tosave["chromosomeStarts"] = chromosomeStarts
@@ -2143,8 +2096,7 @@ class HiCStatistics(HiCdataset):
             plt.plot(binMids, values, **kwargs)
         return (binMids, values)
 
-    def plotRsiteStartDistribution(self, useSSReadsOnly="deprecated",
-                                   offset=5, length=200):
+    def plotRsiteStartDistribution(self, offset=5, length=200):
         """
         run plt.show() after this function.
         """
