@@ -239,6 +239,8 @@ class HiCdataset(object):
         if "chrms1" in self.h5dict.keys():
             chrms1 = self.chrms2
             self.DSnum = self.N = len(chrms1)
+        if "metadata" in self.h5dict:
+            self.metadata = self.h5dict["metadata"]
 
 
 
