@@ -92,9 +92,16 @@ from mirnylib.numutils import arrayInArray, sumByArray, \
     arraySumByArray
 import time
 from mirnylib.systemutils import setExceptionHook
+import atexit
+from textwrap import dedent
 USE_NUMEXPR = True
 import numexpr
 r_ = np.r_
+
+
+def cleanFile(filename):
+    if os.path.exists(filename):
+        os.remove(filename)
 
 
 class sliceableDataset(object):
@@ -472,6 +479,8 @@ class HiCdataset(object):
         for start, end in bins:
 
             variables = copy(constants)
+            variables["start"] = start
+            variables["end"] = end
             # dictionary to pass to the evaluator.
             # It's safer than to use the default locals()
 
@@ -1208,8 +1217,6 @@ class HiCdataset(object):
             fragments = self.rFragIDs[fragments]
         m1 = arrayInArray(self._getSliceableVector("fragids1"), fragments, chunkSize=self.chunksize)
         m2 = arrayInArray(self._getSliceableVector("fragids2"), fragments, chunkSize=self.chunksize)
-        del m1
-        del m2
         mask = np.logical_and(m1, m2)
         self.maskFilter(mask)
 
@@ -1320,7 +1327,7 @@ class HiCdataset(object):
         self.metadata["310_startNearRsiteRemoved"] = len(mask) - mask.sum()
         self.maskFilter(mask)
 
-    def filterDuplicates(self):
+    def filterDuplicates(self, mode="hdd", tmpDir="/tmp"):
         "removes duplicate molecules in DS reads"
         "TODO: rewrite it when Anton allows direct creation of Hi-C datasets"
         # Uses a lot!
@@ -1328,28 +1335,65 @@ class HiCdataset(object):
 
 
 
-        # an array to determine unique rows. Eats 16 bytes per DS record
-        dups = np.zeros((self.N, 2), dtype="int64", order="C")
+        # an array to determine unique rows. Eats 1 byte per DS record
+        mode = "hdd"
+        if mode == "ram":
+            dups = np.zeros((self.N, 2), dtype="int64", order="C")
 
-        dups[:, 0] = self.chrms1
-        dups[:, 0] *= self.fragIDmult
-        dups[:, 0] += self.cuts1
-        dups[:, 1] = self.chrms2
-        dups[:, 1] *= self.fragIDmult
-        dups[:, 1] += self.cuts2
-        dups.sort(axis=1)
-        dups.shape = (self.N * 2)
-        strings = dups.view("|S16")
-            # Converting two indices to a single string to run unique
-        uids = uniqueIndex(strings)
-        del strings, dups
-        stay = np.zeros(self.N, bool)
-        stay[uids] = True  # indexes of unique DS elements
-        del uids
-        uflen = len(self.rFragIDs)
+            dups[:, 0] = self.chrms1
+            dups[:, 0] *= self.fragIDmult
+            dups[:, 0] += self.cuts1
+            dups[:, 1] = self.chrms2
+            dups[:, 1] *= self.fragIDmult
+            dups[:, 1] += self.cuts2
+            dups.sort(axis=1)
+            dups.shape = (self.N * 2)
+            strings = dups.view("|S16")
+                # Converting two indices to a single string to run unique
+            uids = uniqueIndex(strings)
+            del strings, dups
+            stay = np.zeros(self.N, bool)
+            stay[uids] = True  # indexes of unique DS elements
+            del uids
+            uflen = len(self.rFragIDs)
+
+        elif mode == "hdd":
+            tmpFile = os.path.join(tmpDir, str(np.random.randint(0, 100000000)))
+            atexit.register(cleanFile, tmpFile)
+            a = h5dict(tmpFile)
+            a.add_empty_dataset("duplicates", (self.N,), dtype="|S24")
+            a.add_empty_dataset("temp", (self.N,), dtype="|S24")
+            dset = a.get_dataset("duplicates")
+            tempdset = a.get_dataset("temp")
+            code = dedent("""
+            tmp = np.array(chrms1, dtype=np.int64) * fragIDmult + cuts1
+            tmp2 = np.array(chrms2, dtype=np.int64) * fragIDmult + cuts2
+            newarray = np.zeros((len(tmp),3), dtype = np.int64)
+            newarray[:,0] = tmp
+            newarray[:,1] = tmp2
+            newarray[:,:2].sort(axis=1)
+            newarray[:,2] = np.arange(start, end, dtype=np.int64)
+            newarray.shape = (3*len(tmp))
+            a = np.array(newarray.view("|S24"))
+            assert len(a) == len(chrms1)
+            """)
+            self.evaluate(code, ["chrms1", "cuts1", "chrms2", "cuts2"],
+                          constants={"np":np, "fragIDmult":self.fragIDmult},
+                          outVariable=("a", dset))
+            stay = np.zeros(self.N, bool)
+            numutils.externalMergeSort(dset, tempdset, chunkSize=30000)
+            bins = range(0, self.N - 1000, self.chunksize) + [self.N - 1]
+            for start, end in zip(bins[:-1], bins[1:]):
+                curset = dset[start:end + 1]
+                curset = curset.view(dtype=np.int64)
+                curset.shape = (len(curset) / 3, 3)
+                unique = (curset[:-1, 0] != curset[1:, 0]) + (curset[:-1, 1] != curset[1:, 1])
+                stay[curset[:, 2][unique]] = True
+                if end == self.N - 1:
+                    stay[curset[-1, 2]] = True
+
         self.metadata["320_duplicatesRemoved"] = len(stay) - stay.sum()
         self.maskFilter(stay)
-        assert len(self.rFragIDs) == uflen  # self-check
 
     def filterByCisToTotal(self, cutH=0.0, cutL=0.01):
         """Remove fragments with too low or too high cis-to-total ratio.
