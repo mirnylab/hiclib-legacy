@@ -195,13 +195,14 @@ class HiCdataset(object):
         # You can learn what variables mean from here too.
         self.vectors = {
             # chromosomes for each read.
+            "strands1": "bool", "strands2": "bool",
             "chrms1": "int8", "chrms2": "int8",
 
             "rfragAbsIdxs1": "int32", "rfragAbsIdxs2": "int32",
             # IDs of fragments. fragIDmult * chromosome + location
             # distance to rsite
             "cuts1": "int32", "cuts2": "int32",
-            "strands1": "bool", "strands2": "bool",
+
             }
         self.vectors2 = {
              "fraglens1": "int32", "fraglens2": "int32",
@@ -235,6 +236,7 @@ class HiCdataset(object):
 
         self.rFragIDs = self.genome.rfragMidIds
         self.rFragLens = np.concatenate(self.genome.rfragLens)
+        self.rFragMids = np.concatenate(self.genome.rfragMids)
 
 
         self.rsites = self.genome.rsiteIds
@@ -272,7 +274,7 @@ class HiCdataset(object):
         self.h5dict = h5dict(self.filename, mode=mode, in_memory=inMemory)
         if "chrms1" in self.h5dict.keys():
             chrms1 = self.chrms2
-            self.DSnum = self.N = len(chrms1)
+            self.N = len(chrms1)
         if "metadata" in self.h5dict:
             self.metadata = self.h5dict["metadata"]
 
@@ -343,16 +345,15 @@ class HiCdataset(object):
                 return d2
 
             elif name == "mids1":
-                return self.genome.rfragMidIds[self._getVector("rfragAbsIdxs1", start, end)]
+                return self.rFragMids[self._getVector("rfragAbsIdxs1", start, end)]
             elif name == "mids2":
-                return self.genome.rfragMidIds[self._getVector("rfragAbsIdxs2", start, end)]
+                return self.rFragMids[self._getVector("rfragAbsIdxs2", start, end)]
             elif name == "distances":
                 dvec = np.abs(self._getVector("mids1", start, end) - self._getVector("mids2", start, end))
                 dvec[self.chrms1[start:end] != self.chrms2[start:end]] = -1
                 return dvec
             else:
                 raise "unknown vector: {0}".format(name)
-
 
 
     def __setattr__(self, x, value):
@@ -418,6 +419,15 @@ class HiCdataset(object):
                         print "Length of chr {0} is {1}".format(chrom, chrLens)
                 raise ValueError("Wrong chromosome lengths")
 
+    def _getChunks(self, chunkSize="default"):
+        if chunkSize == "default":
+            chunkSize = self.chunksize
+        if chunkSize > 0.5 * self.N:
+            return [(0, self.N)]
+        points = range(0, self.N - chunkSize / 2, chunkSize) + [self.N]
+        return zip(points[:-1], points[1:])
+
+
     def evaluate(self, expression, internalVariables, externalVariables={},
                  constants={"np": np},
                  outVariable="autodetect",
@@ -461,8 +471,6 @@ class HiCdataset(object):
         """
         if type(internalVariables) == str:
             internalVariables = [internalVariables]
-        if chunkSize == "default":
-            chunkSize = self.chunksize
 
         # detecting output variable automatically
         if outVariable == "autodetect":
@@ -473,10 +481,7 @@ class HiCdataset(object):
         code = compile(expression, '<string>', 'exec')
             # compile because we're launching it many times
 
-        bins = range(0, self.N, chunkSize) + [self.N]
-            # creating bins to perform evaluation
-        bins = zip(bins[:-1], bins[1:])
-        for start, end in bins:
+        for start, end in self._getChunks():
 
             variables = copy(constants)
             variables["start"] = start
@@ -543,15 +548,17 @@ class HiCdataset(object):
                         warnings.warn("key {0} not found in some files".format(key))
             self.metadata = newMetadata
             self.h5dict["metadata"] = self.metadata
+        self.N = sum([len(i.get_dataset("strands1")) for i in h5dicts])
 
         for name in self.vectors.keys():
-            res = []
+            if name in self.h5dict:
+                del self.h5dict[name]
+            self.h5dict.add_empty_dataset(name, (self.N,), self.vectors[name])
+            dset = self.h5dict.get_dataset(name)
+            position = 0
             for mydict in h5dicts:
-                res.append(mydict[name])
-            res = np.concatenate(res)
-            self.N = len(res)
-            self.DSnum = self.N
-            self._setData(name, res)
+                cur = mydict[name]
+                dset[position:position + len(cur)] = cur
             self.h5dict.flush()
             time.sleep(0.2)  # allow buffers to flush
 
@@ -1234,7 +1241,6 @@ class HiCdataset(object):
         ms = mask.sum()
         assert mask.dtype == np.bool
         self.N = ms
-        self.DSnum = self.N
         for name in self.vectors:
             data = self._getData(name)
             ld = len(data)
@@ -1546,7 +1552,7 @@ class HiCdataset(object):
             self._setData(name, data)
         print "---->Loaded data from file %s, contains %d reads" % (
             filename, length)
-        self.DSnum = self.N = length
+        self.N = length
 
         self._checkConsistency()
 
@@ -1720,49 +1726,6 @@ class HiCdataset(object):
         self.weights = weights
 
 
-class HiCStatistics(HiCdataset):
-    """a semi-experimental sub-class of a 'HiCdataset' class
-     used to do statistics on Hi-C reads
-     Please be careful.
-     """
-
-    def multiplyForTesting(self, N=100):
-        """used for heavy load testing only
-        """
-        for name in self.vectors:
-            print "multipliing", name
-            one = self._getData(name)
-            blowup = np.hstack(tuple([one] * N))
-            if name in ["mids1", "mids2"]:
-                blowup += np.random.randint(0, 2 * N, len(blowup))
-
-            self._setData(name, blowup)
-
-    def buildLengthDependencePlot(self, strands="both", normalize=True,
-                                  **kwargs):
-        """plots dependence of counts on fragment length.
-        May do based on one strands only
-        "please run  plt.legend & plt.show() after calling this
-        for all datasets you want to consider"""
-        import matplotlib.pyplot as plt
-        fragmentLength = self.rFragLens
-        pls = np.sort(fragmentLength)
-        N = len(fragmentLength)
-        sums = []
-        sizes = []
-        mysum = self.fragmentSum(None, strands)
-
-        for i in np.arange(0, 0.98, 0.015):
-            b1, b2 = pls[i * N], pls[(i + 0.015) * N - 1]
-            p = (b1 < fragmentLength) * (b2 > fragmentLength)
-            value = np.mean(mysum[p])
-            sums.append(value)
-            sizes.append(np.mean(fragmentLength[p]))
-        sums = np.array(sums)
-        if normalize == True:
-            sums /= sums.mean()
-        plt.plot(sizes, sums, **kwargs)
-
     def plotScaling(self, fragids1=None, fragids2=None,
                     # IDs of fragments for which to plot scaling.
                     # One can, for example, limit oneself to
@@ -1871,10 +1834,16 @@ class HiCStatistics(HiCdataset):
             allFragments = True
         else:
             allFragments = False
+
         if fragids1 is None:
-            fragids1 = self.rFragIDs
+            fs = self.fragmentSum()
+            fragids1 = fs > 0
         if fragids2 is None:
-            fragids2 = self.rFragIDs
+            try:
+                fragids2 = fs > 0
+            except:
+                fragids2 = self.fragmentSum() > 0
+
         if fragids1.dtype == np.bool:
             fragids1 = self.rFragIDs[fragids1]
         if fragids2.dtype == np.bool:
