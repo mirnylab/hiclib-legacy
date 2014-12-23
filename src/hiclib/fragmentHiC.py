@@ -96,6 +96,23 @@ import atexit
 from textwrap import dedent
 USE_NUMEXPR = True
 import numexpr
+try:
+    from fastBinSearch import binarySearch as bs  # @UnresolvedImport
+    fastBS = True
+except:
+    print "Please compile binarySearch!!! It is in the main folder of the library"
+    fastBS = False
+
+def binarySearch(x, y):
+    if len(x) < 3000000:
+        return np.searchsorted(y, x)
+    else:
+        if fastBS:
+            return bs(x, y)
+        else:
+            return np.searchsorted(y, x)
+
+# binarySearch = lambda x, y:np.searchsorted(y, x)
 r_ = np.r_
 
 
@@ -110,7 +127,6 @@ class sliceableDataset(object):
     data[start:end] = getFunction(name,start,end), where name is a "key" for data
     """
     def __init__(self, getFunction, name, length):
-        print "init"
         self.getFunction = getFunction
         self.name = name
         self.length = length
@@ -131,15 +147,12 @@ class sliceableDataset(object):
             ar = self.getFunction(self.name, start, stop)
             return ar[::step]
     def __array__(self):
-        print "fetched numpy array as a whole. This is memory inefficient."
+        if self.length > 25000000:
+            print "fetched numpy array as a whole. This is memory inefficient."
         return self.getFunction(self.name)
 
     def __len__(self):
         return self.length
-
-
-
-
 
 
 def corr(x, y):
@@ -158,7 +171,7 @@ class HiCdataset(object):
     Thus, to preserve the data, loading datasets is advised. """
 
     def __init__(self, filename, genome, enzymeName="fromGenome", maximumMoleculeLength=500,
-                 inMemory=False, mode="a"):
+                 inMemory=False, mode="a", dictToStoreIDs="dict"):
         """
         __init__ method
 
@@ -189,6 +202,10 @@ class HiCdataset(object):
             'w-' - Create file, fail if exists
 
             'a'  - Read/write if exists, create otherwise (default)
+        dictToStoreIDs : dict-like or "dict" or "h5dict"
+            A dictionary to store rsite IDs. If "dict", then store them in memory.
+            If "h5dict", then creates default h5dict (in /tmp folder)
+            If other object, uses it, whether it is an h5dict or a dictionary
         """
         # -->>> Important::: do not define any variables before vectors!!! <<<--
         # These are fields that will be kept on a hard drive
@@ -197,8 +214,6 @@ class HiCdataset(object):
             # chromosomes for each read.
             "strands1": "bool", "strands2": "bool",
             "chrms1": "int8", "chrms2": "int8",
-
-            "rfragAbsIdxs1": "int32", "rfragAbsIdxs2": "int32",
             # IDs of fragments. fragIDmult * chromosome + location
             # distance to rsite
             "cuts1": "int32", "cuts2": "int32",
@@ -218,6 +233,14 @@ class HiCdataset(object):
             # distance between fragments. If -1, different chromosomes.
             # If -2, different arms.
             }
+        self.vectors3 = {"rfragAbsIdxs1": "int32", "rfragAbsIdxs2": "int32", }
+        if dictToStoreIDs == "dict":
+            self.rfragIDDict = {}
+        elif dictToStoreIDs == "h5dict":
+            self.rfragIDDict = h5dict()
+        else:
+            self.rfragIDDict = dictToStoreIDs
+
         self.metadata = {}
 
 
@@ -234,16 +257,16 @@ class HiCdataset(object):
         else:
             self.genome.setEnzyme(enzymeName)
 
+        self.chromosomeCount = self.genome.chrmCount
+        self.fragIDmult = self.genome.fragIDmult  # used for building heatmaps
         self.rFragIDs = self.genome.rfragMidIds
         self.rFragLens = np.concatenate(self.genome.rfragLens)
         self.rFragMids = np.concatenate(self.genome.rfragMids)
-
-
         self.rsites = self.genome.rsiteIds
+        # to speed up searchsorted we use positive-only numbers
+        self.rsitesPositive = self.rsites + 2 * self.fragIDmult
 
 
-        self.chromosomeCount = self.genome.chrmCount
-        self.fragIDmult = self.genome.fragIDmult  # used for building heatmaps
         print "----> New dataset opened, genome %s, filename = %s" % (
             self.genome.folderName, filename)
 
@@ -251,7 +274,7 @@ class HiCdataset(object):
         # maximum length of a molecule for SS reads
 
         self.filename = os.path.abspath(os.path.expanduser(filename))  # File to save the data
-        self.chunksize = 5000000
+        self.chunksize = 10000000
         # Chunk size for h5dict operation, external sorting, etc
 
         self.inMemory = inMemory
@@ -299,13 +322,13 @@ class HiCdataset(object):
     def __getattribute__(self, x):
         """a method that overrides set/get operation for self.vectors
         o that they're always on HDD"""
-        if x in ["vectors", "vectors2"]:
+        if x in ["vectors", "vectors2", "vectors3"]:
             return object.__getattribute__(self, x)
 
         if x in self.vectors.keys():
             a = self._getData(x)
             return a
-        elif x in self.vectors2:
+        elif (x in self.vectors2) or (x in self.vectors3):
             return self._getVector(x)
         else:
             return object.__getattribute__(self, x)
@@ -320,6 +343,18 @@ class HiCdataset(object):
                 return self.h5dict.get_dataset(name)[start:end]
             else:
                 raise ValueError("name {0} not in h5dict {1}".format(name, self.h5dict.path))
+
+        if name in self.vectors3:
+            datas = self.rfragIDDict
+            if name not in datas:
+                self._calculateRgragIDs()
+            assert name in datas
+            if hasattr(datas, "get_dataset"):
+                dset = datas.get_dataset(name)
+            else:
+                dset = datas[name]
+            return dset[start:end]
+
         if name in self.vectors2:
             if name == "fragids1":
                 return self.genome.rfragMidIds[self._getVector("rfragAbsIdxs1", start, end)]
@@ -354,6 +389,44 @@ class HiCdataset(object):
                 return dvec
             else:
                 raise "unknown vector: {0}".format(name)
+
+    def _calculateRgragIDs(self):
+        for i in self.rfragIDDict.keys():
+            del self.rfragIDDict[i]
+        if hasattr(self.rfragIDDict, "add_empty_dataset"):
+            self.rfragIDDict.add_empty_dataset("rfragAbsIdxs1", (self.N,), "int32")
+            self.rfragIDDict.add_empty_dataset("rfragAbsIdxs2", (self.N,), "int32")
+            d1 = self.rfragIDDict.get_dataset("rfragAbsIdxs1")
+            d2 = self.rfragIDDict.get_dataset("rfragAbsIdxs2")
+        else:
+            self.rfragIDDict["rfragAbsIdxs1"] = np.empty(self.N, dtype=np.int32)
+            self.rfragIDDict["rfragAbsIdxs2"] = np.empty(self.N, dtype=np.int32)
+            d1 = self.rfragIDDict["rfragAbsIdxs1"]
+            d2 = self.rfragIDDict["rfragAbsIdxs2"]
+
+        constants = {"np":np, "binarySearch":binarySearch,
+                                 "rsites":self.rsitesPositive, "fragMult":self.fragIDmult,
+                                 "numexpr":numexpr}
+
+        code1 = dedent("""
+        id1 = numexpr.evaluate("(cuts1 + (chrms1+2)  * fragMult + 7 * strands1 - 3)")
+        del cuts1
+        del chrms1
+        res = binarySearch(id1 ,rsites)
+        """)
+        self.evaluate(code1, ["chrms1", "strands1", "cuts1"], outVariable=("res", d1),
+                      constants=constants, chunkSize=70000000)
+
+        code2 = dedent("""
+        id2 = numexpr.evaluate("(cuts2 + (chrms2 + 2) * fragMult + 7 * strands2 - 3) * (chrms2 >=0)")
+        del cuts2
+        del chrms2
+        res = binarySearch(id2 ,rsites)
+        """)
+        self.evaluate(code2, ["chrms2", "strands2", "cuts2"], outVariable=("res", d2),
+                      constants=constants, chunkSize=70000000)
+
+
 
 
     def __setattr__(self, x, value):
@@ -481,7 +554,7 @@ class HiCdataset(object):
         code = compile(expression, '<string>', 'exec')
             # compile because we're launching it many times
 
-        for start, end in self._getChunks():
+        for start, end in self._getChunks(chunkSize):
 
             variables = copy(constants)
             variables["start"] = start
@@ -647,8 +720,6 @@ class HiCdataset(object):
             noStrand = False  # strand information filled in
 
 
-
-
         setExceptionHook()
 
 
@@ -661,18 +732,6 @@ class HiCdataset(object):
         c2 = self.chrms2
         c2 [c2 >= self.genome.chrmCount] = -1
         self.chrms2 = c2
-
-
-
-        cutids1 = self.cuts1 + np.array(self.chrms1, dtype=np.int64) * self.fragIDmult
-        self.rfragAbsIdxs1 = np.searchsorted(self.rsites, cutids1 + (2 * self.strands1 - 1) * 3.5)
-
-
-
-
-
-        cutids2 = self.cuts2 + np.array(self.chrms2, dtype=np.int64) * self.fragIDmult
-        self.rfragAbsIdxs2 = np.searchsorted(self.rsites, cutids2 + (2 * self.strands2 - 1) * 3.5)
 
 
         self.metadata["100_TotalReads"] = self.trackLen
@@ -689,11 +748,6 @@ class HiCdataset(object):
 
         self.metadata["152_removedUnusedChromosomes"] = self.trackLen - self.N
         self.metadata["150_ReadsWithoutUnusedChromosomes"] = self.N
-
-
-
-
-
 
 
         # Discard dangling ends and self-circles
@@ -1236,6 +1290,8 @@ class HiCdataset(object):
             Indexes of reads to keep
         """
         # Uses 16 bytes per read
+        for i in self.rfragIDDict.keys():
+            del self.rfragIDDict[i]
 
         length = 0
         ms = mask.sum()
@@ -1387,7 +1443,7 @@ class HiCdataset(object):
                           constants={"np":np, "fragIDmult":self.fragIDmult},
                           outVariable=("a", dset))
             stay = np.zeros(self.N, bool)
-            numutils.externalMergeSort(dset, tempdset, chunkSize=30000)
+            numutils.externalMergeSort(dset, tempdset, chunkSize=100000000)
             bins = range(0, self.N - 1000, self.chunksize) + [self.N - 1]
             for start, end in zip(bins[:-1], bins[1:]):
                 curset = dset[start:end + 1]
