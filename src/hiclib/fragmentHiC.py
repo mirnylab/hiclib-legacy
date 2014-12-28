@@ -89,7 +89,7 @@ from mirnylib.plotting import mat_img
 from mirnylib import numutils
 from mirnylib.numutils import arrayInArray, sumByArray, \
     uniqueIndex, chunkedUnique, fasterBooleanIndexing, fillDiagonal, arraySearch, \
-    arraySumByArray
+    arraySumByArray, externalMergeSort
 import time
 from mirnylib.systemutils import setExceptionHook
 import atexit
@@ -159,6 +159,73 @@ def corr(x, y):
     return stats.spearmanr(x, y)[0]
 
 
+#defining data types for building heatmaps, and sorter functions for externalMergeSort 
+mydtype = np.dtype("i1,i4,i1,i4,b,b")
+mydtype.names = ("chrms1","pos1","chrms2","pos2","strands1","strands2")
+
+def sorter(x):
+    "fuction which sorts mydtype type datasets over first two fields"
+    inds = np.lexsort((x["pos1"],x["chrms1"]))
+    toret = x.view(np.dtype((str, x.dtype.itemsize)))[inds].view(x.dtype)
+    assert len(toret) == len(x)
+    assert toret.dtype == x.dtype     
+    return toret
+
+def mycmp(i,j):
+    "we are comparing only first two elements... so here is our cmp funciton"
+    if i[0] > j[0]:
+        return 1
+    if i[0] < j[0]:
+        return -1
+    if i[1] > j[1]:
+        return 1
+    if i[1] < j[1]:
+        return -1
+    return 0
+        
+
+def h5dictBinarySearch(chrms1, pos1, value, side="left", mycmp = mycmp):
+    "perform binary search in two h5dict arrays"
+    low = 0
+    high = len(chrms1)-1
+    if side == "left":
+        more = [0,1]        
+    elif side == "right":
+        more = [1]        
+    else:
+        raise ValueError("side should be left or right")
+    
+        
+    if mycmp((chrms1[0],pos1[0]), value) == 1:
+        return 0 
+    if mycmp((chrms1[-1],pos1[-1]), value) == -1:
+        return len(chrms1)          
+    
+    while high - low > 1:                 
+        mid = (low+high)//2        
+        cmpResult = mycmp((chrms1[mid],pos1[mid]),value)
+        if cmpResult  in more: 
+            high = mid
+        else: 
+            low = mid         
+    if side == "left":
+        return low
+    else:
+        return high 
+            
+
+def searchsorted(array, element):
+    "matching searchsorted"
+    c1 = array["chrms1"]
+    p1 = array["pos1"]
+    val1 = element[0]
+    val2 = element[1]
+    low = np.searchsorted(c1, val1,"left")
+    high = np.searchsorted(c1,val1,"right")
+    toret =  low + np.searchsorted(p1[low:high], val2, "right")     
+    return toret 
+
+
 class HiCdataset(object):
     """Base class to operate on HiC dataset.
 
@@ -171,7 +238,7 @@ class HiCdataset(object):
     Thus, to preserve the data, loading datasets is advised. """
 
     def __init__(self, filename, genome, enzymeName="fromGenome", maximumMoleculeLength=500,
-                 inMemory=False, mode="a", dictToStoreIDs="dict"):
+                 inMemory=False, mode="a",tmpFolder = "/tmp", dictToStoreIDs="dict"):
         """
         __init__ method
 
@@ -242,6 +309,7 @@ class HiCdataset(object):
             self.rfragIDDict = dictToStoreIDs
 
         self.metadata = {}
+        self.tmpDir = tmpFolder
 
 
         #-------Initialization of the genome and parameters-----
@@ -318,6 +386,13 @@ class HiCdataset(object):
             raise ValueError("Attept to load data not "
                              "specified in self.vectors")
         return self.h5dict[name]
+    
+    def _isSorted(self):
+        c1 = self._getVector("chrms1", 0, min(self.N, 10000))
+        cs = np.sort(c1)
+        if np.sum(c1 != cs) == 0:
+            return True
+        return False
 
     def __getattribute__(self, x):
         """a method that overrides set/get operation for self.vectors
@@ -499,6 +574,55 @@ class HiCdataset(object):
             return [(0, self.N)]
         points = range(0, self.N - chunkSize / 2, chunkSize) + [self.N]
         return zip(points[:-1], points[1:])
+    
+    def _sortData(self):
+        """
+        Orders data such that chrms1 is always more than chrms2, and sorts it by chrms1, cuts1 
+        """        
+                    
+        if not hasattr(self, "dataSorted"):
+            tmpFile = os.path.join(self.tmpDir, str(np.random.randint(0, 100000000)))
+            mydict = h5dict(tmpFile,'w')
+            data = mydict.add_empty_dataset("sortedData", (self.N,), mydtype)
+            tmp = mydict.add_empty_dataset("trash", (self.N,), mydtype)            
+            code = dedent("""
+            a = np.empty(len(chrms1), dtype = mydtype)
+            mask = chrms1 > chrms2
+             
+            chrms2[mask],chrms1[mask] = chrms1[mask].copy(), chrms2[mask].copy()             
+            cuts1[mask],cuts2[mask] = cuts2[mask].copy(), cuts1[mask].copy()            
+            strands1[mask],strands2[mask] = strands2[mask].copy(),strands1[mask].copy()
+            
+            a["chrms1"] = chrms1
+            a["pos1"] = cuts1
+            a["chrms2"] = chrms2
+            a["pos2"] = cuts2
+            a["strands1"] = strands1
+            a["strands2"] = strands2
+            """)            
+            self.evaluate(expression=code, internalVariables = ["chrms1","chrms2","cuts1","cuts2","strands1","strands2"], 
+                          constants = {"np":np,"mydtype":mydtype}, outVariable = ("a",data))
+            externalMergeSort(data,tmp, sorter=sorter,searchsorted=searchsorted)
+            
+            sdata = mydict.get_dataset("sortedData")
+            
+            c1 = self.h5dict.get_dataset("chrms1")
+            c2 = self.h5dict.get_dataset("chrms2")
+            p1 = self.h5dict.get_dataset("cuts1")
+            p2 = self.h5dict.get_dataset("cuts2")
+            s1 = self.h5dict.get_dataset("strands1")
+            s2 = self.h5dict.get_dataset("strands2")
+            
+            for start,end in self._getChunks():
+                data = sdata[start:end]
+                c1[start:end] = data["chrms1"]
+                c2[start:end] = data["chrms2"]
+                p1[start:end] = data["pos1"]
+                p2[start:end] = data["pos2"]
+                s1[start:end] = data["strands1"]
+                s2[start:end] = data["strands2"]
+            self.dataSorted = True
+                            
 
 
     def evaluate(self, expression, internalVariables, externalVariables={},
@@ -634,11 +758,15 @@ class HiCdataset(object):
                 dset[position:position + len(cur)] = cur
             self.h5dict.flush()
             time.sleep(0.2)  # allow buffers to flush
+        self._sortData()
 
 
     def parseInputData(self, dictLike, zeroBaseChrom=True,
                         **kwargs):
-        """Inputs data from a dictionary-like object,
+        """
+        __NOT optimized for large datasets__
+        (use chunking as suggested in pipeline2015)        
+        Inputs data from a dictionary-like object,
         containing coordinates of the reads.
         Performs filtering of the reads.
 
@@ -830,6 +958,7 @@ class HiCdataset(object):
 
     def updateGenome(self, newGenome, oldGenome="current", putMetadata=False):
         """
+        __partially optimized for large datasets__
         Updates dataset to a new genome, with a fewer number of chromosomes.
         Use it to delete chromosomes.
         By default, removes all DS reads with that chromosomes.
@@ -938,7 +1067,9 @@ class HiCdataset(object):
 
     def buildAllHeatmap(self, resolution, countDiagonalReads="Once",
         useWeights=False):
-        """Creates an all-by-all heatmap in accordance with mapping
+        """
+        __NOT optimized for large datasets__
+        Creates an all-by-all heatmap in accordance with mapping
         provided by 'genome' class
 
         Parameters
@@ -997,7 +1128,9 @@ class HiCdataset(object):
 
     def buildHeatmapWithOverlapCpp(self, resolution, countDiagonalReads="Twice",
         maxBinSpawn=10):
-        """Creates an all-by-all heatmap in accordance with mapping
+        """
+        __NOT optimized for large datasets__
+        Creates an all-by-all heatmap in accordance with mapping
         provided by 'genome' class
 
         This method assigns fragments to all bins which
@@ -1127,57 +1260,62 @@ class HiCdataset(object):
         else:
             raise ValueError("Bad value for countDiagonalReads")
         return counts
+    
+    
+    def getHiResHeatmapWithOverlaps(self, resolution, chromosome, start = 0, end = None,  countDiagonalReads="Twice", maxBinSpawn=10):                    
+        c1 = self.h5dict.get_dataset("chrms1")
+        p1 = self.h5dict.get_dataset("cuts1")
+        c2 = self.h5dict.get_dataset("chrms2")
+        p2 = self.h5dict.get_dataset("cuts2")
+        
+        from scipy import weave        
+        if end == None:
+            end = self.genome.chrmLens[chromosome]
+        low = h5dictBinarySearch(c1,p1, (chromosome, start),"left")
+        high = h5dictBinarySearch(c1,p1, (chromosome, end),"right")
+        
+        
+        c1 = self._getVector("chrms1", low,high)
+        c2 = self._getVector("chrms2", low,high)
+        mids1 = self._getVector("mids1", low,high)
+        mids2 = self._getVector("mids2", low,high)
+        fraglens1 = self._getVector("fraglens1", low,high)
+        fraglens2 = self._getVector("fraglens2",low,high)
+        
+        mask = (c1 == c2) * (mids2 >= start) * (mids2 < end)
+        mids1 = mids1[mask]
+        mids2 = mids2[mask]
+        fraglens1 = fraglens1[mask]
+        fraglens2 = fraglens2[mask]
+        
+        low1 = mids1 - fraglens1 / 2 - start
+        high1 = low1 + fraglens1 
+        low2 = mids2 - fraglens2 / 2 - start
+        high2 = low2 + fraglens2 
+        
+        low1 = low1 / float(resolution)
+        high1 = high1 / float(resolution)
+        low2 = low2 / float(resolution)
+        high2 = high2 / float(resolution)
+        
+        N = len(low1)
+        
+        if chromosome == 1: 
+            pass
+            #0/0
+        
+        heatmapSize = int(np.ceil((end - start) / float(resolution)))
 
-    def saveHiResHeatmapWithOverlaps(self, filename, resolution, countDiagonalReads="Twice", maxBinSpawn=10, chromosomes="all"):
-        """Creates within-chromosome heatmaps at very high resolution,
-        assigning each fragment to all the bins it overlaps with,
-        proportional to the area of overlaps.
-
-        Parameters
-        ----------
-        resolution : int or str
-            Resolution of a heatmap.
-        countDiagonalReads : "once" or "twice"
-            How many times to count reads in the diagonal bin
-        maxBinSpawn : int, optional, not more than 10
-            Discard read if it spawns more than maxBinSpawn bins
-
-        """
-        from scipy import weave
-
-        tosave = h5dict(filename)
-        self.genome.setResolution(resolution)
-        if chromosomes == "all":
-            chromosomes = range(self.genome.chrmCount)
-        for chrom in chromosomes:
-            print "Saving chromosome {0}".format(chrom)
-            mask = (self.chrms1 == chrom) * (self.chrms2 == chrom)
-
-            if mask.sum() == 0:
-                continue
-
-            low1 = (self.mids1[mask] - self.fraglens1[mask] / 2) / float(resolution)
-
-            high1 = (self.mids1[mask] + self.fraglens1[mask] / 2) / float(resolution)
-
-            low2 = (self.mids2[mask] - self.fraglens2[mask] / 2) / float(resolution)
-
-            high2 = (self.mids2[mask] + self.fraglens2[mask] / 2) / float(resolution)
-
-            del mask
-
-            N = len(low1)
-
-            heatmapSize = int(self.genome.chrmLensBin[chrom])
-
-            heatmap = np.zeros((heatmapSize, heatmapSize),
-                               dtype="float64", order="C")
-
-
-            code = """
+        heatmap = np.zeros((heatmapSize, heatmapSize),
+                           dtype="float64", order="C")
+        
+        
+                
+        
+        code = r"""
             #line 1045 "fragmentHiC.py"
-            double vector1[100];
-            double vector2[100];
+            double vector1[1000];
+            double vector2[1000];
 
             for (int readNum = 0;  readNum < N; readNum++)
             {
@@ -1208,7 +1346,7 @@ class HiCdataset(object):
                     vector1[0] = 1.;
                 else
                     {
-                    vector1[0] = (ceil(l1 + 0.00001) - l1) / binLen1;
+                    vector1[0] = (ceil(l1+ 0.00000001) - l1) / binLen1;
                     for (int t = 1; t< binNum1 - 1; t++)
                         {vector1[t] = 1. / binLen1;}
                     vector1[binNum1 - 1] = (h1 - floor(h1)) / binLen1;
@@ -1218,22 +1356,32 @@ class HiCdataset(object):
 
                 else
                     {
-                    vector2[0] = (ceil(l2 + 0.0001) - l2) / binLen2;
+                    vector2[0] = (ceil(l2 + 0.00000001) - l2) / binLen2;
                     for (int t = 1; t< binNum2 - 1; t++)
                         {vector2[t] = 1. / binLen2;}
                     vector2[binNum2 - 1] = (h2 - floor(h2)) / binLen2;
                     }
-
+                if ((b1 + binNum1) >= heatmapSize) { continue;}
+                if ((b2 + binNum2) >= heatmapSize) { continue;}
+                double psum = 0; 
                 for (int i = 0; i< binNum1; i++)
                     {
                     for (int j = 0; j < binNum2; j++)
                         {
                         heatmap[(b1 + i) * heatmapSize +  b2 + j] += vector1[i] * vector2[j];
+                        psum += vector1[i] * vector2[j];
                         }
                     }
+                    if (abs(psum-1) > 0.0000001)
+                        {
+                            printf("bins num 1 = %d \n",binNum1);
+                            printf("bins num 2 = %d \n",binNum2);
+                            printf("psum = %f \n", psum);
+                        }
+                    
                 }
         """
-            weave.inline(code,
+        weave.inline(code,
                          ['low1', "high1", "low2", "high2",
                            "N", "heatmap", "maxBinSpawn",
                           "heatmapSize",
@@ -1241,32 +1389,85 @@ class HiCdataset(object):
                          extra_compile_args=['-march=native  -O3 '],
                          support_code=r"""
                         #include <stdio.h>
-                        #include <math.h>""")
-            del high1, low1, high2, low2
+                        #include <math.h>
+                        """)
+        
+        for i in xrange(len(heatmap)):
+            heatmap[i, i:] += heatmap[i:, i]
+            heatmap[i:, i] = heatmap[i, i:]
+        if countDiagonalReads.lower() == "once":
+            diag = np.diag(heatmap).copy()
+            fillDiagonal(heatmap, diag / 2)
+            del diag
+        elif countDiagonalReads.lower() == "twice":
+            pass
+        else:
+            raise ValueError("Bad value for countDiagonalReads")                
+        weave.inline("")  # to release all buffers of weave.inline
+        import gc
+        gc.collect()        
+        return heatmap 
+        
+    
+    def saveHiResHeatmapWithOverlaps(self, filename, resolution, countDiagonalReads="Twice", maxBinSpawn=10, chromosomes="all"):
+        """Creates within-chromosome heatmaps at very high resolution,
+        assigning each fragment to all the bins it overlaps with,
+        proportional to the area of overlaps.
 
+        Parameters
+        ----------
+        resolution : int or str
+            Resolution of a heatmap.
+        countDiagonalReads : "once" or "twice"
+            How many times to count reads in the diagonal bin
+        maxBinSpawn : int, optional, not more than 10
+            Discard read if it spawns more than maxBinSpawn bins
 
-            for i in xrange(len(heatmap)):
-                heatmap[i, i:] += heatmap[i:, i]
-                heatmap[i:, i] = heatmap[i, i:]
-            if countDiagonalReads.lower() == "once":
-                diag = np.diag(heatmap).copy()
-                fillDiagonal(heatmap, diag / 2)
-                del diag
-            elif countDiagonalReads.lower() == "twice":
-                pass
-            else:
-                raise ValueError("Bad value for countDiagonalReads")
+        """
+        
+        if not self._isSorted():
+            print "Data is not sorted!!!"
+            self._sortData()            
+        tosave = h5dict(filename)        
+        if chromosomes == "all":
+            chromosomes = range(self.genome.chrmCount)
+        for chrom in chromosomes:
+            heatmap = self.getHiResHeatmapWithOverlaps(resolution, chrom, 
+                               countDiagonalReads = countDiagonalReads, maxBinSpawn = maxBinSpawn)
             tosave["{0} {0}".format(chrom)] = heatmap
-            tosave.flush()
-            del heatmap
-            weave.inline("")  # to release all buffers of weave.inline
-            import gc
-            gc.collect()
+        print "----> By chromosome Heatmap saved to '{0}' at {1} resolution".format(filename, resolution)
+        
+    def saveSuperHighResMapWithOverlaps(self, filename, resolution, chunkSize = 20000000, chunkStep = 10000000, countDiagonalReads="Twice", maxBinSpawn=10, chromosomes="all"):
+        """Creates within-chromosome heatmaps at very high resolution,
+        assigning each fragment to all the bins it overlaps with,
+        proportional to the area of overlaps.
+
+        Parameters
+        ----------
+        resolution : int or str
+            Resolution of a heatmap.
+        countDiagonalReads : "once" or "twice"
+            How many times to count reads in the diagonal bin
+        maxBinSpawn : int, optional, not more than 10
+            Discard read if it spawns more than maxBinSpawn bins
+
+        """    
+        tosave = h5dict(filename)        
+        if chromosomes == "all":
+            chromosomes = range(self.genome.chrmCount)
+        for chrom in chromosomes:
+            heatmap = self.getHiResHeatmapWithOverlaps(filename, resolution, chrom, 
+                               countDiagonalReads = countDiagonalReads, maxBinSpawn = maxBinSpawn)
+            tosave["{0} {0}".format(chrom)] = heatmap
         print "----> By chromosome Heatmap saved to '{0}' at {1} resolution".format(filename, resolution)
 
 
+
+
     def fragmentFilter(self, fragments):
-        """keeps only reads that originate from fragments in 'fragments'
+        """
+        __optimized for large datasets__
+        keeps only reads that originate from fragments in 'fragments'
         variable, for DS - on both sides
 
         Parameters
@@ -1282,7 +1483,9 @@ class HiCdataset(object):
         self.maskFilter(mask)
 
     def maskFilter(self, mask):
-        """keeps only reads designated by mask
+        """
+        __optimized for large datasets__
+        keeps only reads designated by mask
 
         Parameters
         ----------
@@ -1315,7 +1518,9 @@ class HiCdataset(object):
 
 
     def filterExtreme(self, cutH=0.005, cutL=0):
-        """removes fragments with most and/or least # counts
+        """
+        __optimized for large datasets__
+        removes fragments with most and/or least # counts
 
         Parameters
         ----------
@@ -1342,7 +1547,9 @@ class HiCdataset(object):
         print  "; cutoff for large # counts is: ", valueH, "\n"
 
     def filterLarge(self, cutlarge=100000, cutsmall=100):
-        """removes very large and small fragments
+        """
+        __optimized for large datasets__
+        removes very large and small fragments
 
         Parameters
         ----------
@@ -1361,7 +1568,9 @@ class HiCdataset(object):
         self._dumpMetadata()
 
     def filterRsiteStart(self, offset=5):
-        """Removes reads that start within x bp near rsite
+        """
+        __optimized for large datasets__
+        Removes reads that start within x bp near rsite
 
         Parameters
         ----------
@@ -1389,14 +1598,17 @@ class HiCdataset(object):
         self.metadata["310_startNearRsiteRemoved"] = len(mask) - mask.sum()
         self.maskFilter(mask)
 
-    def filterDuplicates(self, mode="hdd", tmpDir="/tmp"):
-        "removes duplicate molecules in DS reads"
-        "TODO: rewrite it when Anton allows direct creation of Hi-C datasets"
+    def filterDuplicates(self, mode="hdd", tmpDir="default"):
+        """
+        __optimized for large datasets__        
+        removes duplicate molecules"""
+        
         # Uses a lot!
         print "----->Filtering duplicates in DS reads: "
 
 
-
+        if tmpDir == "default":
+            tmpDir = self.tmpDir
         # an array to determine unique rows. Eats 1 byte per DS record
         mode = "hdd"
         if mode == "ram":
@@ -1458,7 +1670,9 @@ class HiCdataset(object):
         self.maskFilter(stay)
 
     def filterByCisToTotal(self, cutH=0.0, cutL=0.01):
-        """Remove fragments with too low or too high cis-to-total ratio.
+        """
+        __NOT optimized for large datasets__
+        Remove fragments with too low or too high cis-to-total ratio.
         Parameters
         ----------
         cutH : float, 0<=cutH < 1, optional
@@ -1499,6 +1713,7 @@ class HiCdataset(object):
 
     def filterTooClose(self, minRsitesDist=2):
         """
+        __NOT optimized for large datasets__
         Remove fragment pairs separated by less then `minRsitesDist`
         restriction sites within the same chromosome.
         """
@@ -1508,6 +1723,7 @@ class HiCdataset(object):
         self.maskFilter(-mask)
 
     def filterOrientation(self):
+        "__NOT optimized for large datasets__"
         # Keep only --> -->  or <-- <-- pairs, discard --> <-- and <-- -->
         mask = (self.strands1 == self.strands2)
         self.metadata["370_differentOrientationReadsRemoved"] = mask.sum()
@@ -1522,7 +1738,10 @@ class HiCdataset(object):
         self._dumpMetadata()
 
     def fragmentSum(self, fragments=None, strands="both", useWeights=False):
-        """returns sum of all counts for a set or subset of fragments
+        
+        """
+        __optimized for large datasets__
+        returns sum of all counts for a set or subset of fragments
 
 
         Parameters
@@ -1558,18 +1777,21 @@ class HiCdataset(object):
                 raise NotImplementedError("Sorry")
 
     def iterativeCorrectionFromMax(self, minimumCount=50, precision=0.01):
+        "TODO: rewrite this to account for a new fragment model"
+        biases = np.ones(len(self.rFragMids), dtype = np.double)
         self.fragmentWeights = 1. * self.fragmentSum()
         self.fragmentFilter(self.fragmentWeights > minimumCount)
         self.fragmentWeights = 1. * self.fragmentSum()
 
         while True:
             newSum = 1. * self.fragmentSum(useWeights=True)
+            biases *= newSum / newSum.mean()
             maxDev = np.max(np.abs(newSum - newSum.mean())) / newSum.mean()
             print maxDev
 
             self.fragmentWeights *= (newSum / newSum.mean())
             if maxDev < precision:
-                return
+                return biases 
 
     def printStats(self):
         self.printMetadata()
@@ -1616,7 +1838,7 @@ class HiCdataset(object):
                     countDiagonalReads="Once",
                     useWeights=False,
                     useFragmentOverlap=False, maxBinSpawn=10):
-        """
+        """        
         Saves heatmap to filename at given resolution.
         For small genomes where number of fragments per bin is small,
         please set useFragmentOverlap to True.
@@ -1692,58 +1914,66 @@ class HiCdataset(object):
         countDiagonalReads : "once" or "twice"
             How many times to count reads in the diagonal bin
 
-        """
+        """        
         if countDiagonalReads.lower() not in ["once", "twice"]:
             raise ValueError("Bad value for countDiagonalReads")
         self.genome.setResolution(resolution)
-        pos1 = self.evaluate("a = np.array(mids1 / {res}, dtype = 'int32')"
-                             .format(res=resolution), "mids1")
-        pos2 = self.evaluate("a = np.array(mids2 / {res}, dtype = 'int32')"
-                             .format(res=resolution), "mids2")
-        chr1 = self.chrms1
-        chr2 = self.chrms2
-        # DS = self.DS  # 13 bytes per read up to now, 16 total
+
         mydict = h5dict(filename)
 
-        for chrom in xrange(self.genome.chrmCount):
+        for chromosome in xrange(self.genome.chrmCount):
+            c1 = self.h5dict.get_dataset("chrms1")
+            p1 = self.h5dict.get_dataset("cuts1")
+            c2 = self.h5dict.get_dataset("chrms2")
+            p2 = self.h5dict.get_dataset("cuts2")
+            
+            low = h5dictBinarySearch(c1,p1, (chromosome, -1),"left")
+            high = h5dictBinarySearch(c1,p1, (chromosome, 999999999),"right")            
+            
+            chr1 = self._getVector("chrms1", low,high)
+            chr2 = self._getVector("chrms2", low,high)
+            pos1 = np.array(self._getVector("mids1", low,high) / resolution, dtype = np.int32)            
+            pos2 = np.array(self._getVector("mids2", low,high) / resolution, dtype = np.int32)            
+            
+            
             if includeTrans == True:
-                mask = ((chr1 == chrom) + (chr2 == chrom))
-            else:
-                mask = ((chr1 == chrom) * (chr2 == chrom))
+                mask = ((chr1 == chromosome) + (chr2 == chromosome))
+                chr1 = chr1[mask]
+                chr2 = chr2[mask]
+                pos1 = pos1[mask]                
+                pos2 = pos2[mask]
             # Located chromosomes and positions of chromosomes
-            c1, c2, p1, p2 = chr1[mask], chr2[mask], pos1[mask], pos2[mask]
+
             if includeTrans == True:
                 # moving different chromosomes to c2
                 # c1 == chrom now
-                mask = (c2 == chrom) * (c1 != chrom)
-                c1[mask], c2[mask], p1[mask], p2[mask] = c2[mask].copy(), c1[
-                    mask].copy(), p2[mask].copy(), p1[mask].copy()
-                del c1  # ignore c1
-                args = np.argsort(c2)
-                c2 = c2[args]
-                p1 = p1[args]
-                p2 = p2[args]
+                mask = (chr2 == chromosome) * (chr1 != chromosome)
+                chr1[mask], chr2[mask], pos1[mask], pos2[mask] = chr2[mask].copy(), chr1[
+                    mask].copy(), pos2[mask].copy(), pos1[mask].copy()                
+                args = np.argsort(chr2)
+                chr2 = chr2[args]
+                pos1 = pos1[args]                
+                pos2 = pos2[args]
 
-            for chrom2 in xrange(chrom, self.genome.chrmCount):
-                if (includeTrans == False) and (chrom2 != chrom):
+            for chrom2 in xrange(chromosome, self.genome.chrmCount):
+                if (includeTrans == False) and (chrom2 != chromosome):
                     continue
-                start = np.searchsorted(c2, chrom2, "left")
-                end = np.searchsorted(c2, chrom2, "right")
-                cur1 = p1[start:end]
-                cur2 = p2[start:end]
-                label = np.asarray(cur1, "int64")
+                start = np.searchsorted(chr2, chrom2, "left")
+                end = np.searchsorted(chr2, chrom2, "right")
+                cur1 = pos1[start:end]
+                cur2 = pos2[start:end]
+                label = np.array(cur1, "int64")
                 label *= self.genome.chrmLensBin[chrom2]
                 label += cur2
-                maxLabel = self.genome.chrmLensBin[chrom] * \
+                maxLabel = self.genome.chrmLensBin[chromosome] * \
                            self.genome.chrmLensBin[chrom2]
                 counts = np.bincount(label, minlength=maxLabel)
-                assert len(counts) == maxLabel
-                mymap = counts.reshape((self.genome.chrmLensBin[chrom], -1))
-                if chrom == chrom2:
+                mymap = counts.reshape((self.genome.chrmLensBin[chromosome], -1))
+                if chromosome == chrom2:
                     mymap = mymap + mymap.T
                     if countDiagonalReads.lower() == "once":
                         fillDiagonal(mymap, np.diag(mymap).copy() / 2)
-                mydict["%d %d" % (chrom, chrom2)] = mymap
+                mydict["%d %d" % (chromosome, chrom2)] = mymap
         print "----> By chromosome Heatmap saved to '{0}' at {1} resolution".format(filename, resolution)
 
         return

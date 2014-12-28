@@ -4,6 +4,7 @@ import os
 import sys
 import numpy as np
 from mirnylib.systemutils import setExceptionHook
+from mirnylib.numutils import coarsegrain
 
 if os.path.exists("test-1M.hm"):
     os.remove("test-1M.hm")
@@ -84,7 +85,9 @@ def refine_paper(filename, create=True):
             print "Key {0} is not consistent: should be {1}, is {2}".format(i, mdata[i], TR.metadata[i])
             stop = True
     if stop == True:
-        raise ValueError("Inconsistent metadata: see above")
+        print ("""------------_ERROR_--------------
+        Inconsistent metadata: see above
+        ----------------------------------------""")
 
 
     print "Testing allxall and by-chromosome heatmap counting diagonal twice"
@@ -129,6 +132,8 @@ def refine_paper(filename, create=True):
     TR.saveByChromosomeHeatmap(
         filename[1] + "-1M-byChr.hm", resolution=1000000, includeTrans=True,
         countDiagonalReads="once")
+    
+    TR.saveHiResHeatmapWithOverlaps(filename[1]+"-1M-highRes.hm", resolution=50000, countDiagonalReads="twice")
 
     Tb = h5dict(filename[1] + "-1M-byChr.hm")["1 1"]
     Tbb = h5dict(filename[1] + "-1M-byChr.hm")["1 2"]
@@ -136,6 +141,15 @@ def refine_paper(filename, create=True):
     assert ((Tbb - chrom12) == 0).all()
     assert ((Tb + np.diag(np.diag(Tb))) == b).all()
     print "Diagonal counting methods are consistent\n"
+    
+    newchrom1 = chrom1.copy()
+    for i in xrange(len(newchrom1)):
+        newchrom1[i,i] = 2 * newchrom1[i,i]
+    
+    Tb = h5dict(filename[1] + "-1M-highRes.hm")["1 1"]
+    assert np.abs(Tb.sum() - newchrom1.sum()) < 1
+    assert np.sum(np.abs(coarsegrain(Tb,20,True) - newchrom1)) < 500
+    
 
     #------------------------------
     print "Testing updateGenome method"
