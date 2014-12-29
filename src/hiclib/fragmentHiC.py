@@ -623,6 +623,8 @@ class HiCdataset(object):
                 s1[start:end] = data["strands1"]
                 s2[start:end] = data["strands2"]
             self.dataSorted = True
+            del mydict 
+            os.remove(tmpFile)
                             
 
 
@@ -816,7 +818,7 @@ class HiCdataset(object):
             if not os.path.exists(dictLike):
                 raise IOError("File not found: %s" % dictLike)
             print "     loading data from file %s (assuming h5dict)" % dictLike
-            dictLike = h5dict(dictLike, 'r')  # attempting to open h5dict
+            dictLike = h5dict(dictLike, 'r')  # attempting to open h5dict            
 
         "---Filling in chromosomes and positions - mandatory objects---"
         a = dictLike["chrms1"]
@@ -848,10 +850,6 @@ class HiCdataset(object):
             self.strands2 = dictLike["strands2"]
             noStrand = False  # strand information filled in
 
-
-        setExceptionHook()
-
-
         # first fixing chromosomes
 
         c1 = self.chrms1
@@ -861,7 +859,6 @@ class HiCdataset(object):
         c2 = self.chrms2
         c2 [c2 >= self.genome.chrmCount] = -1
         self.chrms2 = c2
-
 
         self.metadata["100_TotalReads"] = self.trackLen
 
@@ -936,6 +933,8 @@ class HiCdataset(object):
         if not kwargs.get('noFiltering', False):
             self.maskFilter(mask)
         self.metadata["300_ValidPairs"] = self.N
+        del dictLike
+
 
     def printMetadata(self, saveTo=None):
         self._dumpMetadata()
@@ -1635,8 +1634,7 @@ class HiCdataset(object):
             uflen = len(self.rFragIDs)
 
         elif mode == "hdd":
-            tmpFile = os.path.join(tmpDir, str(np.random.randint(0, 100000000)))
-            atexit.register(cleanFile, tmpFile)
+            tmpFile = os.path.join(tmpDir, str(np.random.randint(0, 100000000)))            
             a = h5dict(tmpFile)
             a.add_empty_dataset("duplicates", (self.N,), dtype="|S24")
             a.add_empty_dataset("temp", (self.N,), dtype="|S24")
@@ -1668,6 +1666,8 @@ class HiCdataset(object):
                 stay[curset[:, 2][unique]] = True
                 if end == self.N - 1:
                     stay[curset[-1, 2]] = True
+            del a 
+            del tmpFile
 
         self.metadata["320_duplicatesRemoved"] = len(stay) - stay.sum()
         self.maskFilter(stay)
