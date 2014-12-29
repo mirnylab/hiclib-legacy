@@ -82,6 +82,7 @@ import sys
 import hiclib.mapping
 import numpy as np
 import math
+import gc 
 from numpy import array as na
 from scipy import stats
 from mirnylib.h5dict import h5dict
@@ -1435,6 +1436,8 @@ class HiCdataset(object):
             heatmap = self.getHiResHeatmapWithOverlaps(resolution, chrom, 
                                countDiagonalReads = countDiagonalReads, maxBinSpawn = maxBinSpawn)
             tosave["{0} {0}".format(chrom)] = heatmap
+            del heatmap
+            gc.collect()
         print "----> By chromosome Heatmap saved to '{0}' at {1} resolution".format(filename, resolution)
         
     def saveSuperHighResMapWithOverlaps(self, filename, resolution, chunkSize = 20000000, chunkStep = 10000000, countDiagonalReads="Twice", maxBinSpawn=10, chromosomes="all"):
