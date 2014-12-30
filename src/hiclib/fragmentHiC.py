@@ -759,6 +759,7 @@ class HiCdataset(object):
             for mydict in h5dicts:
                 cur = mydict[name]
                 dset[position:position + len(cur)] = cur
+                position += len(cur)
             self.h5dict.flush()
             time.sleep(0.2)  # allow buffers to flush
         self._sortData()
