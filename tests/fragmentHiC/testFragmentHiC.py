@@ -60,7 +60,7 @@ def refine_paper(filename, create=True):
         #assert len(TR.DS) == 832110
 
         print "\nTesting duplicate filter"
-        TR.filterDuplicates()
+        TR.filterDuplicates(chunkSize = 30000)        
 
         #assert len(TR.DS) == 830275
 

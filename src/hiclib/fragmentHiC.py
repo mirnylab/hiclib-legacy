@@ -1600,7 +1600,7 @@ class HiCdataset(object):
         self.metadata["310_startNearRsiteRemoved"] = len(mask) - mask.sum()
         self.maskFilter(mask)
 
-    def filterDuplicates(self, mode="hdd", tmpDir="default"):
+    def filterDuplicates(self, mode="hdd", tmpDir="default", chunkSize = 100000000):
         """
         __optimized for large datasets__        
         removes duplicate molecules"""
@@ -1656,7 +1656,7 @@ class HiCdataset(object):
                           constants={"np":np, "fragIDmult":self.fragIDmult},
                           outVariable=("a", dset))
             stay = np.zeros(self.N, bool)
-            numutils.externalMergeSort(dset, tempdset, chunkSize=100000000)
+            numutils.externalMergeSort(dset, tempdset, chunkSize=chunkSize)
             bins = range(0, self.N - 1000, self.chunksize) + [self.N - 1]
             for start, end in zip(bins[:-1], bins[1:]):
                 curset = dset[start:end + 1]
