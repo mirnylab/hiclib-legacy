@@ -1069,7 +1069,7 @@ class HiCdataset(object):
     def buildAllHeatmap(self, resolution, countDiagonalReads="Once",
         useWeights=False):
         """
-        __NOT optimized for large datasets__
+        __optimized for large datasets__
         Creates an all-by-all heatmap in accordance with mapping
         provided by 'genome' class
 
@@ -1083,48 +1083,55 @@ class HiCdataset(object):
         useWeights : bool
             If True, then take weights from 'weights' variable. False by default.
         """
-        if type(resolution) == int:
-            # 8 bytes per record + heatmap
-            self.genome.setResolution(resolution)
-            numBins = self.genome.numBins
-            label = self.genome.chrmStartsBinCont[self.chrms1]
-            label = np.asarray(label, dtype="int64")
-            label += self.mids1 / resolution
-            label *= numBins
-            label += self.genome.chrmStartsBinCont[self.chrms2]
-            label += self.mids2 / resolution
-
-        elif resolution == 'fragment':
-            numBins = self.genome.numRfrags
-            label = self.rfragAbsIdxs1
-            label *= numBins
-            label += self.rfragAbsIdxs2
-        else:
-            raise Exception('Unknown value for resolution: {0}'.format(
-                resolution))
-
-        if useWeights:
-            if 'weights' not in self.vectors:
-                raise Exception('Set read weights first!')
-            counts = np.bincount(label, weights=self.fragmentWeights, minlength=numBins ** 2)
-        else:
-            counts = np.bincount(label, minlength=numBins ** 2)
-        if len(counts) > numBins ** 2:
-            raise StandardError("\nheatmap exceed length of the genome!!!"
-                                " Check genome")
-
-        counts.shape = (numBins, numBins)
-        for i in xrange(len(counts)):
-            counts[i, i:] += counts[i:, i]
-            counts[i:, i] = counts[i, i:]
+        for start,end in self._getChunks(30000000):
+            if type(resolution) == int:
+                # 8 bytes per record + heatmap
+                self.genome.setResolution(resolution)
+                numBins = self.genome.numBins
+                
+                label = self.genome.chrmStartsBinCont[self._getVector("chrms1", start, end)]
+                label = np.asarray(label, dtype="int64")
+                label += self._getVector("mids1",start,end) / resolution
+                label *= numBins
+                label += self.genome.chrmStartsBinCont[self._getVector("chrms2",start,end)]
+                label += self._getVector("mids2",start,end) / resolution
+    
+            elif resolution == 'fragment':
+                numBins = self.genome.numRfrags
+                label = self._getVector("rfragAbsIdxs1",start,end)
+                label *= numBins
+                label += self._getVector("rfragAbsIdxs2",start,end)
+            else:
+                raise Exception('Unknown value for resolution: {0}'.format(
+                    resolution))
+    
+            if useWeights:
+                if 'weights' not in self.vectors:
+                    raise Exception('Set read weights first!')
+                counts = np.bincount(label, weights=self.fragmentWeights, minlength=numBins ** 2)
+            else:
+                counts = np.bincount(label, minlength=numBins ** 2)
+            if len(counts) > numBins ** 2:
+                raise StandardError("\nheatmap exceed length of the genome!!!"
+                                    " Check genome")
+    
+            counts.shape = (numBins, numBins)
+            try:
+                heatmap += counts  # @UndefinedVariable
+            except:
+                heatmap = counts
+            
+        for i in xrange(len(heatmap)):
+            heatmap[i, i:] += heatmap[i:, i]
+            heatmap[i:, i] = heatmap[i, i:]
         if countDiagonalReads.lower() == "once":
-            diag = np.diag(counts)
-            fillDiagonal(counts, diag / 2)
+            diag = np.diag(heatmap)
+            fillDiagonal(heatmap, diag / 2)
         elif countDiagonalReads.lower() == "twice":
             pass
         else:
             raise ValueError("Bad value for countDiagonalReads")
-        return counts
+        return heatmap
 
 
     def buildHeatmapWithOverlapCpp(self, resolution, countDiagonalReads="Twice",
