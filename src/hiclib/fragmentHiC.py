@@ -1297,7 +1297,7 @@ class HiCdataset(object):
         p1 = self.h5dict.get_dataset("cuts1")
         c2 = self.h5dict.get_dataset("chrms2")
         p2 = self.h5dict.get_dataset("cuts2")
-        
+        print "getting heatmap", chromosome, start, end       
         from scipy import weave        
         if end == None:
             end = self.genome.chrmLens[chromosome]
