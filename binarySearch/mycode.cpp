@@ -174,20 +174,24 @@ private:
 
 
 
-void int64BinarySearch(uint64_t* data, long int N, uint64_t* keys, long int M, int32_t* result, uint64_t mult){
-    std::vector<uint64_t> keyVec(M);
-    for (int i=0; i<M; i++)
+void int64BinarySearch(uint64_t* data, long int N, uint64_t* keys, long int M, int32_t* result, uint64_t mult)
+{
     {
-    keyVec[i] = keys[i]*mult;
+        std::vector<uint64_t> keyVec(M);
+        for (int i=0; i<M; i++)
+        {
+        keyVec[i] = keys[i]*mult;
+        }
+        SearchPod64<uint64_t, 24> s(keyVec);
+        
+        #pragma omp parallel for shared(s,data,result,mult)  num_threads(8) 
+        for (int i =0; i<N; i++)
+        {
+            auto ids = s.LutBinarySearch(data[i]*mult);    
+            result[i] = (int32_t) ids;       
+        }
     }
-    SearchPod64<uint64_t, 24> s(keyVec);
-    
-    #pragma omp parallel for shared(s,data,result,mult)  num_threads(8) 
-    for (int i =0; i<N; i++)
-    {
-        auto ids = s.LutBinarySearch(data[i]*mult);    
-        result[i] = (int32_t) ids;       
-    }
+
     return; 
 }
 

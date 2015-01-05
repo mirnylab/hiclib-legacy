@@ -134,6 +134,7 @@ def refine_paper(filename, create=True):
         countDiagonalReads="once")
     
     TR.saveHiResHeatmapWithOverlaps(filename[1]+"-1M-highRes.hm", resolution=50000, countDiagonalReads="twice")
+    TR.saveSuperHighResMapWithOverlaps(filename[1]+"-5k-SuperHighRes.hm", resolution=5000,chromosomes = [14], countDiagonalReads="twice")
 
     Tb = h5dict(filename[1] + "-1M-byChr.hm")["1 1"]
     Tbb = h5dict(filename[1] + "-1M-byChr.hm")["1 2"]

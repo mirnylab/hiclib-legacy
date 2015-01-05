@@ -103,15 +103,25 @@ try:
 except:
     print "Please compile binarySearch!!! It is in the main folder of the library"
     fastBS = False
+import logging
+log = logging.getLogger(__name__)
+
+
 
 def binarySearch(x, y):
     if len(x) < 3000000:
-        return np.searchsorted(y, x)
+        log.debug("Using regular searchsorted because dataset is short: {0}".format(len(x)))
+        a =  np.searchsorted(y, x)
     else:
         if fastBS:
-            return bs(x, y)
+            log.debug("using fast binary search")
+            a =  bs(x, y)            
+            
         else:
-            return np.searchsorted(y, x)
+            log.debug("Using searchsorted because fast binary search not found")            
+            a = np.searchsorted(y, x)
+    log.debug("Binary search finished")
+    return a
 
 # binarySearch = lambda x, y:np.searchsorted(y, x)
 r_ = np.r_
@@ -149,7 +159,7 @@ class sliceableDataset(object):
             return ar[::step]
     def __array__(self):
         if self.length > 25000000:
-            print "fetched numpy array as a whole. This is memory inefficient."
+            log.info("fetched numpy array as a whole. This is memory inefficient.")
         return self.getFunction(self.name)
 
     def __len__(self):
@@ -467,6 +477,7 @@ class HiCdataset(object):
                 raise "unknown vector: {0}".format(name)
 
     def _calculateRgragIDs(self):
+        log.debug("Started calculating rfrag IDs")
         for i in self.rfragIDDict.keys():
             del self.rfragIDDict[i]
         if hasattr(self.rfragIDDict, "add_empty_dataset"):
@@ -491,7 +502,7 @@ class HiCdataset(object):
         res = binarySearch(id1 ,rsites)
         """)
         self.evaluate(code1, ["chrms1", "strands1", "cuts1"], outVariable=("res", d1),
-                      constants=constants, chunkSize=70000000)
+                      constants=constants, chunkSize=150000000)
 
         code2 = dedent("""
         id2 = numexpr.evaluate("(cuts2 + (chrms2 + 2) * fragMult + 7 * strands2 - 3) * (chrms2 >=0)")
@@ -500,7 +511,8 @@ class HiCdataset(object):
         res = binarySearch(id2 ,rsites)
         """)
         self.evaluate(code2, ["chrms2", "strands2", "cuts2"], outVariable=("res", d2),
-                      constants=constants, chunkSize=70000000)
+                      constants=constants, chunkSize=150000000)
+        log.debug("Finished calculating rfrag IDs")
 
 
 
@@ -579,7 +591,8 @@ class HiCdataset(object):
     def _sortData(self):
         """
         Orders data such that chrms1 is always more than chrms2, and sorts it by chrms1, cuts1 
-        """        
+        """
+        log.debug("Starting sorting data: making the file")        
                     
         if not hasattr(self, "dataSorted"):
             tmpFile = os.path.join(self.tmpDir, str(np.random.randint(0, 100000000)))
@@ -603,8 +616,9 @@ class HiCdataset(object):
             """)            
             self.evaluate(expression=code, internalVariables = ["chrms1","chrms2","cuts1","cuts2","strands1","strands2"], 
                           constants = {"np":np,"mydtype":mydtype}, outVariable = ("a",data))
+            log.debug("Invoking sorter")
             externalMergeSort(data,tmp, sorter=sorter,searchsorted=searchsorted)
-            
+            log.debug("Getting data back")
             sdata = mydict.get_dataset("sortedData")
             
             c1 = self.h5dict.get_dataset("chrms1")
@@ -624,7 +638,9 @@ class HiCdataset(object):
                 s2[start:end] = data["strands2"]
             self.dataSorted = True
             del mydict 
-            os.remove(tmpFile)
+            os.remove(tmpFile)   
+            gc.collect()         
+            log.debug("Finished")
                             
 
 
@@ -724,13 +740,14 @@ class HiCdataset(object):
             filenames : list of strings
                 List of folders to merge to current working folder
         """
+        log.debug("Starting merge; number of datasets = {0}".format(len(filenames)))
         if self.filename in filenames:
             raise StandardError("----> Cannot merge folder into itself! "
                                 "Create a new folder")
         for filename in filenames:
             if not os.path.exists(filename):
                 raise IOError("\nCannot open file: %s" % filename)
-
+        log.debug("Getting h5dicts")
         h5dicts = [h5dict(i, mode='r') for i in filenames]
         if all(["metadata" in i for i in h5dicts]):
             metadatas = [mydict["metadata"] for mydict in h5dicts]
@@ -748,9 +765,12 @@ class HiCdataset(object):
                         warnings.warn("key {0} not found in some files".format(key))
             self.metadata = newMetadata
             self.h5dict["metadata"] = self.metadata
+        log.debug("Calculating final length")
         self.N = sum([len(i.get_dataset("strands1")) for i in h5dicts])
-
+        log.debug("Final length equals: {0}".format(self.N))
+        
         for name in self.vectors.keys():
+            log.debug("Processing vector {0}".format(name))
             if name in self.h5dict:
                 del self.h5dict[name]
             self.h5dict.add_empty_dataset(name, (self.N,), self.vectors[name])
@@ -762,7 +782,9 @@ class HiCdataset(object):
                 position += len(cur)
             self.h5dict.flush()
             time.sleep(0.2)  # allow buffers to flush
+        log.debug("sorting data")
         self._sortData()
+        log.debug("Finished merge")
 
 
     def parseInputData(self, dictLike, zeroBaseChrom=True,
@@ -1371,6 +1393,8 @@ class HiCdataset(object):
                     }
                 if ((b1 + binNum1) >= heatmapSize) { continue;}
                 if ((b2 + binNum2) >= heatmapSize) { continue;}
+                if ((b1 < 0)) {continue;}
+                if ((b2 < 0)) {continue;}
                 double psum = 0; 
                 for (int i = 0; i< binNum1; i++)
                     {
@@ -1461,17 +1485,20 @@ class HiCdataset(object):
         maxBinSpawn : int, optional, not more than 10
             Discard read if it spawns more than maxBinSpawn bins
 
-        """    
+        """
+            
         tosave = h5dict(filename)        
         if chromosomes == "all":
             chromosomes = range(self.genome.chrmCount)
         for chrom in chromosomes:
-            heatmap = self.getHiResHeatmapWithOverlaps(filename, resolution, chrom, 
-                               countDiagonalReads = countDiagonalReads, maxBinSpawn = maxBinSpawn)
-            tosave["{0} {0}".format(chrom)] = heatmap
-        print "----> By chromosome Heatmap saved to '{0}' at {1} resolution".format(filename, resolution)
-
-
+            chrLen = self.genome.chrmLens[chrom]
+            chunks = [(i * chunkStep, min(i * chunkStep + chunkSize, chrLen)) for i in xrange(chrLen / chunkStep + 1)]
+            for chunk in chunks:             
+                heatmap = self.getHiResHeatmapWithOverlaps(resolution, chrom, 
+                                    start = chunk[0], end = chunk[1],
+                                   countDiagonalReads = countDiagonalReads, maxBinSpawn = maxBinSpawn)
+                tosave["{0} {1}_{2}".format(chrom, chunk[0], chunk[1])] = heatmap
+        print "----> Super-high-resolution heatmap saved to '{0}' at {1} resolution".format(filename, resolution)
 
 
     def fragmentFilter(self, fragments):
@@ -1620,10 +1647,10 @@ class HiCdataset(object):
         if tmpDir == "default":
             tmpDir = self.tmpDir
         # an array to determine unique rows. Eats 1 byte per DS record
-        mode = "hdd"
+                
         if mode == "ram":
-            dups = np.zeros((self.N, 2), dtype="int64", order="C")
-
+            log.debug("Filtering duplicates in RAM")
+            dups = np.zeros((self.N, 2), dtype="int64", order="C")            
             dups[:, 0] = self.chrms1
             dups[:, 0] *= self.fragIDmult
             dups[:, 0] += self.cuts1
