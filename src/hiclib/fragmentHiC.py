@@ -1493,11 +1493,11 @@ class HiCdataset(object):
         for chrom in chromosomes:
             chrLen = self.genome.chrmLens[chrom]
             chunks = [(i * chunkStep, min(i * chunkStep + chunkSize, chrLen)) for i in xrange(chrLen / chunkStep + 1)]
-            for chunk in chunks:             
+            for chunk in chunks:                             
                 heatmap = self.getHiResHeatmapWithOverlaps(resolution, chrom, 
                                     start = chunk[0], end = chunk[1],
                                    countDiagonalReads = countDiagonalReads, maxBinSpawn = maxBinSpawn)
-                tosave["{0} {1}_{2}".format(chrom, chunk[0], chunk[1])] = heatmap
+                tosave["{0}_{1}_{2}".format(chrom, chunk[0], chunk[1])] = heatmap
         print "----> Super-high-resolution heatmap saved to '{0}' at {1} resolution".format(filename, resolution)
 
 

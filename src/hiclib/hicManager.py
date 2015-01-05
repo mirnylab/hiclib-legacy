@@ -173,11 +173,19 @@ class hicExperiment(object):
 
     def getNumReads(self):
         hd = h5dict(self.refined, 'r')
-        return len(hd["strands1"])
+        return len(hd.get_dataset("strands1"))
 
     def getNumCisReads(self):
         hd = h5dict(self.refined, 'r')
-        return np.sum(hd["chrms1"] == hd["chrms2"])
+        mylen = len(hd.get_dataset("strands1"))
+        chunks = range(0,mylen,200000000) +  mylen
+        chunks = zip(chunks[:-1],chunks[1:])
+        c1 = hd.get_dataset("chrms1")
+        c2 = hd.get_dataset("chrms2")
+        totsum = 0 
+        for st,end in chunks:
+            totsum += np.sum(c1[st:end] == c2[st:end])
+        return totsum
 
     def getEnzyme(self):
         enzymes = ["HindIII", "NcoI", "BglII", "MboI"]
