@@ -90,7 +90,7 @@ from mirnylib.plotting import mat_img
 from mirnylib import numutils
 from mirnylib.numutils import arrayInArray, sumByArray, \
     uniqueIndex, chunkedUnique, fasterBooleanIndexing, fillDiagonal, arraySearch, \
-    arraySumByArray, externalMergeSort
+    arraySumByArray, externalMergeSort, chunkedBincount
 import time
 from mirnylib.systemutils import setExceptionHook
 import atexit
@@ -473,8 +473,8 @@ class HiCdataset(object):
                 dvec = np.abs(self._getVector("mids1", start, end) - self._getVector("mids2", start, end))
                 dvec[self.chrms1[start:end] != self.chrms2[start:end]] = -1
                 return dvec
-            else:
-                raise "unknown vector: {0}".format(name)
+           
+        raise "unknown vector: {0}".format(name)
 
     def _calculateRgragIDs(self):
         log.debug("Started calculating rfrag IDs")
@@ -873,16 +873,6 @@ class HiCdataset(object):
             self.strands2 = dictLike["strands2"]
             noStrand = False  # strand information filled in
 
-        # first fixing chromosomes
-
-        c1 = self.chrms1
-        c1 [c1 >= self.genome.chrmCount] = -1
-        self.chrms1 = c1
-
-        c2 = self.chrms2
-        c2 [c2 >= self.genome.chrmCount] = -1
-        self.chrms2 = c2
-
         self.metadata["100_TotalReads"] = self.trackLen
 
         try:
@@ -897,7 +887,6 @@ class HiCdataset(object):
 
         self.metadata["152_removedUnusedChromosomes"] = self.trackLen - self.N
         self.metadata["150_ReadsWithoutUnusedChromosomes"] = self.N
-
 
         # Discard dangling ends and self-circles
         DSmask = (self.chrms1 >= 0) * (self.chrms2 >= 0)
@@ -1065,28 +1054,6 @@ class HiCdataset(object):
         mask = ((self.chrms1 < newN) * (self.chrms2 < newN))
         self.genome = newGenome
         self.maskFilter(mask)
-
-    def calculateFragmentWeights(self):
-        """Calculates weights for reads based on fragment length correction
-         similar to Tanay's;
-         may be used for scalings or creating heatmaps"""
-        fragmentLength = self.rFragLens
-        pls = np.sort(fragmentLength)
-        pls = np.r_[pls, pls[-1] + 1]
-        N = len(fragmentLength)
-        mysum = np.array(self.fragmentSum(), float)
-        self.fragmentWeights = np.ones(N, float)
-        meanSum = np.mean(np.array(mysum, float))
-        # watch = np.zeros(len(mysum),int)
-        for i in np.arange(0, 0.991, 0.01):
-            b1, b2 = pls[i * N], pls[(i + 0.01) * N]
-            p = (b1 <= fragmentLength) * (b2 > fragmentLength)
-            # watch[p] += 1
-            value = np.mean(mysum[p])
-            if p.sum() > 0:
-                self.fragmentWeights[p] = value / meanSum
-            else:
-                print "no weights", i, b1, b2
 
     def buildAllHeatmap(self, resolution, countDiagonalReads="Once",
         useWeights=False):
@@ -1793,21 +1760,21 @@ class HiCdataset(object):
             If set to True, will give a fragment sum with weights adjusted for iterative correction.
         """
         # Uses 0 bytes per read
+        
         if fragments is None:
             fragments = self.rFragIDs
 
         if not useWeights:
+            f1 = chunkedBincount(self._getSliceableVector("rfragAbsIdxs1"), minlength =  len(self.rFragIDs))
+            f2 =  chunkedBincount(self._getSliceableVector("rfragAbsIdxs2"), minlength =  len(self.rFragIDs))
             if strands == "both":
-                return sumByArray(self._getSliceableVector("fragids1"), fragments, chunkSize=self.chunksize) + \
-                    sumByArray(self._getSliceableVector("fragids2"), fragments, chunkSize=self.chunksize)
-
+                return f1 + f2
             if strands == 1:
-                return sumByArray(self._getSliceableVector("fragids1"), fragments, chunkSize=self.chunksize)
+                return f1                
             if strands == 2:
-                return sumByArray(self._getSliceableVector("fragids2"), fragments, chunkSize=self.chunksize)
+                return f2                
         else:
-            if strands == "both":
-                self.fragmentWeights = 1. * self.fragmentWeights
+            if strands == "both":                
                 pass1 = 1. / self.fragmentWeights[arraySearch(self.rFragIDs, self.fragids1)]
                 pass1 /= self.fragmentWeights[arraySearch(self.rFragIDs, self.fragids2)]
                 return arraySumByArray(self.fragids1, fragments, pass1) + arraySumByArray(self.fragids2, fragments, pass1)

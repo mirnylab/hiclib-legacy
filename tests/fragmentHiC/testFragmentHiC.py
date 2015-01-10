@@ -88,11 +88,11 @@ def refine_paper(filename, create=True):
         print ("""------------_ERROR_--------------
         Inconsistent metadata: see above
         ----------------------------------------""")
+        raise ValueError("Inconsistent Metadata")
 
 
     print "Testing allxall and by-chromosome heatmap counting diagonal twice"
 
-    TR.printStats()
     print "----> saving allxall heatmap"
     TR.saveHeatmap(filename[1] + "-1M.hm", 1000000,
                    countDiagonalReads="twice")
