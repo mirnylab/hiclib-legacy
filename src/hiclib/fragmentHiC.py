@@ -2159,8 +2159,8 @@ class HiCdataset(object):
         if (fragids1 is None) and (fragids2 is None):
             allFragments = True
         else:
-            allFragments = False
-
+            allFragments = False                
+        
         if fragids1 is None:
             fs = self.fragmentSum()
             fragids1 = fs > 0
@@ -2169,6 +2169,7 @@ class HiCdataset(object):
                 fragids2 = fs > 0
             except:
                 fragids2 = self.fragmentSum() > 0
+        del fs 
 
         if fragids1.dtype == np.bool:
             fragids1 = self.rFragIDs[fragids1]
