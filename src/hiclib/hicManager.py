@@ -178,7 +178,7 @@ class hicExperiment(object):
     def getNumCisReads(self):
         hd = h5dict(self.refined, 'r')
         mylen = len(hd.get_dataset("strands1"))
-        chunks = range(0,mylen,200000000) +  mylen
+        chunks = range(0,mylen,200000000) +  [mylen]
         chunks = zip(chunks[:-1],chunks[1:])
         c1 = hd.get_dataset("chrms1")
         c2 = hd.get_dataset("chrms2")
