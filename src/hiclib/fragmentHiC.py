@@ -2065,7 +2065,7 @@ class HiCdataset(object):
                         # normalize the final plot to sum to one
                     withinArms=True,
                         # Treat chromosomal arms separately
-                    mindist=10000,
+                    mindist=1000,
                         # Scaling was proved to be unreliable
                         # under 10000 bp for 6-cutter enzymes
                     maxdist=None,
@@ -2148,6 +2148,8 @@ class HiCdataset(object):
 
         """
         # TODO:(MI) write an ab-initio test for scaling calculation
+        if not self._isSorted():
+            self._sortData()
         import matplotlib.pyplot as plt
         if excludeNeighbors <= 0:
             excludeNeighbors = None  # Not excluding neighbors
@@ -2174,6 +2176,8 @@ class HiCdataset(object):
             fragids2 = self.rFragIDs[fragids2]
 
         # Calculate regions if not specified
+
+        
         if regions is None:
             if withinArms == False:
                 regions = [(i, 0, self.genome.chrmLens[i])
@@ -2193,88 +2197,22 @@ class HiCdataset(object):
                         max([abs(i[1] - i[4]) for i in regions if
                              len(i) > 3] + [0])  # other side
                           )
-        # Region to which a read belongs
-        regionID = np.zeros(len(self.chrms1), np.int16) - 1
-        chr1 = self.chrms1
-        chr2 = self.chrms2
-        pos1 = self.mids1
-        pos2 = self.mids2
-        fragRegions1 = np.zeros(len(fragids1), int) - 1
-        fragRegions2 = np.zeros(len(fragids2), int) - 1
+        # Region to which a read belongs        
+
         fragch1 = fragids1 / self.fragIDmult
         fragch2 = fragids2 / self.fragIDmult
         fragpos1 = fragids1 % self.fragIDmult
         fragpos2 = fragids2 % self.fragIDmult
-
-        for regionNum, region in enumerate(regions):
-            if len(region) == 3:
-                chrom, start1, end1 = region
-                mask = (chr1 == chrom) * (pos1 > start1) * (pos1 < end1) * \
-                (chr2 == chrom) * (pos2 > start1) * (pos2 < end1)
-                regionID[mask] = regionNum
-                mask1 = (fragch1 == chrom) * (fragpos1 >
-                    start1) * (fragpos1 < end1)
-                mask2 = (fragch2 == chrom) * (fragpos2 >
-                    start1) * (fragpos2 < end1)
-                fragRegions1[mask1] = regionNum
-                fragRegions2[mask2] = regionNum
-
-            if len(region) == 5:
-                chrom, start1, end1, start2, end2 = region
-
-                mask1 = (chr1 == chrom) * (chr2 == chrom) * (pos1 > start1) * \
-                (pos1 < end1) * (pos2 > start2) * (pos2 < end2)
-
-                mask2 = (chr1 == chrom) * (chr2 == chrom) * (pos1 > start2) * \
-                (pos1 < end2) * (pos2 > start1) * (pos2 < end1)
-
-                mask = mask1 + mask2
-                regionID[mask] = regionNum
-                mask1 = (fragch1 == chrom) * (
-                    (fragpos1 > start1) * (fragpos1 < end1)
-                    + (fragpos1 > start2) * (fragpos1 < end2))
-                mask2 = (fragch2 == chrom) * (
-                    (fragpos2 > start2) * (fragpos2 < end2)
-                    + (fragpos2 > start1) * (fragpos2 < end1))
-                fragRegions1[mask1] = regionNum
-                fragRegions2[mask2] = regionNum
-        del chr1, chr2, pos1, pos2
+        
+        c1_h5 = self.h5dict.get_dataset("chrms1")
+        p1_h5 = self.h5dict.get_dataset("cuts1")
+        c2_h5 = self.h5dict.get_dataset("chrms2")
+        p2_h5 = self.h5dict.get_dataset("cuts2")
 
         bins = np.array(
             numutils.logbins(mindist, maxdist, 1.12), float) + 0.1  # bins of lengths
         numBins = len(bins) - 1  # number of bins
 
-        # Keeping reads for fragments in use
-        # Consider only double-sided fragment pairs.
-        validFragPairs = (regionID >= 0)
-        if allFragments == False:
-            # Filter the dataset so it has only the specified fragments.
-            p11 = arrayInArray(self.fragids1, fragids1)
-            p12 = arrayInArray(self.fragids1, fragids2)
-            p21 = arrayInArray(self.fragids2, fragids1)
-            p22 = arrayInArray(self.fragids2, fragids2)
-            validFragPairs *= ((p11 * p22) + (p12 * p21))
-
-        # Consider pairs of fragments from the same region.
-
-        # Keep only --> -->  or <-- <-- pairs, discard --> <-- and <-- -->
-
-        validFragPairs *= (self.strands1 == self.strands2)
-
-        # Keep only fragment pairs more than excludeNeighbors fragments apart.
-        if excludeNeighbors is not None:
-            if enzyme is None:
-                raise ValueError("Please specify enzyme if you're"
-                                 " excluding Neighbors")
-            distsInFrags = self.genome.getFragmentDistance(
-                self.fragids1, self.fragids2, enzyme)
-
-            validFragPairs *= distsInFrags > excludeNeighbors
-
-        distances = np.sort(self.distances[validFragPairs])
-
-        "calculating fragments lengths for exclusions to expected # of counts"
-        # sorted fragment IDs and lengthes
         args = np.argsort(self.rFragIDs)
         usort = self.rFragIDs[args]
 
@@ -2291,19 +2229,110 @@ class HiCdataset(object):
         binBegs, binEnds = bins[:-1], bins[1:]
 
         numExpFrags = np.zeros(numBins)  # count of reads in each min
-        fragpos1 = fragids1 % self.fragIDmult
-        fragpos2 = fragids2 % self.fragIDmult
 
-        for regionNumber, region in enumerate(regions):
+        values = [0] * (len(bins) - 1)
+        rawValues = [0] * (len(bins) - 1)
+        binBegs, binEnds = bins[:-1], bins[1:]
+        binMids = 0.5 * (binBegs + binEnds).astype(float)
+        binLens = binEnds - binBegs
+
+        
+        for regionNum, region in enumerate(regions):                        
+            if len(region) == 3:
+                chrom, start1, end1 = region
+                low = h5dictBinarySearch(c1_h5,p1_h5, (chrom, start1),"left")
+                high = h5dictBinarySearch(c1_h5,p1_h5, (chrom, end1),"right")
+            if len(region) == 5:
+                chrom, start1, end1, start2, end2 = region
+                assert start1 < end1 
+                assert start2 < end2 
+                low = h5dictBinarySearch(c1_h5,p1_h5, (chrom, min(start1, start2)),"left")
+                high = h5dictBinarySearch(c1_h5,p1_h5, (chrom, max(end1, end2)),"right")
+            chr2 = c2_h5[low:high]
+            pos1 = p1_h5[low:high]
+            pos2 = p2_h5[low:high]
+                        
+            myfragids1 = self._getVector("fragids1", low,high)
+            myfragids2 = self._getVector("fragids2", low,high)
+            mystrands1 = self._getVector("strands1",low,high)
+            mystrands2 = self._getVector("strands2",low,high)
+            mydists = self._getVector("distances", low, high)
+            print "region",region,"low",low,"high",high
+                
+            if len(region) == 3:                 
+                mask =  (pos1 > start1) * (pos1 < end1) * \
+                (chr2 == chrom) * (pos2 > start1) * (pos2 < end1)
+                
+                maskFrag1 = (fragch1 == chrom) * (fragpos1 >
+                    start1) * (fragpos1 < end1)
+                maskFrag2 = (fragch2 == chrom) * (fragpos2 >
+                    start1) * (fragpos2 < end1)
+
+            if len(region) == 5:
+                chrom, start1, end1, start2, end2 = region
+
+                mask1 =  (chr2 == chrom) * (pos1 > start1) * \
+                (pos1 < end1) * (pos2 > start2) * (pos2 < end2)
+
+                mask2 = (chr2 == chrom) * (pos1 > start2) * \
+                (pos1 < end2) * (pos2 > start1) * (pos2 < end1)
+                mask = mask1 + mask2
+
+                maskFrag1 = (fragch1 == chrom) * (
+                    (fragpos1 > start1) * (fragpos1 < end1)
+                    + (fragpos1 > start2) * (fragpos1 < end2))
+                maskFrag2 = (fragch2 == chrom) * (
+                    (fragpos2 > start2) * (fragpos2 < end2)
+                    + (fragpos2 > start1) * (fragpos2 < end1))
+
+            if maskFrag1.sum() == 0 or maskFrag2.sum() == 0: 
+                print "no fragments for region", region
+                continue              
+                
+            if mask.sum() == 0:
+                print "No reads for region", region
+                continue
+            chr2 = chr2[mask]
+            pos1 = pos1[mask]
+            pos2 = pos2[mask]
+            myfragids1 = myfragids1[mask]
+            myfragids2 = myfragids2[mask]
+            mystrands1 = mystrands1[mask]
+            mystrands2 = mystrands2[mask]
+            mydists = mydists[mask]
+                                
+            validFragPairs = np.ones(len(chr2), dtype = np.bool)
+            if allFragments == False:
+                # Filter the dataset so it has only the specified fragments.
+                p11 = arrayInArray(myfragids1, fragids1)
+                p12 = arrayInArray(myfragids1, fragids2)
+                p21 = arrayInArray(myfragids2, fragids1)
+                p22 = arrayInArray(myfragids2, fragids2)
+                validFragPairs *= ((p11 * p22) + (p12 * p21))
+
+        # Consider pairs of fragments from the same region.
+
+        # Keep only --> -->  or <-- <-- pairs, discard --> <-- and <-- -->
+            
+             
+            validFragPairs *= (mystrands1 == mystrands2)
+
+        # Keep only fragment pairs more than excludeNeighbors fragments apart.
+            distsInFrags = self.genome.getFragmentDistance(
+                myfragids1, myfragids2, self.genome.enzymeName)
+
+            validFragPairs *= distsInFrags > excludeNeighbors
+
+            distances = np.sort(mydists[validFragPairs])
+
+            "calculating fragments lengths for exclusions to expected # of counts"
+            # sorted fragment IDs and lengthes
+
+        
             print region
 
             # filtering fragments that correspond to current region
-            mask1 = np.nonzero(fragRegions1 == regionNumber)[0]
-            mask2 = np.nonzero(fragRegions2 == regionNumber)[0]
-
-            if (len(mask1) == 0) or (len(mask2) == 0):
-                continue
-            bp1, bp2 = fragpos1[mask1], fragpos2[mask2]
+            bp1, bp2 = fragpos1[maskFrag1], fragpos2[maskFrag2]
                 # positions of fragments on chromosome
 
             p2arg = np.argsort(bp2)
@@ -2369,18 +2398,16 @@ class HiCdataset(object):
                     else:  # Everything is all right
                         curcount -= ignore
                 numExpFrags[binIndex] += curcount
+                #print curcount
 
-        values = []
-        rawValues = []
-        binBegs, binEnds = bins[:-1], bins[1:]
-        binMids = 0.5 * (binBegs + binEnds).astype(float)
-        binLens = binEnds - binBegs
 
-        for i in xrange(len(bins) - 1):  # Dividing observed by expected
-            first, last = tuple(np.searchsorted(distances, [binBegs[i], binEnds[i]]))
-            mycounts = last - first
-            values.append(mycounts / float(numExpFrags[i]))
-            rawValues.append(mycounts)
+            for i in xrange(len(bins) - 1):  # Dividing observed by expected                 
+                first, last = tuple(np.searchsorted(distances, [binBegs[i], binEnds[i]]))
+                mycounts = last - first
+                values[i] += (mycounts / float(numExpFrags[i]))
+                rawValues[i] += (mycounts)                
+            #print "values", values
+            #print "rawValies", rawValues
 
         values = np.array(values)
 
