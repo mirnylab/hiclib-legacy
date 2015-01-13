@@ -374,9 +374,8 @@ class HiCdataset(object):
                                   os.path.split(self.filename)[0])
 
         self.h5dict = h5dict(self.filename, mode=mode, in_memory=inMemory)
-        if "chrms1" in self.h5dict.keys():
-            chrms1 = self.chrms2
-            self.N = len(chrms1)
+        if "chrms1" in self.h5dict.keys():            
+            self.N = len(self.h5dict.get_dataset("chrms1"))
         if "metadata" in self.h5dict:
             self.metadata = self.h5dict["metadata"]
 
