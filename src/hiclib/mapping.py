@@ -21,17 +21,13 @@ API Documentation
 '''
 
 import os
-import sys
 import re
 import glob
-import gzip
 import subprocess
 import tempfile
-import atexit
 import logging
 import warnings
 import numpy as np
-import Bio.SeqIO
 import Bio.Seq
 import Bio.Restriction
 import pysam
@@ -40,6 +36,8 @@ import gc
 
 import mirnylib.h5dict
 import mirnylib.genome
+from mirnylib.systemutils import commandExists, gzipWriter
+
 
 # #TODO: write some autodetection of chromosome lengthes base on genome folder
 # #TODO: throw an exception if no chromosomes found in chromosome folder
@@ -74,29 +72,6 @@ def sleep():
         time.sleep(0.1)
 
 
-def commandExists(command):
-    "checks if the bash command exists"
-    command = command.split()[0]
-    if subprocess.call(['which', command]) != 0:
-        return False
-    return True
-
-
-def gzipWriter(filename, pigzArguments=["-4"]):
-    """
-    creates a writing process with gzip or parallel gzip (pigz) attached to it
-    """
-    filename = os.path.abspath(filename)
-    with open(filename, 'wb') as outFile:
-        if commandExists("pigz"):
-            writer = ["pigz", "-c"] + pigzArguments
-        else:
-            writer = ["gzip", "-c", "-1"]
-            warnings.warn("Please install 'pigz' parallel gzip for faster speed")
-
-        pwrite = subprocess.Popen(writer, stdin=subprocess.PIPE, stdout=outFile, shell=False, bufsize=-1)
-    log.info("""Writer created with command "{0}" """.format(writer))
-    return pwrite
 
 
 def splitSRA(filename, outFile="auto", splitBy=4000000, FASTQ_BINARY="./fastq-dump", FASTQ_ARGS=[]):
@@ -232,7 +207,7 @@ def _filter_unmapped_fastq(in_stream, in_sam, nonunique_fastq, in_filename="none
     **in_sam** and save the non-uniquely aligned and unmapped sequences
     to **unique_sam**.
     '''
-    samfile = pysam.Samfile(in_sam)
+    samfile = pysam.Samfile(in_sam)  # @UndefinedVariable
 
     nonunique_ids = set()
     for read in samfile:
@@ -584,7 +559,7 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
 
         for sam_path in sam_paths:
 
-            samfile = pysam.Samfile(sam_path)
+            samfile = pysam.Samfile(sam_path)  # @UndefinedVariable
 
             # Make Bowtie's chromosome tids -> genome_db indices dictionary.
             tid2idx = {}

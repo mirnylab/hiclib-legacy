@@ -19,7 +19,7 @@ mygenome = Genome(genomeFolder, readChrms = ["#","X"])
 def source(ID):
     return os.path.join("%s-%s.hdf5" % (ID, workingGenome))  # determines path to the parsed file by ID
 
-N = 200000000
+N = 2000000
 
 chrms1 = np.random.randint(0,22,N)
 chrms2 = chrms1.copy()

@@ -78,164 +78,22 @@ import os
 import traceback
 from copy import copy
 from mirnylib.genome import Genome
-import sys
-import hiclib.mapping
 import numpy as np
-import math
 import gc 
-from numpy import array as na
-from scipy import stats
-from mirnylib.h5dict import h5dict
-from mirnylib.plotting import mat_img
+
+from hiclib.hicShared import binarySearch, sliceableDataset, mydtype, h5dictBinarySearch, mydtypeSorter, searchsorted
+import mirnylib.h5dict
 from mirnylib import numutils
-from mirnylib.numutils import arrayInArray, sumByArray, \
-    uniqueIndex, chunkedUnique, fasterBooleanIndexing, fillDiagonal, arraySearch, \
+from mirnylib.numutils import arrayInArray,  \
+    uniqueIndex, fasterBooleanIndexing, fillDiagonal, arraySearch, \
     arraySumByArray, externalMergeSort, chunkedBincount
 import time
-from mirnylib.systemutils import setExceptionHook
-import atexit
 from textwrap import dedent
 USE_NUMEXPR = True
 import numexpr
-try:
-    from fastBinSearch import binarySearch as bs  # @UnresolvedImport
-    fastBS = True
-except:
-    print "Please compile binarySearch!!! It is in the main folder of the library"
-    fastBS = False
 import logging
 log = logging.getLogger(__name__)
-
-
-
-def binarySearch(x, y):
-    if len(x) < 3000000:
-        log.debug("Using regular searchsorted because dataset is short: {0}".format(len(x)))
-        a =  np.searchsorted(y, x)
-    else:
-        if fastBS:
-            log.debug("using fast binary search")
-            a =  bs(x, y)            
-            
-        else:
-            log.debug("Using searchsorted because fast binary search not found")            
-            a = np.searchsorted(y, x)
-    log.debug("Binary search finished")
-    return a
-
-# binarySearch = lambda x, y:np.searchsorted(y, x)
-r_ = np.r_
-
-
-def cleanFile(filename):
-    if os.path.exists(filename):
-        os.remove(filename)
-
-
-class sliceableDataset(object):
-    """
-    Implements slicing for a function getFunction which has a syntax
-    data[start:end] = getFunction(name,start,end), where name is a "key" for data
-    """
-    def __init__(self, getFunction, name, length):
-        self.getFunction = getFunction
-        self.name = name
-        self.length = length
-    def __getitem__(self, val):
-
-        if issubclass(type(val), int):
-            val = int(val)
-            data = self.getFunction(self.name, val, val + 1)
-            print "fetched one element from vectors2. This is bad!"
-            return data[0]
-
-        start = val.start
-        stop = val.stop
-        step = val.step
-        if (step == None) or (step == 1):
-            return self.getFunction(self.name, start, stop)
-        else:
-            ar = self.getFunction(self.name, start, stop)
-            return ar[::step]
-    def __array__(self):
-        if self.length > 25000000:
-            log.info("fetched numpy array as a whole. This is memory inefficient.")
-        return self.getFunction(self.name)
-
-    def __len__(self):
-        return self.length
-
-
-def corr(x, y):
-    return stats.spearmanr(x, y)[0]
-
-
-#defining data types for building heatmaps, and sorter functions for externalMergeSort 
-mydtype = np.dtype("i1,i4,i1,i4,b,b")
-mydtype.names = ("chrms1","pos1","chrms2","pos2","strands1","strands2")
-
-def sorter(x):
-    "fuction which sorts mydtype type datasets over first two fields"
-    inds = np.lexsort((x["pos1"],x["chrms1"]))
-    toret = x.view(np.dtype((str, x.dtype.itemsize)))[inds].view(x.dtype)
-    assert len(toret) == len(x)
-    assert toret.dtype == x.dtype     
-    return toret
-
-def mycmp(i,j):
-    "we are comparing only first two elements... so here is our cmp funciton"
-    if i[0] > j[0]:
-        return 1
-    if i[0] < j[0]:
-        return -1
-    if i[1] > j[1]:
-        return 1
-    if i[1] < j[1]:
-        return -1
-    return 0
-        
-
-def h5dictBinarySearch(chrms1, pos1, value, side="left", mycmp = mycmp):
-    "perform binary search in two h5dict arrays"
-    low = 0
-    high = len(chrms1)-1
-    if side == "left":
-        more = [0,1]        
-    elif side == "right":
-        more = [1]        
-    else:
-        raise ValueError("side should be left or right")
-    
-        
-    if mycmp((chrms1[0],pos1[0]), value) == 1:
-        return 0 
-    if mycmp((chrms1[-1],pos1[-1]), value) == -1:
-        return len(chrms1)          
-    
-    while high - low > 1:                 
-        mid = (low+high)//2        
-        cmpResult = mycmp((chrms1[mid],pos1[mid]),value)
-        if cmpResult  in more: 
-            high = mid
-        else: 
-            low = mid         
-    if side == "left":
-        return low
-    else:
-        return high 
-            
-
-def searchsorted(array, element):
-    "matching searchsorted"
-    c1 = array["chrms1"]
-    p1 = array["pos1"]
-    val1 = element[0]
-    val2 = element[1]
-    low = np.searchsorted(c1, val1,"left")
-    high = np.searchsorted(c1,val1,"right")
-    toret =  low + np.searchsorted(p1[low:high], val2, "right")     
-    return toret 
-
+       
 
 class HiCdataset(object):
     """Base class to operate on HiC dataset.
@@ -315,7 +173,7 @@ class HiCdataset(object):
         if dictToStoreIDs == "dict":
             self.rfragIDDict = {}
         elif dictToStoreIDs == "h5dict":
-            self.rfragIDDict = h5dict()
+            self.rfragIDDict = mirnylib.h5dict.h5dict()
         else:
             self.rfragIDDict = dictToStoreIDs
 
@@ -373,7 +231,7 @@ class HiCdataset(object):
                     raise IOError("Failed to create directory: %s" %
                                   os.path.split(self.filename)[0])
 
-        self.h5dict = h5dict(self.filename, mode=mode, in_memory=inMemory)
+        self.h5dict = mirnylib.h5dict.h5dict(self.filename, mode=mode, in_memory=inMemory)
         if "chrms1" in self.h5dict.keys():            
             self.N = len(self.h5dict.get_dataset("chrms1"))
         if "metadata" in self.h5dict:
@@ -595,7 +453,7 @@ class HiCdataset(object):
                     
         if not hasattr(self, "dataSorted"):
             tmpFile = os.path.join(self.tmpDir, str(np.random.randint(0, 100000000)))
-            mydict = h5dict(tmpFile,'w')
+            mydict = mirnylib.h5dict.h5dict(tmpFile,'w')
             data = mydict.add_empty_dataset("sortedData", (self.N,), mydtype)
             tmp = mydict.add_empty_dataset("trash", (self.N,), mydtype)            
             code = dedent("""
@@ -616,7 +474,7 @@ class HiCdataset(object):
             self.evaluate(expression=code, internalVariables = ["chrms1","chrms2","cuts1","cuts2","strands1","strands2"], 
                           constants = {"np":np,"mydtype":mydtype}, outVariable = ("a",data))
             log.debug("Invoking sorter")
-            externalMergeSort(data,tmp, sorter=sorter,searchsorted=searchsorted)
+            externalMergeSort(data,tmp, sorter=mydtypeSorter,searchsorted=searchsorted)
             log.debug("Getting data back")
             sdata = mydict.get_dataset("sortedData")
             
@@ -747,7 +605,7 @@ class HiCdataset(object):
             if not os.path.exists(filename):
                 raise IOError("\nCannot open file: %s" % filename)
         log.debug("Getting h5dicts")
-        h5dicts = [h5dict(i, mode='r') for i in filenames]
+        h5dicts = [mirnylib.h5dict.h5dict(i, mode='r') for i in filenames]
         if all(["metadata" in i for i in h5dicts]):
             metadatas = [mydict["metadata"] for mydict in h5dicts]
             # print metadatas
@@ -840,7 +698,7 @@ class HiCdataset(object):
             if not os.path.exists(dictLike):
                 raise IOError("File not found: %s" % dictLike)
             print "     loading data from file %s (assuming h5dict)" % dictLike
-            dictLike = h5dict(dictLike, 'r')  # attempting to open h5dict            
+            dictLike = mirnylib.h5dict.h5dict(dictLike, 'r')  # attempting to open h5dict            
 
         "---Filling in chromosomes and positions - mandatory objects---"
         a = dictLike["chrms1"]
@@ -1171,7 +1029,7 @@ class HiCdataset(object):
 
             heatmap = np.zeros((self.genome.numBins, self.genome.numBins),
                                dtype="float64", order="C")
-            heatmapSize = len(heatmap)
+            heatmapSize = len(heatmap)  # @UnusedVariable
 
 
             from scipy import weave
@@ -1261,8 +1119,6 @@ class HiCdataset(object):
     def getHiResHeatmapWithOverlaps(self, resolution, chromosome, start = 0, end = None,  countDiagonalReads="Twice", maxBinSpawn=10):                    
         c1 = self.h5dict.get_dataset("chrms1")
         p1 = self.h5dict.get_dataset("cuts1")
-        c2 = self.h5dict.get_dataset("chrms2")
-        p2 = self.h5dict.get_dataset("cuts2")
         print "getting heatmap", chromosome, start, end       
         from scipy import weave        
         if end == None:
@@ -1294,7 +1150,7 @@ class HiCdataset(object):
         low2 = low2 / float(resolution)
         high2 = high2 / float(resolution)
         
-        N = len(low1)
+        N = len(low1)  # @UnusedVariable
         
         if chromosome == 1: 
             pass
@@ -1402,7 +1258,6 @@ class HiCdataset(object):
         else:
             raise ValueError("Bad value for countDiagonalReads")                
         weave.inline("")  # to release all buffers of weave.inline
-        import gc
         gc.collect()        
         return heatmap 
         
@@ -1426,7 +1281,7 @@ class HiCdataset(object):
         if not self._isSorted():
             print "Data is not sorted!!!"
             self._sortData()            
-        tosave = h5dict(filename)        
+        tosave = mirnylib.h5dict.h5dict(filename)        
         if chromosomes == "all":
             chromosomes = range(self.genome.chrmCount)
         for chrom in chromosomes:
@@ -1453,7 +1308,7 @@ class HiCdataset(object):
 
         """
             
-        tosave = h5dict(filename)        
+        tosave = mirnylib.h5dict.h5dict(filename)        
         if chromosomes == "all":
             chromosomes = range(self.genome.chrmCount)
         for chrom in chromosomes:
@@ -1631,12 +1486,11 @@ class HiCdataset(object):
             del strings, dups
             stay = np.zeros(self.N, bool)
             stay[uids] = True  # indexes of unique DS elements
-            del uids
-            uflen = len(self.rFragIDs)
+            del uids            
 
         elif mode == "hdd":
             tmpFile = os.path.join(tmpDir, str(np.random.randint(0, 100000000)))            
-            a = h5dict(tmpFile)
+            a = mirnylib.h5dict.h5dict(tmpFile)
             a.add_empty_dataset("duplicates", (self.N,), dtype="|S24")
             a.add_empty_dataset("temp", (self.N,), dtype="|S24")
             dset = a.get_dataset("duplicates")
@@ -1804,7 +1658,7 @@ class HiCdataset(object):
         "Saves dataset to filename, does not change the working file."
         if self.filename == filename:
             raise StandardError("Cannot save to the working file")
-        newh5dict = h5dict(filename, mode='w')
+        newh5dict = mirnylib.h5dict.h5dict(filename, mode='w')
         for name in self.vectors.keys():
             newh5dict[name] = self.h5dict[name]
         newh5dict["metadata"] = self.metadata
@@ -1812,7 +1666,7 @@ class HiCdataset(object):
 
     def load(self, filename, buildFragments="deprecated"):
         "Loads dataset from file to working file; check for inconsistency"
-        otherh5dict = h5dict(filename, 'r')
+        otherh5dict = mirnylib.h5dict.h5dict(filename, 'r')
         if "metadata" in otherh5dict:
             self.metadata = otherh5dict["metadata"]
         else:
@@ -1871,7 +1725,7 @@ class HiCdataset(object):
         except:
             pass
 
-        tosave = h5dict(path=filename, mode="w")
+        tosave = mirnylib.h5dict.h5dict(path=filename, mode="w")
         if not useFragmentOverlap:
             heatmap = self.buildAllHeatmap(resolution, countDiagonalReads, useWeights)
         else:
@@ -1923,14 +1777,11 @@ class HiCdataset(object):
             raise ValueError("Bad value for countDiagonalReads")
         self.genome.setResolution(resolution)
 
-        mydict = h5dict(filename)
+        mydict = mirnylib.h5dict.h5dict(filename)
 
         for chromosome in xrange(self.genome.chrmCount):
             c1 = self.h5dict.get_dataset("chrms1")
-            p1 = self.h5dict.get_dataset("cuts1")
-            c2 = self.h5dict.get_dataset("chrms2")
-            p2 = self.h5dict.get_dataset("cuts2")
-            
+            p1 = self.h5dict.get_dataset("cuts1")            
             low = h5dictBinarySearch(c1,p1, (chromosome, -1),"left")
             high = h5dictBinarySearch(c1,p1, (chromosome, 999999999),"right")            
             
@@ -2192,8 +2043,7 @@ class HiCdataset(object):
             weights1 = uweights[np.searchsorted(usort, fragids1)]
             weights2 = uweights[np.searchsorted(usort, fragids2)
                 ]  # weghts for fragment IDs under  consideration
-
-        binBegs, binEnds = bins[:-1], bins[1:]
+    
 
         numExpFrags = np.zeros(numBins)  # count of reads in each min
 
@@ -2204,7 +2054,7 @@ class HiCdataset(object):
         binLens = binEnds - binBegs
 
         
-        for regionNum, region in enumerate(regions):                        
+        for  region in regions:                        
             if len(region) == 3:
                 chrom, start1, end1 = region
                 low = h5dictBinarySearch(c1_h5,p1_h5, (chrom, start1),"left")

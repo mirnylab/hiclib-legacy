@@ -1,6 +1,4 @@
-import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import os
 import warnings
 from mirnylib.h5dict import h5dict
@@ -8,13 +6,7 @@ from os.path import join, exists
 from os import listdir
 import re
 from mirnylib.systemutils import setExceptionHook
-import shutil
-from mirnylib.genome import Genome
-from mirnylib.numutils import ultracorrect, adaptiveSmoothing, removeDiagonals, completeIC
-from hiclib.fragmentHiC import HiCdataset
-from hiclib import binnedData
-import subprocess
-from mirnylib.numutils_new import observedOverExpected
+from hiclib.hicShared import fileIsFragment, fileIsHeatmap
 
 
 setExceptionHook()
@@ -26,67 +18,6 @@ def getBases(folder):
     files = listdir(folder)
     experimentBases = [i[:-13] for i in files if i.endswith("_refined.frag")]
     return experimentBases
-
-
-def checkFragment(filename):
-    "Checks whether a file is a fragment-lefel h5dict"
-    try:
-        a = h5dict(filename, "r")
-    except:
-        return False
-    if "chrms1" in a.keys():
-        return True
-    return False
-
-
-def getResolution(fname):
-    "Extracts resolution from a Hi-C filename"
-    matches = re.findall(r"-\d{1,5}[k,M]", fname)
-    if len(matches) == 0:
-        raise ValueError("resolution not found")
-    if len(matches) > 1:
-        warnings.warn("undetermined resolution")
-        print "found resolutions", matches
-        print "using the last found"
-    match = matches[-1]
-    if match[-1] == "k":
-        mult = 1000
-    elif match[-1] == "M":
-        mult = 1000000
-    else:
-        raise ValueError("Bad things happened")
-
-    num = int(match[1:-1])
-    return num * mult
-
-
-def checkHeatmap(filename):
-    """Checks whether a file is a heatmap
-    Returns a filename as a first argument, and resolution as a second"""
-    try:
-        a = h5dict(filename, "r")
-    except:
-        return False
-
-    keys = a.keys()
-    if ("heatmap" in keys) and ("resolution" in keys):
-        resolution = getResolution(filename)
-        assert resolution == a["resolution"]
-        return ("heatmap", a["resolution"])
-    elif "heatmap" in keys:
-        warnings.warn("Resolution not found in {0}".format(filename))
-        resolution = getResolution(filename)
-        return ("heatmap", resolution)
-
-    if "0 0" in keys:
-        resolution = getResolution(filename)
-        if "0 1" in keys:
-            return "byChr", resolution
-        else:
-            return "byChrCis", resolution
-    return False
-
-
 
 
 class hicExperiment(object):
@@ -115,6 +46,7 @@ class hicExperiment(object):
         self.heatmaps = {}
         self.byChr = {}
         self.byChrCis = {}
+        self.byChrSuper = {}
         self.merged = None
         self.genomeName = genomeName
 
@@ -129,7 +61,7 @@ class hicExperiment(object):
                 pass
             else:
                 fnameFull = join(fol, fname)
-                checked = checkHeatmap(fnameFull)
+                checked = fileIsHeatmap(fnameFull)
                 if checked == False:
                     print "Filename {0} cannot be loaded", fnameFull
                     continue
@@ -140,6 +72,9 @@ class hicExperiment(object):
                     self.byChr[resolution] = fnameFull
                 if hmType == "byChrCis":
                     self.byChrCis[resolution] = fnameFull
+                if hmType == "byChrSuper":
+                    self.byChrSuper[resolution] = fnameFull
+                    
 
     def isReplica(self):
         """
@@ -209,7 +144,7 @@ def scanHicFolder(foldername, genomeName):
     expNames = getBases(fol)
     for i in expNames:
         fname = join(fol, i + "_refined.frag")
-        if not checkFragment(fname):
+        if not fileIsFragment(fname):
             raise
 
     expDict = {i :[j for j in files if j.startswith(i)] for i in expNames}
