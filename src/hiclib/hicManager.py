@@ -74,7 +74,7 @@ class hicExperiment(object):
                     self.byChrCis[resolution] = fnameFull
                 if hmType == "byChrSuper":
                     self.byChrSuper[resolution] = fnameFull
-                    
+
 
     def isReplica(self):
         """
@@ -88,6 +88,9 @@ class hicExperiment(object):
         elif len(found) == 2:
             warnings.warn("More than one match to replica code found")
         return False
+
+    def getMinResolution(self):
+        return min(self.heatmaps.keys() + self.byChr.keys() + self.byChrCis.keys() + self.byChrSuper.keys())
 
     def isMaster(self):
         """
@@ -113,12 +116,12 @@ class hicExperiment(object):
     def getNumCisReads(self):
         hd = h5dict(self.refined, 'r')
         mylen = len(hd.get_dataset("strands1"))
-        chunks = range(0,mylen,200000000) +  [mylen]
-        chunks = zip(chunks[:-1],chunks[1:])
+        chunks = range(0, mylen, 200000000) + [mylen]
+        chunks = zip(chunks[:-1], chunks[1:])
         c1 = hd.get_dataset("chrms1")
         c2 = hd.get_dataset("chrms2")
-        totsum = 0 
-        for st,end in chunks:
+        totsum = 0
+        for st, end in chunks:
             totsum += np.sum(c1[st:end] == c2[st:end])
         return totsum
 

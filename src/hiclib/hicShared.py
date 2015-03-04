@@ -288,21 +288,24 @@ def completeEig(data, GC = None,doSmooth = False ):
         Perform gentle iterative smoothing
     """    
         
-    data = np.clip(data, 0, np.percentile(data, 99.99))    
     mirnylib.numutils.removeDiagonals(data, 1)
-    ICdata = mirnylib.numutils.completeIC(data, 20)
+    data = np.clip(data, 0, np.percentile(data, 99.5))    
+    ICdata = mirnylib.numutils.completeIC(data, 40)
     mask = np.sum(ICdata, axis=0) == 0
     if (-mask).sum() < 3:
         return np.zeros(len(data), dtype = np.float)
         
     for dia in [-1, 0, 1]:
-        mirnylib.numutils.fillDiagonal(ICdata, np.mean(np.diag(ICdata, 2)))
+        mirnylib.numutils.fillDiagonal(ICdata, np.mean(np.diag(ICdata, 2)*2))
     ICdata[mask] = 0
     ICdata[:, mask] = 0
     if doSmooth:
         ICdata = mirnylib.numutils.adaptiveSmoothing(ICdata, 3, originalCounts=data, maxSmooth = 5)
     ICdata = mirnylib.numutils.observedOverExpected(ICdata)
+    ICdata = np.clip(ICdata, 0, np.percentile(ICdata, 99.9))
     ICdata = mirnylib.numutils.iterativeCorrection(ICdata)[0]
+    if (-np.isfinite(ICdata)).sum() > 0:
+        return np.zeros(len(data), dtype = np.float)
     PCs = mirnylib.numutils.zeroEIG(ICdata)[0]
     PC1 = PCs[0]
     PC2 = PCs[1]

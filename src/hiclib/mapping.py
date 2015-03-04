@@ -46,7 +46,7 @@ from mirnylib.systemutils import commandExists, gzipWriter
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
-MIN_MAPQ = 31
+MIN_MAPQ = 1
 
 def readIsUnmapped(read):
     if (read.mapq < MIN_MAPQ):
@@ -84,6 +84,56 @@ def splitSRA(filename, outFile="auto", splitBy=4000000, FASTQ_BINARY="./fastq-du
     inStream = pread.stdout
 
     halted = False
+    counters = []
+    for counter in xrange(1000000):
+
+        outProc1 = gzipWriter(outFile.format(counter, 1))
+        outProc2 = gzipWriter(outFile.format(counter, 2))
+        outStream1 = outProc1.stdin
+        outStream2 = outProc2.stdin
+
+        for j in xrange(splitBy):
+
+            line = inStream.readline()
+
+            try:
+                assert line[0] == "@"
+            except AssertionError:
+                print 'Not fastq'
+                raise IOError("File is not fastq: {0}".format(filename))
+            except IndexError:
+                halted = True
+                counters.append(j)
+                break
+
+
+            fastq_entry = (line, inStream.readline(),
+                           inStream.readline(), inStream.readline())
+
+            outStream1.writelines(fastq_entry)
+            outStream2.writelines((inStream.readline(), inStream.readline(),
+                       inStream.readline(), inStream.readline()))
+
+        outProc1.communicate()
+        outProc2.communicate()
+        print "finished block number", counter
+        if halted:
+            return counters
+        counters.append(splitBy)
+    return counters
+
+
+def splitMergedFastq(filename, outFile="auto", splitBy=4000000, convertReadID=lambda x:x):
+
+    inFile = os.path.abspath(filename)
+
+    if outFile == "auto":
+        outFile = filename.replace(".sra", "") + "_{0}_side{1}.fastq.gz"
+    pread = subprocess.Popen(["gunzip", inFile, "-c"],
+                             stdout=subprocess.PIPE, bufsize=-1)
+    inStream = pread.stdout
+
+    halted = False
     for counter in xrange(1000000):
 
         outProc1 = gzipWriter(outFile.format(counter, 1))
@@ -105,11 +155,11 @@ def splitSRA(filename, outFile="auto", splitBy=4000000, FASTQ_BINARY="./fastq-du
                 break
 
 
-            fastq_entry = (line, inStream.readline(),
+            fastq_entry = (convertReadID(line), inStream.readline(),
                            inStream.readline(), inStream.readline())
 
             outStream1.writelines(fastq_entry)
-            outStream2.writelines((inStream.readline(), inStream.readline(),
+            outStream2.writelines((convertReadID(inStream.readline()), inStream.readline(),
                        inStream.readline(), inStream.readline()))
 
         outProc1.communicate()
@@ -308,6 +358,8 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     seq_start = kwargs.get('seq_start', 0)
     seq_end = kwargs.get('seq_end', None)
     nthreads = kwargs.get('nthreads', 4)
+    max_len = kwargs.get("max_len", 50)
+    log.info("Using new argument: max_len = {0}".format(max_len))
     bowtie_flags = kwargs.get('bowtie_flags', '')
 
     if subprocess.call(['which', 'samtools']) != 0:
@@ -394,6 +446,8 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
     if min_seq_len <= local_seq_end - seq_start:
         trim_5 = seq_start
         trim_3 = raw_seq_len - seq_start - min_seq_len
+        if raw_seq_len - trim_3 - trim_5 > max_len:
+            trim_5 = raw_seq_len - trim_3 - max_len
         local_out_sam = out_sam_path + '.' + str(min_seq_len)
         mapping_command = [
             bowtie_path, '-x', bowtie_index_path, '-q', '-',
