@@ -784,7 +784,7 @@ class HiCdataset(object):
         self.metadata["214_DandlingEnds"] = SSDE_N - SS_N
         self.metadata["216_error"] = sameFrag_N - SSDE_N
 
-        if kwargs.get("keepSameFragment", True):
+        if kwargs.get("keepSameFragment", False):
             print "Keeping same fragment reads"
             mask = DSmask
         else:
@@ -915,9 +915,6 @@ class HiCdataset(object):
 
         if putMetadata:
             self.metadata.update(metadata)
-
-        if oldN == newN:
-            return None
 
         if upgrade is not None:
             upgrade[upgrade == -1] = 9999  # to tell old SS reads from new SS reads
@@ -2070,8 +2067,9 @@ class HiCdataset(object):
 
         numExpFrags = np.zeros(numBins)  # count of reads in each min
 
-        values = [0] * (len(bins) - 1)
-        rawValues = [0] * (len(bins) - 1)
+        observed = [0] * (len(bins) - 1)
+        expected = [0] * (len(bins) - 1)
+
         binBegs, binEnds = bins[:-1], bins[1:]
         binMids = 0.5 * (binBegs + binEnds).astype(float)
         binLens = binEnds - binBegs
@@ -2244,12 +2242,14 @@ class HiCdataset(object):
             for i in xrange(len(bins) - 1):  # Dividing observed by expected
                 first, last = tuple(np.searchsorted(distances, [binBegs[i], binEnds[i]]))
                 mycounts = last - first
-                values[i] += (mycounts / float(numExpFrags[i]))
-                rawValues[i] += (mycounts)
+                # print mycounts, numExpFrags[i]
+                observed[i] += (mycounts)
+                expected[i] += (numExpFrags[i])
+                # print i, mycounts, numExpFrags[i]
             # print "values", values
             # print "rawValies", rawValues
 
-        values = np.array(values)
+        values = np.array(observed) / np.array(expected)
 
         if normalize == True:
             if normRange is None:
