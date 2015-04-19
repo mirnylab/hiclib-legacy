@@ -89,6 +89,8 @@ from mirnylib.numutils import arrayInArray, \
     arraySumByArray, externalMergeSort, chunkedBincount
 import time
 from textwrap import dedent
+from mirnylib.systemutils import setExceptionHook
+from statsmodels.sandbox.distributions.transformed import absfunc
 USE_NUMEXPR = True
 import numexpr
 import logging
@@ -458,7 +460,7 @@ class HiCdataset(object):
             tmp = mydict.add_empty_dataset("trash", (self.N,), mydtype)
             code = dedent("""
             a = np.empty(len(chrms1), dtype = mydtype)
-            mask = chrms1 > chrms2
+            mask = (chrms1 > chrms2) | ( (chrms1 == chrms2) & (cuts1 > cuts2))
 
             chrms2[mask],chrms1[mask] = chrms1[mask].copy(), chrms2[mask].copy()
             cuts1[mask],cuts2[mask] = cuts2[mask].copy(), cuts1[mask].copy()
@@ -1134,8 +1136,53 @@ class HiCdataset(object):
             raise ValueError("Bad value for countDiagonalReads")
         return counts
 
+    def getFragmentHeatmap(self, absFragIdx1=0, absFragIdx2=None):
+        """returns fragment heatmap from absFragIdx1 to absFragIdx2 not including the end
+        Sort of works, but is still buggy"""
+        c1 = self.h5dict.get_dataset("chrms1")
+        p1 = self.h5dict.get_dataset("cuts1")
+
+
+        rsiteId1 = self.rsites[absFragIdx1 - 1] + 6
+        rsiteId2 = self.rsites[absFragIdx2 - 1] - 6
+        if absFragIdx1 == 0:
+            low = 0
+        else:
+            clow, plow = rsiteId1 / self.fragIDmult, rsiteId1 % self.fragIDmult
+            low = h5dictBinarySearch(c1, p1, (clow, plow + 5), "left") + 1
+
+        if absFragIdx2 == None:
+            absFragIdx2 = len(self.rFragIDs)
+            high = self.N
+        else:
+            chigh, phigh = rsiteId2 / self.fragIDmult, rsiteId2 % self.fragIDmult
+            high = h5dictBinarySearch(c1, p1, (chigh, phigh - 5), "right") - 1
+
+        setExceptionHook()
+        M = absFragIdx2 - absFragIdx1
+        if M > 10000:
+            warnings.warn("Returned heatmap is more than 10000 long, make sure you have enough memory!")
+        elif M > 100000:
+            raise ValueError("Cannot build a heatmap more than 100000 long ")
+        ind = np.array(self._getVector("rfragAbsIdxs1", low, high)) - absFragIdx1
+        assert ind.min() >= 0
+        assert ind.max() < M
+        ind2 = np.array(self._getVector("rfragAbsIdxs2", low, high)) - absFragIdx1
+        mask = (ind2 >= 0) * (ind2 < M)
+        ind = ind[mask]
+        ind2 = ind2[mask]
+        assert (ind < ind2).sum() == len(ind)
+
+        ind2d = ind + M * ind2
+        matrix = np.bincount(ind2d, minlength=M * M)
+        matrix.shape = ((M, M))
+        return matrix + matrix.T
+
+
+
 
     def getHiResHeatmapWithOverlaps(self, resolution, chromosome, start=0, end=None, countDiagonalReads="Twice", maxBinSpawn=10):
+
         c1 = self.h5dict.get_dataset("chrms1")
         p1 = self.h5dict.get_dataset("cuts1")
         print "getting heatmap", chromosome, start, end
