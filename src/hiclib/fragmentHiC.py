@@ -261,7 +261,10 @@ class HiCdataset(object):
         c1 = self._getVector("chrms1", 0, min(self.N, 10000))
         cs = np.sort(c1)
         if np.sum(c1 != cs) == 0:
-            return True
+            c1 = self._getVector("cuts1", 0, min(self.N, 10000))
+            cs = np.sort(c1)
+            if np.sum(c1 != cs) == 0:
+                return True
         return False
 
     def __getattribute__(self, x):
