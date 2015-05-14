@@ -15,7 +15,7 @@ try:
     from fastBinSearch import binarySearch as bs  # @UnresolvedImport
     fastBS = True
 except:
-    print "Please compile binarySearch!!! It is in the main folder of the library"
+    print "For faster computations, please compile binarySearch!!! It is in the main folder of the library"
     fastBS = False
 
 def fileIsFragment(filename):
