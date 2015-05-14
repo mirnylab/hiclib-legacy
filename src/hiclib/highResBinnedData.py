@@ -576,7 +576,7 @@ class HiResHiC(object):
         """
         self._hasData()
         curPass = 0
-        marginals = np.zeros(self.genome.numBins, float)
+        marginals = np.ones(self.genome.numBins, float)
         while self._marginalError() > tolerance:
             m = self.getMarginals(normalizeForIC=True)
             marginals *= np.concatenate(m)
@@ -584,6 +584,7 @@ class HiResHiC(object):
             print "Pass = %d, Error = %lf" % (curPass, self._marginalError())
             curPass += 1
         self.biases = marginals
+        return self.biases
 
     def removeDiagonal(self, m=1):
         """
@@ -617,9 +618,3 @@ class HiResHiC(object):
             mydict["%d %d" % i] = data
         mydict["resolution"] = self.resolution
 
-    def exportWithoutZeros(self, filename):
-        mydict = h5dict(filename)
-        for i in self.allKeys:
-            data = self.data[i].getData()
-            mydict["%d %d" % i] = data
-        mydict["resolution"] = self.resolution
