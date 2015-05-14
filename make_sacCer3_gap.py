@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import subprocess
 import gzip
 import csv
@@ -29,8 +31,10 @@ os.remove('sgdOther.txt.gz')
 print 'Save the centromere positions into a .gap file'
 centromere_positions = {}
 for i in centromere_starts:
-    centromere_positions['chr' + str(i)] = (
+    centromere_positions[str(i)] = (
         centromere_starts[i], centromere_ends[i])
+
 genome_db = mirnylib.genome.Genome(sys.argv[1])
-genome_db.createGapFile(centromere_positions)
+genome_db.setCentromeres(centromere_positions = centromere_positions)
+genome_db.createGapFile()
 
