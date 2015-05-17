@@ -181,6 +181,8 @@ class HiCdataset(object):
 
         self.metadata = {}
         self.tmpDir = tmpFolder
+        if not os.path.exists(self.tmpDir):
+            os.makedirs(self.tmpDir)
 
 
         #-------Initialization of the genome and parameters-----
