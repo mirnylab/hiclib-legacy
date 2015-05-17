@@ -1,3 +1,6 @@
+NOTE: this pipeline will not work with 2015 version of the library, but can be easily modified to work. 
+Please use the older version of the library (from 2014).  
+
 This is a current version of the pipeline which we use for processing many Hi-C datasets. This version is for .sra files; make necessary adjustments for fastq files.  
 
 Usage: 
