@@ -48,6 +48,12 @@ Detailed documentation for each module can be found in API documentation below.
 Note about suggested usage
 --------------------------
 
+.. note :: "**Updated from 2015-05-17**" I have rewritten the library considerably to allow analyses of the datasets such as (Rao, 2014), with 
+           many billion reads. This dataset can really be analyzed on a 32GB machine with no problems. Mapping was also made very automatic, 
+           and better mapping scripts are now provided. 
+           
+           You can find an example of the new pipeline in the "pipeline2015" folder; a README file there will tell you how to use it. 
+
 .. note :: "**Update from 2014-05-14**" I've tried to streamline the pipeline which does read mapping of .sra files from GEO. 
            It is in examples/pipeline2014. Mapping performance was significantly increased. 
 
@@ -194,6 +200,8 @@ To install the library in Linux, do the following procedure:
    to change the GENOME_NAME variable of the make_hg19.sh script to the name 
    of the target genome, i.e. 'mm10' or 'bosTau7'.
 7. Test the installation using the scripts from the /tests folders.
+
+
 
 .. note:: As of May 2014, both Ubuntu 12.04 and 14.04 provide packages which 
           are recent enough for the library to run successfully. 

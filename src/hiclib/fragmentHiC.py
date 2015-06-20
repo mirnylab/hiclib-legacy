@@ -242,7 +242,6 @@ class HiCdataset(object):
             self.metadata = self.h5dict["metadata"]
 
 
-
     def _setData(self, name, data):
         "an internal method to save numpy arrays to HDD quickly"
         if name not in self.vectors.keys():
@@ -260,13 +259,20 @@ class HiCdataset(object):
         return self.h5dict[name]
 
     def _isSorted(self):
-        c1 = self._getVector("chrms1", 0, min(self.N, 10000))
-        cs = np.sort(c1)
-        if np.sum(c1 != cs) == 0:
+        if self.N == 0:
+            return False
+
+        ch1 = self._getVector("chrms1", 0, min(self.N, 10000))
+        cs = np.sort(ch1)
+        if np.sum(ch1 != cs) == 0:
             c1 = self._getVector("cuts1", 0, min(self.N, 10000))
-            cs = np.sort(c1)
-            if np.sum(c1 != cs) == 0:
-                return True
+            cs = np.sort(ch1)
+            if np.sum(ch1 != cs) == 0:
+                c2 = self._getVector("cuts2", 0, min(self.N, 10000))
+                ch2 = self._getVector("chrms2", 0, min(self.N, 10000))
+                if (c2 < c1)[ch1 == ch2].sum() == 0:
+
+                    return True
         return False
 
     def __getattribute__(self, x):
@@ -287,6 +293,8 @@ class HiCdataset(object):
         return sliceableDataset(self._getVector, name, self.N)
 
     def _getVector(self, name, start=None, end=None):
+        if self.N == 0:
+            return []
 
         if name in self.vectors:
             if name in self.h5dict:
@@ -709,10 +717,12 @@ class HiCdataset(object):
             print "     loading data from file %s (assuming h5dict)" % dictLike
             fname = dictLike
             dictLike = mirnylib.h5dict.h5dict(dictLike, 'r')  # attempting to open h5dict
+            readCountFIle = os.path.join(os.path.split(fname)[0], "read_counts")
+            if not os.path.exists(readCountFIle):
+                print "raw read count file {0} does not exist"
             try:
-                readFname = os.path.join(os.path.split(fname)[0], "read_counts")
                 num = int(os.path.split(fname)[1][5:-5])
-                readNums = cPickle.load(open(readFname))
+                readNums = cPickle.load(open(readCountFIle))
                 readNum = readNums[num - 1]
                 self.metadata["000_RawReads"] = readNum
                 print "Found raw read count:", readNum
@@ -1027,7 +1037,6 @@ class HiCdataset(object):
             Discard read if it spawns more than maxBinSpawn bins
 
         """
-
 
         if type(resolution) == int:
 
@@ -1429,6 +1438,10 @@ class HiCdataset(object):
         ms = mask.sum()
         assert mask.dtype == np.bool
         self.N = ms
+        if ms == 0:
+            self.N = 0
+            return
+
         for name in self.vectors:
             data = self._getData(name)
             ld = len(data)

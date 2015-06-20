@@ -37,6 +37,7 @@ import gc
 import mirnylib.h5dict
 import mirnylib.genome
 from mirnylib.systemutils import commandExists, gzipWriter
+import shutil
 
 
 # #TODO: write some autodetection of chromosome lengthes base on genome folder
@@ -120,6 +121,15 @@ def splitSRA(filename, outFile="auto", splitBy=4000000, FASTQ_BINARY="./fastq-du
         outProc2.communicate()
         print "finished block number", counter
         if halted:
+            if (counters[-1] < splitBy / 3) and (len(counters) > 1):
+                for side in [1, 2]:
+                    f1 = outFile.format(counter - 1, side)
+                    f2 = outFile.format(counter, side)
+                    os.system("cat {0} {1} > {0}_tmp".format(f1, f2))
+                    shutil.move(f1 + "_tmp", f1)
+                    os.remove(f2)
+                last = counters.pop()
+                counters[-1] = counters[-1] + last
             return counters
         counters.append(splitBy)
     return counters
@@ -154,18 +164,24 @@ def splitSingleFastq(filename, outFile, splitBy=4000000, convertReadID=lambda x:
                 counters.append(j)
                 break
 
-
             fastq_entry = (convertReadID(line), inStream.readline(),
                            inStream.readline(), inStream.readline())
-
             outStream1.writelines(fastq_entry)
 
         outProc1.communicate()
         print "finished block number", counter
-        counters.append(splitBy)
-        if halted:
-            return
 
+        if halted:
+            if (counters[-1] < splitBy / 3) and (len(counters) > 1):
+                f1 = outFile.format(counter - 1)
+                f2 = outFile.format(counter)
+                os.system("cat {0} {1} > {0}_tmp".format(f1, f2))
+                shutil.move(f1 + "_tmp", f1)
+                os.remove(f2)
+                last = counters.pop()
+                counters[-1] = counters[-1] + last
+            return counters
+        counters.append(splitBy)
 
 
 def _detect_quality_coding_scheme(in_fastq, num_entries=10000):
