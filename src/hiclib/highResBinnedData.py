@@ -1,4 +1,4 @@
-#(c) 2012 Massachusetts Institute of Technology. All Rights Reserved
+# (c) 2012 Massachusetts Institute of Technology. All Rights Reserved
 # Code written by: Maksim Imakaev (imakaev@mit.edu)
 
 """
@@ -541,16 +541,6 @@ class HiResHiC(object):
                 marginals[chr2] += m2
 
         self.marginals = marginals
-        if normalizeForIC is True:
-            allMarginals = np.concatenate(marginals)
-            divide = allMarginals[allMarginals > 0].mean()
-            for i in marginals:
-                i /= divide
-                i[i == 0] = 1
-                i -= 1
-                i *= 0.6
-                i += 1
-
         return marginals
 
     def divideByMarginals(self, marginals=None):
@@ -565,7 +555,7 @@ class HiResHiC(object):
         for chr1, chr2 in self.data:
             m2 = marginals[chr1]
             m1 = marginals[chr2]
-            self.data[(chr1, chr2)].divideByVectors((m1, m2))
+            self.data[(chr1, chr2)].divideByVectors((np.sqrt(m1), np.sqrt(m2)))
 
     def iterativeCorrection(self, tolerance=1e-2):
         """
