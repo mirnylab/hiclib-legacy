@@ -297,7 +297,7 @@ def completeEig(data, GC=None, doSmooth=False):
         return np.zeros(len(data), dtype=np.float)
 
     for dia in [-1, 0, 1]:
-        mirnylib.numutils.fillDiagonal(ICdata, np.mean(np.diag(ICdata, 2) * 2))
+        mirnylib.numutils.fillDiagonal(ICdata, np.mean(np.diag(ICdata, 2) * 2), dia)
     ICdata[mask] = 0
     ICdata[:, mask] = 0
     if doSmooth:

@@ -226,7 +226,7 @@ def _line_count(path):
 
 
 
-def _filter_fastq(ids, inStream, out_fastq, in_filename="none"):
+def _filter_fastq(ids, inStream, out_fastq, in_filename="none"):  # @UnusedVariable
     '''Filter FASTQ sequences by their IDs.
 
     Read entries from **in_fastq** and store in **out_fastq** only those
@@ -679,7 +679,7 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
         print "not counting stats"
 
     # Read and save each type of data separately.
-    def _write_to_array(read, array, value):
+    def _write_to_array(read, array, value):  # @UnusedVariable
         array[_write_to_array.i] = value
 
     def inc(function):

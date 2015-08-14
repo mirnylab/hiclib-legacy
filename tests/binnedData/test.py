@@ -1,3 +1,4 @@
+import numpy as np 
 from hiclib.binnedData import binnedDataAnalysis
 
 import os
@@ -14,9 +15,15 @@ if not os.path.exists(genomeFolder):
 
 
 a = binnedDataAnalysis(1000000, genomeFolder)
-a.simpleLoad("../fragmentHiC/test-1M.hm", "test")
+a.simpleLoad("test-1M.hm", "test")
 a.removeDiagonal()
 a.removePoorRegions()
+a.iterativeCorrectWithoutSS()
+hm = a.dataDict["test"]
+hsum = np.sum(hm, axis=0)
+var = np.var(hsum[hsum>0])
+print var, np.mean(hsum)
+assert var < 0.0001
 a.removeCis()
 a.fakeCis()
 a.removeZeros()

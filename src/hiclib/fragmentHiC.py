@@ -2130,7 +2130,7 @@ class HiCdataset(object):
                 ]  # weghts for fragment IDs under  consideration
 
 
-        numExpFrags = np.zeros(numBins)  # count of reads in each min
+
 
         observed = [0] * (len(bins) - 1)
         expected = [0] * (len(bins) - 1)
@@ -2141,6 +2141,7 @@ class HiCdataset(object):
 
 
         for  region in regions:
+            numExpFrags = np.zeros(numBins)  # count of reads in each min
             if len(region) == 3:
                 chrom, start1, end1 = region
                 low = h5dictBinarySearch(c1_h5, p1_h5, (chrom, start1), "left")
