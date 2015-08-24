@@ -218,6 +218,10 @@ class HiCdataset(object):
         self.chunksize = 10000000
         # Chunk size for h5dict operation, external sorting, etc
 
+        def dummyFunction(*args, **kwargs):
+            pass
+        self.maskFilterCallback = dummyFunction
+
         self.inMemory = inMemory
 
         #------Creating filenames, etc---------
@@ -2315,6 +2319,7 @@ class HiCdataset(object):
             # print "values", values
             # print "rawValies", rawValues
 
+        totalSum = np.sum(observed)
         values = np.array(observed) / np.array(expected)
 
         if normalize == True:
@@ -2335,8 +2340,7 @@ class HiCdataset(object):
         if do_plot:
             if appendReadCount == True:
                 if "label" in kwargs.keys():
-                    kwargs["label"] = kwargs["label"] + \
-                        ", %d reads" % len(distances)
+                    kwargs["label"] = "{0}, {1} reads".format(kwargs["label"], totalSum)
             plt.plot(binMids, values, **kwargs)
         return (binMids, values)
 

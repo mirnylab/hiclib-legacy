@@ -45,28 +45,10 @@ TR.filterLarge(cutlarge=50000, cutsmall=100)
 sc = TR.plotScaling()
 
 g = mygenome
-cisArmsRegs = [] 
-for i in range(g.chrmCount):
-   cntr, end = g.cntrMids[i], g.chrmLens[i]
-   cisArmsRegs.append((i,0,cntr))
-   cisArmsRegs.append((i,cntr,end))
-
-cisArmsRegsReordered = [] 
-for i in range(g.chrmCount):
-   cntr, end = g.cntrMids[i], g.chrmLens[i]
-   cisArmsRegsReordered.append((i,0,cntr))
-   
-for i in range(g.chrmCount):
-   cntr, end = g.cntrMids[i], g.chrmLens[i]
-   cisArmsRegsReordered.append((i,cntr,end))
-
-
 
 print sc
 plt.title("Scaling should be 1/x")
 plt.plot(*sc)
-
-plt.plot(*plotScaling(regions=cisArmRegs))
 
 plt.xscale("log")
 plt.yscale("log")

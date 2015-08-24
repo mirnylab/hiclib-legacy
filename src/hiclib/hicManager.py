@@ -126,7 +126,7 @@ class hicExperiment(object):
         return totsum
 
     def getEnzyme(self):
-        enzymes = ["HindIII", "NcoI", "BglII", "MboI"]
+        enzymes = ["HindIII", "NcoI", "BglII", "MboI", "DpnII"]
         for enz in enzymes:
             if enz in self.base:
                 return enz
