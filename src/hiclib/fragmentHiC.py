@@ -2188,10 +2188,10 @@ class HiCdataset(object):
 
                 maskFrag1 = (fragch1 == chrom) * (
                     (fragpos1 > start1) * (fragpos1 < end1)
-                    + (fragpos1 > start2) * (fragpos1 < end2))
+                    )#+ (fragpos1 > start2) * (fragpos1 < end2))
                 maskFrag2 = (fragch2 == chrom) * (
                     (fragpos2 > start2) * (fragpos2 < end2)
-                    + (fragpos2 > start1) * (fragpos2 < end1))
+                    )#+ (fragpos2 > start1) * (fragpos2 < end1))
 
             if maskFrag1.sum() == 0 or maskFrag2.sum() == 0:
                 print "no fragments for region", region

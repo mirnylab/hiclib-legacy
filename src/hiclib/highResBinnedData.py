@@ -421,15 +421,18 @@ class HiResHiC(object):
                 print "Please load data!"
                 raise ValueError("Please load data first")
 
-    def _marginalError(self, marginals=None):
-        "Checks after each pass of IC, if marginals are close enough to 1"
+    def _marginalError(self, marginals=None, percentile=99.9):
+        """Checks after each pass of IC if marginals are close enough to 1.
+        The error is calculated as the specified percentile of deviation
+        from the mean marginal.
+        """
         if marginals is None:
             if not hasattr(self, "marginals"):
                 return 99999
             marginals = self.marginals
         marginals = np.concatenate(marginals)
         marginals = marginals[marginals != 0]
-        error = np.max(np.abs(marginals - marginals.mean()))
+        error = np.percentile(np.abs(marginals - marginals.mean()), percentile)
         return error / marginals.mean()
 
     def getCombinedMatrix(self, force=False):
