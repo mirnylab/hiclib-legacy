@@ -347,7 +347,8 @@ class HiCdataset(object):
                 return self.rFragMids[self._getVector("rfragAbsIdxs2", start, end)]
             elif name == "distances":
                 dvec = np.abs(self._getVector("mids1", start, end) - self._getVector("mids2", start, end))
-                dvec[self.chrms1[start:end] != self.chrms2[start:end]] = -1
+                trans_mask = (self._getVector('chrms1',start, end) != self._getVector('chrms2',start,end))
+                dvec[trans_mask] = -1
                 return dvec
 
         raise "unknown vector: {0}".format(name)
