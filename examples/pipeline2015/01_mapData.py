@@ -239,7 +239,7 @@ for i in  iterList:
         mapped_reads = h5dict.h5dict(outfile)
         sf1, sf2 = [os.path.join(samFolder, os.path.split(onefile)[1] + ".sam") for onefile in [file1, file2]]
         mapping.parse_sam(sam_basename1=sf1, sam_basename2=sf2,
-            out_dict=mapped_reads, genome_db=genome_db, save_seqs=False, maxReads=chunkSize, IDLen=50)
+            out_dict=mapped_reads, genome_db=genome_db, save_seqs=False, maxReads=int(chunkSize*1.6), IDLen=50)
         for i in os.listdir(samFolder):
             if (os.path.split(file1)[1] in i) or (os.path.split(file2)[1] in i):
                 print "deleting", i
