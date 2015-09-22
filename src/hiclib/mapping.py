@@ -180,6 +180,7 @@ def splitSingleFastq(filename, outFile, splitBy=4000000, convertReadID=lambda x:
                 os.remove(f2)
                 last = counters.pop()
                 counters[-1] = counters[-1] + last
+            print "Read counts", counters
             return counters
         counters.append(splitBy)
 

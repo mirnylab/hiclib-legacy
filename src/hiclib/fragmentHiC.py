@@ -225,19 +225,20 @@ class HiCdataset(object):
         self.inMemory = inMemory
 
         #------Creating filenames, etc---------
-        if os.path.exists(self.filename) and (mode in ['w', 'a']):
-            print '----->!!!File already exists! It will be {0}\n'.format(
-                {"w": "deleted", "a": "opened in the append mode"}[mode])
+        if not self.inMemory:
+            if os.path.exists(self.filename) and (mode in ['w', 'a']):
+                print '----->!!!File already exists! It will be {0}\n'.format(
+                    {"w": "deleted", "a": "opened in the append mode"}[mode])
 
-        if len(os.path.split(self.filename)[0]) != 0:
-            if not os.path.exists(os.path.split(self.filename)[0]):
-                warnings.warn("Folder in which you want to create file"
-                        "do not exist: %s" % os.path.split(self.filename)[0])
-                try:
-                    os.mkdir(os.path.split(self.filename)[0])
-                except:
-                    raise IOError("Failed to create directory: %s" %
-                                  os.path.split(self.filename)[0])
+            if len(os.path.split(self.filename)[0]) != 0:
+                if not os.path.exists(os.path.split(self.filename)[0]):
+                    warnings.warn("Folder in which you want to create file"
+                            "do not exist: %s" % os.path.split(self.filename)[0])
+                    try:
+                        os.mkdir(os.path.split(self.filename)[0])
+                    except:
+                        raise IOError("Failed to create directory: %s" %
+                                      os.path.split(self.filename)[0])
 
         self.h5dict = mirnylib.h5dict.h5dict(self.filename, mode=mode, in_memory=inMemory)
         if "chrms1" in self.h5dict.keys():
@@ -347,7 +348,7 @@ class HiCdataset(object):
                 return self.rFragMids[self._getVector("rfragAbsIdxs2", start, end)]
             elif name == "distances":
                 dvec = np.abs(self._getVector("mids1", start, end) - self._getVector("mids2", start, end))
-                trans_mask = (self._getVector('chrms1',start, end) != self._getVector('chrms2',start,end))
+                trans_mask = (self._getVector('chrms1', start, end) != self._getVector('chrms2', start, end))
                 dvec[trans_mask] = -1
                 return dvec
 
@@ -1455,8 +1456,7 @@ class HiCdataset(object):
             else:
                 if ld != length:
                     self.delete()
-            newdata = fasterBooleanIndexing(data, mask, outLen=ms,
-                                        bounds=False)  # see mirnylib.numutils
+            newdata = data[mask]
             del data
             self._setData(name, newdata)
             del newdata
@@ -2189,10 +2189,10 @@ class HiCdataset(object):
 
                 maskFrag1 = (fragch1 == chrom) * (
                     (fragpos1 > start1) * (fragpos1 < end1)
-                    )#+ (fragpos1 > start2) * (fragpos1 < end2))
+                    )  # + (fragpos1 > start2) * (fragpos1 < end2))
                 maskFrag2 = (fragch2 == chrom) * (
                     (fragpos2 > start2) * (fragpos2 < end2)
-                    )#+ (fragpos2 > start1) * (fragpos2 < end1))
+                    )  # + (fragpos2 > start1) * (fragpos2 < end1))
 
             if maskFrag1.sum() == 0 or maskFrag2.sum() == 0:
                 print "no fragments for region", region
