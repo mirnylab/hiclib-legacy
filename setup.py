@@ -9,7 +9,7 @@ setup(
     install_requires=[
         'biopython',
         'mirnylib',
-        'pysam <=0.6',
+        'pysam',
     ],
     dependency_links=[
         'https://bitbucket.org/mirnylab/mirnylib/get/tip.tar.bz2'
