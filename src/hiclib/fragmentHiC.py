@@ -165,7 +165,7 @@ class HiCdataset(object):
             # midpoint of a fragment, determined as "(start+end)/2"
 
             "dists1": "int32", "dists2": "int32",
-            # precise location of cut-site
+            # distance from a cut site to the restriction fragment
 
             "distances": "int32",
             # distance between fragments. If -1, different chromosomes.
@@ -300,7 +300,9 @@ class HiCdataset(object):
     def _getVector(self, name, start=None, end=None):
         if self.N == 0:
             return []
-
+        if (type(start) == int) and (type(end) ==int) and (start == end):
+            warnings.warn(RuntimeWarning("Zero length vector requested"))
+            return []
         if name in self.vectors:
             if name in self.h5dict:
                 return self.h5dict.get_dataset(name)[start:end]

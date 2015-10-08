@@ -1,8 +1,8 @@
-#(c) 2012 Massachusetts Institute of Technology. All Rights Reserved
+# (c) 2012 Massachusetts Institute of Technology. All Rights Reserved
 # Code written by: Maksim Imakaev (imakaev@mit.edu)
 
 
-#TODO:(MIU) Write tests for this module!
+# TODO:(MIU) Write tests for this module!
 
 """
 Binned data - analysis of HiC, binned to resolution.
@@ -359,7 +359,7 @@ class binnedData(object):
                 raise IOError("HDF5 dict do not exist, %s" % path)
             alldata = h5dict(path, mode="r")
         else:
-            alldata = in_data
+            alldata = {"heatmap":in_data}
         if type(alldata) == h5dict:
             if ("0 0" in alldata.keys()) and ("heatmap" not in alldata.keys()):
                 if chromosomeOrder != None:
@@ -368,7 +368,15 @@ class binnedData(object):
                     chromosomes = xrange(self.chromosomeCount)
                 datas = []
                 for i in chromosomes:
-                    datas.append(np.concatenate([alldata["{0} {1}".format(i, j)] for j in chromosomes], axis=1))
+                    newdatas = []
+                    for j in chromosomes:
+                        if j > i:
+                            newdatas.append(alldata["{0} {1}".format(i, j)])
+                        else:
+                            newdatas.append(alldata["{0} {1}".format(j, i)].T)
+
+
+                    datas.append(np.concatenate(newdatas, axis=1))
                 newdata = {"heatmap": np.concatenate(datas)}
                 for i in alldata.keys():
                     newdata[i] = alldata[i]
@@ -613,7 +621,7 @@ class binnedData(object):
 
 
         """
-        #TODO (MIU): check this method!
+        # TODO (MIU): check this method!
         if silent == False:
             print("All cis counts are substituted with matching trans count")
         for key in self.dataDict.keys():
@@ -789,7 +797,7 @@ class binnedData(object):
             names = self.dataDict.keys()
         mask2D = self._giveMask2D()
 
-        #If diagonal was removed, we should remember about it!
+        # If diagonal was removed, we should remember about it!
         if hasattr(self, "removedDiagonalValue"):
             removeDiagonals(mask2D, self.removedDiagonalValue)
 
@@ -798,18 +806,18 @@ class binnedData(object):
 
             if useOriginalReads is not False:
                 if rawReadDict is not None:
-                    #raw reads provided externally
+                    # raw reads provided externally
                     reads = rawReadDict[name]
                 else:
-                    #recovering raw reads
+                    # recovering raw reads
                     reads = self._recoverOriginalReads(name)
 
                 if reads is None:
-                    #failed to recover reads
+                    # failed to recover reads
                     if useOriginalReads == True:
                         raise RuntimeError("Cannot recover original reads!")
             else:
-                #raw reads were not requested
+                # raw reads were not requested
                 reads = None
 
             if reads is None:
@@ -952,7 +960,7 @@ class binnedData(object):
                 mydict[key][s] = a
 
         for mydict in self.eigDicts:
-            #print mydict
+            # print mydict
             for key in mydict.keys():
                 a = mydict[key]
                 mydict[key] = np.zeros((len(a), N), dtype=a.dtype) * value
@@ -1064,7 +1072,7 @@ class binnedData(object):
                 fname = domainFunction
 
                 def domainFunction(chrom):
-                    #orig = chrom.copy()
+                    # orig = chrom.copy()
                     M = len(chrom.flat)
                     toclip = 100 * min(0.999, (M - 10.) / M)
                     removeDiagonals(chrom, 1)
@@ -1075,7 +1083,7 @@ class binnedData(object):
                     for i in [-1, 0, 1]:
                         fillDiagonal(chrom, 1, i)
                     if fname in ["default", "lieberman+", "erez+"]:
-                        #upgrade of (Lieberman 2009)
+                        # upgrade of (Lieberman 2009)
                         # does IC, then OoE, then IC, then corrcoef, then PCA
 
                         chrom = ultracorrect(chrom)
@@ -1083,7 +1091,7 @@ class binnedData(object):
                         PCs = PCA(chrom, numPCs)[0]
                         return PCs
                     elif fname in ["lieberman", "erez"]:
-                        #slight upgrade of (Lieberman 2009)
+                        # slight upgrade of (Lieberman 2009)
                         # does IC, then OoE, then corrcoef, then PCA
 
                         chrom = np.corrcoef(chrom)
@@ -1096,8 +1104,8 @@ class binnedData(object):
                     else:
                         raise
             if domainFunction in ["lieberman-", "erez-"]:
-                #simplest function presented in (Lieberman 2009)
-                #Closest to (Lieberman 2009) that we could do
+                # simplest function presented in (Lieberman 2009)
+                # Closest to (Lieberman 2009) that we could do
                 def domainFunction(chrom):
                     removeDiagonals(chrom, 1)
                     chrom = observedOverExpected(chrom)
@@ -1106,7 +1114,7 @@ class binnedData(object):
                     return PCs
 
         corrdict, lengthdict = {}, {}
-            #dict of per-chromosome correlation coefficients
+            # dict of per-chromosome correlation coefficients
 
         for key in self.dataDict.keys():
             corrdict[key] = []
@@ -1379,7 +1387,7 @@ class binnedDataAnalysis(binnedData):
             self.chromosomeCount * self.chromosomeIndex[None, :]
         values[self.chromosomeIndex[:, None] == self.chromosomeIndex[None,
             :]] = self.chromosomeCount * self.chromosomeCount - 1
-        #mat_img(values)
+        # mat_img(values)
         uv = np.sort(np.unique(values))[1:-1]
         probs = np.bincount(
             values.ravel(), weights=self.dataDict[filename].ravel())
@@ -1390,7 +1398,7 @@ class binnedDataAnalysis(binnedData):
             probs[self.chromosomeCount * self.chromosomeCount - 1] = 0
             values = probs / counts
             values[counts == 0] = 0
-            #mat_img(values.reshape((22,22)))
+            # mat_img(values.reshape((22,22)))
             return values.reshape((self.chromosomeCount, self.chromosomeCount))
 
 
@@ -1485,7 +1493,7 @@ class experimentalBinnedData(binnedData):
             mask = sm[:, None] * sm[None, :]
             transmask = np.array(self.chromosomeIndex[:, None]
                 == self.chromosomeIndex[None, :], int)
-            #mat_img(transmask)
+            # mat_img(transmask)
             N = len(data)
             N, transmask, mask  # to remove warning
             code = r"""
@@ -1529,7 +1537,7 @@ class experimentalBinnedData(binnedData):
                 data = correct(data)
             self.dataDict[i] = data
 
-            #mat_img(self.dataDict[i]>0)
+            # mat_img(self.dataDict[i]>0)
     def iterativeCorrectByTrans(self, names=None):
         """performs iterative correction by trans data only, corrects cis also
 
@@ -1543,7 +1551,7 @@ class experimentalBinnedData(binnedData):
             names = self.dataDict.keys()
         self.transmap = self.chromosomeIndex[:,
             None] != self.chromosomeIndex[None, :]
-        #mat_img(self.transmap)
+        # mat_img(self.transmap)
         for i in names:
             data = self.dataDict[i]
             self.dataDict[i], self.biasDict[i] = \
@@ -1626,7 +1634,7 @@ class experimentalBinnedData(binnedData):
                         value = int(spentry[0])
                     cur += ([value] * int(2 * float(spentry[1])))
                 cur += [-1] * 2
-        #lenses = [len(i) for i in result]
+        # lenses = [len(i) for i in result]
 
         domains = np.zeros(self.genome.numBins, int)
         for i in xrange(self.genome.chrmCount):
