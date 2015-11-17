@@ -930,8 +930,8 @@ def fill_rsites(lib, genome_db, enzyme_name='auto', min_frag_size=None):
                 (enzyme_name,))
         genome_db.setEnzyme(enzyme_name)
 
-    rsite_size = eval('len(Bio.Restriction.%s.site)' % genome_db.enzymeName)
     if min_frag_size is None:
+        rsite_size = eval('len(Bio.Restriction.%s.site)' % genome_db.enzymeName)
         _min_frag_size = rsite_size / 2.0
     else:
         _min_frag_size = min_frag_size
