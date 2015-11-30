@@ -232,11 +232,13 @@ def h5dictBinarySearch(chrms1, pos1, value, side="left", mycmp=mycmp):
         else:
             low = mid
     if side == "left":
-        return low
+        return high
     else:
         return high
 
 """ Tools to manipulate with Hi-C datasets"""
+
+
 
 def saveFile(datasetFilename, outFolder, IC=True, smooth=True):
     if not os.path.exists(outFolder):

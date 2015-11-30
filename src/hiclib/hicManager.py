@@ -1,3 +1,4 @@
+import imp
 import numpy as np
 import os
 import warnings
@@ -7,6 +8,11 @@ from os import listdir
 import re
 from mirnylib.systemutils import setExceptionHook
 from hiclib.hicShared import fileIsFragment, fileIsHeatmap
+import binascii
+from hiclib.fragmentHiC import HiCdataset
+from mirnylib.genome import Genome
+from mirnylib.numutils import completeIC
+
 
 
 setExceptionHook()
@@ -132,6 +138,38 @@ class hicExperiment(object):
                 return enz
         print "Enzyme not found!"
         return None
+
+    def getGenomeObject(self):
+        if hasattr(self, "genomeObject"):
+            return self.genomeObject
+        name = self.genomeName
+        base = os.path.split(self.folder)[0]
+        defineGenomePath = os.path.join(base, "defineGenome.py")
+        assert os.path.exists(defineGenomePath)
+        randomString = binascii.b2a_hex(os.urandom(15))
+        genomeModule = imp.load_source(randomString, defineGenomePath)
+        genomeObject = genomeModule.getGenome(name)
+        self.genomeObject = genomeObject
+        return genomeObject
+
+    def getScaling(self):
+        HD = HiCdataset(self.refined, self.getGenomeObject(), self.getEnzyme(), 1000, mode='r', tmpFolder="\tmp", dictToStoreIDs="h5dict")
+        scal = HD.plotScaling(excludeNeighbors=2, normalize=True, mindist=2000)
+        return scal
+
+    def getByChromosomeScaling(self):
+        HD = HiCdataset(self.refined, self.getGenomeObject(), self.getEnzyme(), 1000, mode='r', tmpFolder="\tmp", dictToStoreIDs="h5dict")
+        scals = {}
+        for chrom in xrange(self.getGenomeObject().chrmCount):
+            for arm in [0, 1]:
+                if arm == 0:
+                    region = (chrom, 0, self.genomeObject.cntrMids[chrom])
+                else:
+                    region = (chrom, self.genomeObject.cntrMids[chrom], self.genomeObject.chrmLens[chrom])
+                scal = HD.plotScaling(excludeNeighbors=2, normalize=True, mindist=2000, regions=[region])
+
+                scals[(chrom, arm)] = scal
+        return scals
 
 
 

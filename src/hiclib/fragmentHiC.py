@@ -90,7 +90,6 @@ from mirnylib.numutils import arrayInArray, \
 import time
 from textwrap import dedent
 from mirnylib.systemutils import setExceptionHook
-from statsmodels.sandbox.distributions.transformed import absfunc
 USE_NUMEXPR = True
 import numexpr
 import logging
@@ -300,9 +299,9 @@ class HiCdataset(object):
     def _getVector(self, name, start=None, end=None):
         if self.N == 0:
             return []
-        if (type(start) == int) and (type(end) ==int) and (start == end):
+        if (type(start) == int) and (type(end) == int) and (start == end):
             warnings.warn(RuntimeWarning("Zero length vector requested"))
-            return []
+            return np.array([])
         if name in self.vectors:
             if name in self.h5dict:
                 return self.h5dict.get_dataset(name)[start:end]
@@ -2324,6 +2323,8 @@ class HiCdataset(object):
 
         totalSum = np.sum(observed)
         values = np.array(observed) / np.array(expected)
+        if np.sum(observed) == 0:
+            return None
 
         if normalize == True:
             if normRange is None:
