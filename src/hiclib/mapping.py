@@ -620,11 +620,17 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     lib['rsites' + side] = rsites
 
 
-
 def _parse_ss_sams(sam_basename, out_dict, genome_db,
-                   max_seq_len=-1, reverse_complement=False, save_seqs=False, maxReads=None, IDLen=None):
+                   max_seq_len=-1, reverse_complement=False, save_seqs=False,
+                   maxReads=None, IDLen=None,
+                   truncateIdAction = None):
     """Parse SAM files with single-sided reads.
     """
+    if truncateIdAction is None:
+        truncateIdAction = lambda qname: (
+            qname[:-2]
+            if qname.endswith('/1') or qname.endswith('/2')
+            else qname)
     def _for_each_unique_read(sam_basename, genome_db, action):
         sam_paths = glob.glob(sam_basename + '.*')
         if not sam_paths:
@@ -713,12 +719,13 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
             (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['seq_len'])
 
         _for_each_unique_read(sam_basename, genome_db,
-            action=lambda read: (_write_to_array(read, chrmBuf, read.tid),
-                                 _write_to_array(read, strandBuf, not read.is_reverse),
-                                 _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
-                                 _write_to_array(read, idBuf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname),
-                                 _write_to_array(read, seqBuf, Bio.Seq.reverse_complement(read.seq) if read.is_reverse and reverse_complement else read.seq),
-                                 inc(_write_to_array)))
+            action=lambda read: (
+                _write_to_array(read, chrmBuf, read.tid),
+                _write_to_array(read, strandBuf, not read.is_reverse),
+                _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
+                _write_to_array(read, idBuf, truncateIdAction(read.qname)),
+                _write_to_array(read, seqBuf, Bio.Seq.reverse_complement(read.seq) if read.is_reverse and reverse_complement else read.seq),
+                inc(_write_to_array)))
 
         if (maxReads is not None) and (IDLen is not None):
             totReads = _write_to_array.i
@@ -731,11 +738,12 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
         print("use parse_sams(save_seqs=True) to save sequences")
         warnings.warn(RuntimeWarning("Since 14-01-20 we're not saving sequences by default"))
         _for_each_unique_read(sam_basename, genome_db,
-            action=lambda read: (_write_to_array(read, chrmBuf, read.tid),
-                                 _write_to_array(read, strandBuf, not read.is_reverse),
-                                 _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
-                                 _write_to_array(read, idBuf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname),
-                                 inc(_write_to_array)))
+            action=lambda read: (
+                _write_to_array(read, chrmBuf, read.tid),
+                _write_to_array(read, strandBuf, not read.is_reverse),
+                _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
+                _write_to_array(read, idBuf, truncateIdAction(read.qname)),
+                inc(_write_to_array)))
 
     if (maxReads is not None) and (IDLen is not None):
         totReads = _write_to_array.i
@@ -802,6 +810,9 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, save_seqs=False
         fragment is assigned to the next restriction fragment in the direction
         of the read. Default is None, which means it is set to a half
         of the length of the restriction motif.
+
+    truncateIdAction : function, optional
+        A function that extracts the matching part of single sided reads' IDs.
     '''
 
     max_seq_len = kwargs.get('max_seq_len', -1)
@@ -812,6 +823,7 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, save_seqs=False
 
     maxReads = kwargs.get("maxReads", None)
     IDLen = kwargs.get("IDLen", 50)
+    truncateIdAction = kwargs.get("truncateIdAction", None)
 
     if isinstance(genome_db, str):
         genome_db = mirnylib.genome.Genome(genome_db)
@@ -825,12 +837,14 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, save_seqs=False
     log.info('Parse the first side of the reads from %s' % sam_basename1)
     _parse_ss_sams(sam_basename1, ss_lib[1], genome_db,
                    1 if not max_seq_len else max_seq_len, reverse_complement, save_seqs=save_seqs,
-                   maxReads=maxReads, IDLen=IDLen)
+                   maxReads=maxReads, IDLen=IDLen,
+                   truncateIdAction=truncateIdAction)
 
     log.info('Parse the second side of the reads from %s' % sam_basename2)
     _parse_ss_sams(sam_basename2, ss_lib[2], genome_db,
                    1 if not max_seq_len else max_seq_len, reverse_complement, save_seqs=save_seqs,
-                   maxReads=maxReads, IDLen=IDLen)
+                   maxReads=maxReads, IDLen=IDLen,
+                   truncateIdAction=truncateIdAction)
 
     # Determine the number of double-sided reads.
     all_ids = np.unique(np.concatenate((ss_lib[1]['ids'], ss_lib[2]['ids'])))
@@ -921,8 +935,8 @@ def fill_rsites(lib, genome_db, enzyme_name='auto', min_frag_size=None):
                 (enzyme_name,))
         genome_db.setEnzyme(enzyme_name)
 
-    rsite_size = eval('len(Bio.Restriction.%s.site)' % genome_db.enzymeName)
     if min_frag_size is None:
+        rsite_size = eval('len(Bio.Restriction.%s.site)' % genome_db.enzymeName)
         _min_frag_size = rsite_size / 2.0
     else:
         _min_frag_size = min_frag_size
