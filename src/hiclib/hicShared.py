@@ -1,4 +1,7 @@
+
+from __future__ import absolute_import, division, print_function, unicode_literals
 import re
+
 import warnings
 import numpy as np
 import logging
@@ -12,10 +15,10 @@ log = logging.getLogger(__name__)
 
 
 try:
-    from fastBinSearch import binarySearch as bs  # @UnresolvedImport
+    from .fastBinSearch import binarySearch as bs  # @UnresolvedImport
     fastBS = True
 except:
-    print "For faster computations, please compile binarySearch!!! It is in the main folder of the library"
+    print("For faster computations, please compile binarySearch!!! It is in the main folder of the library")
     fastBS = False
 
 def fileIsFragment(filename):
@@ -24,7 +27,7 @@ def fileIsFragment(filename):
         a = mirnylib.h5dict.h5dict(filename, "r")
     except:
         return False
-    if "chrms1" in a.keys():
+    if "chrms1" in list(a.keys()):
         return True
     return False
 
@@ -36,10 +39,10 @@ def fileIsHeatmap(filename):
     try:
         a = mirnylib.h5dict.h5dict(filename, "r")
     except:
-        print "cannot open h5dict:", filename
+        print("cannot open h5dict:", filename)
         return False
 
-    keys = a.keys()
+    keys = list(a.keys())
     if ("heatmap" in keys) and ("resolution" in keys):
         resolution = getResolution(filename)
         assert resolution == a["resolution"]
@@ -70,8 +73,8 @@ def getResolution(fname):
         raise ValueError("resolution not found")
     if len(matches) > 1:
         warnings.warn("undetermined resolution")
-        print "found resolutions", matches
-        print "using the last found"
+        print("found resolutions", matches)
+        print("using the last found")
     match = matches[-1]
     if match[-1] == "k":
         mult = 1000
@@ -126,7 +129,7 @@ class sliceableDataset(object):
         if issubclass(type(val), int):
             val = int(val)
             data = self.getFunction(self.name, val, val + 1)
-            print "fetched one element from vectors2. This is bad!"
+            print("fetched one element from vectors2. This is bad!")
             return data[0]
 
         start = val.start
@@ -155,7 +158,7 @@ Functions to work with fragmentHiC related numpy record arrays and with hdf5 dat
 """
 
 # defining data types for building heatmaps, and sorter functions for externalMergeSort
-mydtype = np.dtype("i1,i4,i1,i4,b,b")
+mydtype = np.dtype("i2,i4,i2,i4,b,b")
 mydtype.names = ("chrms1", "pos1", "chrms2", "pos2", "strands1", "strands2")
 
 def mydtypeSorter(x):
@@ -166,7 +169,7 @@ def mydtypeSorter(x):
         array to be sorted
     """
     inds = np.lexsort((x["pos1"], x["chrms1"]))
-    toret = x.view(np.dtype((str, x.dtype.itemsize)))[inds].view(x.dtype)
+    toret = x.view(np.dtype("S{0}".format(x.dtype.itemsize)))[inds].view(x.dtype)
     assert len(toret) == len(x)
     assert toret.dtype == x.dtype
     return toret
@@ -256,21 +259,21 @@ def saveFile(datasetFilename, outFolder, IC=True, smooth=True):
         if not os.path.exists(smoothedFol):
             os.mkdir(smoothedFol)
     for key in mydict:
-        print key
+        print(key)
         data = mydict[key]
         key = key.replace(" ", "_")
         if type(data) == np.ndarray and len(data.shape) == 2:
 
             mirnylib.numutils_new.matrixToGzippedFile(data, os.path.join(raw, key + ".txt.gz"))  # @UndefinedVariable
-            print "saved raw"
+            print("saved raw")
             if IC:
                 ICed = mirnylib.numutils.completeIC(data)
                 mirnylib.numutils_new.matrixToGzippedFile(ICed, os.path.join(ICedFol, key + ".txt.gz"))  # @UndefinedVariable
-                print "saved ICed"
+                print("saved ICed")
             if smooth:
                 smoothed = mirnylib.numutils.adaptiveSmoothing(ICed, 20, originalCounts=data, maxSmooth=10)
                 mirnylib.numutils_new.matrixToGzippedFile(smoothed, os.path.join(smoothedFol, key + ".txt.gz"))  # @UndefinedVariable
-                print "saved smoothed"
+                print("saved smoothed")
         elif type(data) == np.ndarray:
             np.savetxt(os.path.join(outFolder, key), data)
         else:
@@ -329,7 +332,7 @@ def byChrEig(filename, genome, chromosomes="all", resolution="auto", byArm=True,
     genome.setResolution(resolution)
     mydict = mirnylib.h5dict.h5dict(filename)
     if chromosomes == "all":
-        chromosomes = range(genome.chrmCount)
+        chromosomes = list(range(genome.chrmCount))
         chromosomes = [i for i in chromosomes if "{0} {0}".format(i) in mydict]
         if len(chromosomes) == 0:
             raise ValueError("No chromosomes left. Check h5dict file.")

@@ -20,6 +20,7 @@ API Documentation
 -----------------
 '''
 
+from __future__ import absolute_import, division, print_function, unicode_literals
 import os
 import re
 import glob
@@ -59,7 +60,7 @@ def readIsUnmapped(read):
             return True
     return False
 
-print "hello from new mapping"
+print("hello from new mapping")
 
 def sleep():
     """sleep for a second, run garbage collector, sleep again.
@@ -88,21 +89,24 @@ def splitSRA(filename, outFile="auto", splitBy=4000000, FASTQ_BINARY="./fastq-du
 
     halted = False
     counters = []
-    for counter in xrange(1000000):
+    for counter in range(1000000):
 
         outProc1 = gzipWriter(outFile.format(counter, 1))
         outProc2 = gzipWriter(outFile.format(counter, 2))
         outStream1 = outProc1.stdin
         outStream2 = outProc2.stdin
 
-        for j in xrange(splitBy):
+        for j in range(splitBy):
 
             line = inStream.readline()
 
             try:
-                assert line[0] == "@"
+            
+            
+                assert line[0] == 64  #"@"
             except AssertionError:
-                print 'Not fastq'
+                print('Not fastq')
+                print("bad line: {0}".format(line))
                 raise IOError("File is not fastq: {0}".format(filename))
             except IndexError:
                 halted = True
@@ -119,7 +123,7 @@ def splitSRA(filename, outFile="auto", splitBy=4000000, FASTQ_BINARY="./fastq-du
 
         outProc1.communicate()
         outProc2.communicate()
-        print "finished block number", counter
+        print("finished block number", counter)
         if halted:
             if (counters[-1] < splitBy / 3) and (len(counters) > 1):
                 for side in [1, 2]:
@@ -145,19 +149,20 @@ def splitSingleFastq(filename, outFile, splitBy=4000000, convertReadID=lambda x:
 
     halted = False
     counters = []
-    for counter in xrange(100000):
+    for counter in range(100000):
 
         outProc1 = gzipWriter(outFile.format(counter))
         outStream1 = outProc1.stdin
 
-        for j in xrange(splitBy):
+        for j in range(splitBy):
 
             line = inStream.readline()
 
             try:
-                assert line[0] == "@"
+                assert line[0] == 64 #"@"
             except AssertionError:
-                print 'Not fastq'
+                print('Not fastq')
+                print("bad line: {0}".format(line))                
                 raise IOError("File is not fastq: {0}".format(filename))
             except IndexError:
                 halted = True
@@ -169,7 +174,7 @@ def splitSingleFastq(filename, outFile, splitBy=4000000, convertReadID=lambda x:
             outStream1.writelines(fastq_entry)
 
         outProc1.communicate()
-        print "finished block number", counter
+        print("finished block number", counter)
 
         if halted:
             if (counters[-1] < splitBy / 3) and (len(counters) > 1):
@@ -180,7 +185,7 @@ def splitSingleFastq(filename, outFile, splitBy=4000000, convertReadID=lambda x:
                 os.remove(f2)
                 last = counters.pop()
                 counters[-1] = counters[-1] + last
-            print "Read counts", counters
+            print("Read counts", counters)
             return counters
         counters.append(splitBy)
 
@@ -240,11 +245,11 @@ def _filter_fastq(ids, inStream, out_fastq, in_filename="none"):  # @UnusedVaria
     while True:
 
         line = inStream.readline()
-
         try:
-            assert line[0] == '@'
+            assert line[0] == 64 # "@"
         except AssertionError:
-            print 'Not fastq'
+            print('Not fastq')
+            raise
         except IndexError:
             break
 
@@ -278,7 +283,7 @@ def _filter_unmapped_fastq(in_stream, in_sam, nonunique_fastq, in_filename="none
     nonunique_ids = set()
     for read in samfile:
         if readIsUnmapped(read):
-            nonunique_ids.add(read.qname)
+            nonunique_ids.add(read.qname.encode())
 
     num_total, num_filtered = _filter_fastq(
         nonunique_ids, in_stream, nonunique_fastq, in_filename=in_filename)
@@ -507,7 +512,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
         # Check if the next iteration is required.
         if (len_step <= 0) or (min_seq_len + len_step > local_seq_end - seq_start):
             if kwargs.get("first_iteration", True) == False:
-                print "Deleting previous file", fastq_path
+                print("Deleting previous file", fastq_path)
                 os.remove(fastq_path)
             return
 
@@ -532,7 +537,7 @@ def iterative_mapping(bowtie_path, bowtie_index_path, fastq_path, out_sam_path,
                   '{1} are sent the next iteration.').format(num_filtered, num_total))
 
         if kwargs.get("first_iteration", True) == False:
-            print "Deleting previous file", fastq_path
+            print("Deleting previous file", fastq_path)
             os.remove(fastq_path)
 
         kwargs['first_iteration'] = False
@@ -581,14 +586,14 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
             ('\nDetermined many ({0}) reads that map after the end of chromosome!'
              '\n Maximum deviation is {1} bp ').format(len(badCuts), maxDev))
         if maxDev > 50:
-            raise StandardError("Deviation is too large. Probably, genome mismatch.")
+            raise Exception("Deviation is too large. Probably, genome mismatch.")
         cuts[badCuts] = np.array(genome.chrmLens[np.array(chrms[badCuts], dtype=int)] - 1, dtype=cuts.dtype)
     if len(badCuts) > 10000:
-        raise StandardError("Determined too many (%s) reads that map after "
+        raise Exception("Determined too many (%s) reads that map after "
                             "the end of chromosome!" % len(badCuts))
 
     strands = lib['strands' + side]
-    for chrm_idx in xrange(genome.chrmCount):
+    for chrm_idx in range(genome.chrmCount):
         all_rsites = np.r_[0, genome.rsites[chrm_idx]]
         idxs = (chrms == chrm_idx)
 
@@ -615,17 +620,11 @@ def _find_rfrags_inplace(lib, genome, min_frag_size, side):
     lib['rsites' + side] = rsites
 
 
+
 def _parse_ss_sams(sam_basename, out_dict, genome_db,
-                   max_seq_len=-1, reverse_complement=False, save_seqs=False,
-                   maxReads=None, IDLen=None,
-                   truncateIdAction = None):
+                   max_seq_len=-1, reverse_complement=False, save_seqs=False, maxReads=None, IDLen=None):
     """Parse SAM files with single-sided reads.
     """
-    if truncateIdAction is None:
-        truncateIdAction = lambda qname: (
-            qname[:-2]
-            if qname.endswith('/1') or qname.endswith('/2')
-            else qname)
     def _for_each_unique_read(sam_basename, genome_db, action):
         sam_paths = glob.glob(sam_basename + '.*')
         if not sam_paths:
@@ -638,7 +637,7 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
 
             # Make Bowtie's chromosome tids -> genome_db indices dictionary.
             tid2idx = {}
-            for i in xrange(len(samfile.lengths)):
+            for i in range(len(samfile.lengths)):
                 chrm_rname = samfile.getrname(i)
                 chrm_label = genome_db._extractChrmLabel(chrm_rname)
                 if chrm_label in genome_db.label2idx:
@@ -683,7 +682,7 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
                 {'chrms': [], 'strands': [], 'cuts': [], 'seqs': [], 'ids': []})
             return out_dict
     else:
-        print "not counting stats"
+        print("not counting stats")
 
     # Read and save each type of data separately.
     def _write_to_array(read, array, value):  # @UnusedVariable
@@ -714,13 +713,12 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
             (sam_stats['num_reads'],), dtype='|S%d' % sam_stats['seq_len'])
 
         _for_each_unique_read(sam_basename, genome_db,
-            action=lambda read: (
-                _write_to_array(read, chrmBuf, read.tid),
-                _write_to_array(read, strandBuf, not read.is_reverse),
-                _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
-                _write_to_array(read, idBuf, truncateIdAction(read.qname)),
-                _write_to_array(read, seqBuf, Bio.Seq.reverse_complement(read.seq) if read.is_reverse and reverse_complement else read.seq),
-                inc(_write_to_array)))
+            action=lambda read: (_write_to_array(read, chrmBuf, read.tid),
+                                 _write_to_array(read, strandBuf, not read.is_reverse),
+                                 _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
+                                 _write_to_array(read, idBuf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname),
+                                 _write_to_array(read, seqBuf, Bio.Seq.reverse_complement(read.seq) if read.is_reverse and reverse_complement else read.seq),
+                                 inc(_write_to_array)))
 
         if (maxReads is not None) and (IDLen is not None):
             totReads = _write_to_array.i
@@ -729,16 +727,15 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
         out_dict['seqs'] = seqBuf
 
     else:
-        print "In a recent update by default we're not saving sequences!!!"
-        print "use parse_sams(save_seqs=True) to save sequences"
+        print("In a recent update by default we're not saving sequences!!!")
+        print("use parse_sams(save_seqs=True) to save sequences")
         warnings.warn(RuntimeWarning("Since 14-01-20 we're not saving sequences by default"))
         _for_each_unique_read(sam_basename, genome_db,
-            action=lambda read: (
-                _write_to_array(read, chrmBuf, read.tid),
-                _write_to_array(read, strandBuf, not read.is_reverse),
-                _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
-                _write_to_array(read, idBuf, truncateIdAction(read.qname)),
-                inc(_write_to_array)))
+            action=lambda read: (_write_to_array(read, chrmBuf, read.tid),
+                                 _write_to_array(read, strandBuf, not read.is_reverse),
+                                 _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
+                                 _write_to_array(read, idBuf, read.qname[:-2] if read.qname.endswith('/1') or read.qname.endswith('/2') else read.qname),
+                                 inc(_write_to_array)))
 
     if (maxReads is not None) and (IDLen is not None):
         totReads = _write_to_array.i
@@ -805,9 +802,6 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, save_seqs=False
         fragment is assigned to the next restriction fragment in the direction
         of the read. Default is None, which means it is set to a half
         of the length of the restriction motif.
-
-    truncateIdAction : function, optional
-        A function that extracts the matching part of single sided reads' IDs.
     '''
 
     max_seq_len = kwargs.get('max_seq_len', -1)
@@ -818,7 +812,6 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, save_seqs=False
 
     maxReads = kwargs.get("maxReads", None)
     IDLen = kwargs.get("IDLen", 50)
-    truncateIdAction = kwargs.get("truncateIdAction", None)
 
     if isinstance(genome_db, str):
         genome_db = mirnylib.genome.Genome(genome_db)
@@ -832,14 +825,12 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, save_seqs=False
     log.info('Parse the first side of the reads from %s' % sam_basename1)
     _parse_ss_sams(sam_basename1, ss_lib[1], genome_db,
                    1 if not max_seq_len else max_seq_len, reverse_complement, save_seqs=save_seqs,
-                   maxReads=maxReads, IDLen=IDLen,
-                   truncateIdAction=truncateIdAction)
+                   maxReads=maxReads, IDLen=IDLen)
 
     log.info('Parse the second side of the reads from %s' % sam_basename2)
     _parse_ss_sams(sam_basename2, ss_lib[2], genome_db,
                    1 if not max_seq_len else max_seq_len, reverse_complement, save_seqs=save_seqs,
-                   maxReads=maxReads, IDLen=IDLen,
-                   truncateIdAction=truncateIdAction)
+                   maxReads=maxReads, IDLen=IDLen)
 
     # Determine the number of double-sided reads.
     all_ids = np.unique(np.concatenate((ss_lib[1]['ids'], ss_lib[2]['ids'])))
@@ -852,7 +843,7 @@ def parse_sam(sam_basename1, sam_basename2, out_dict, genome_db, save_seqs=False
     # Pair single-sided reads and write into the output.
     for i in [1, 2]:
         sorting = np.searchsorted(all_ids, ss_lib[i]['ids'])
-        for key in ss_lib[i].keys():
+        for key in list(ss_lib[i].keys()):
             # Create empty arrays if input is empty.
             if tot_num_reads == 0:
                 out_dict[key + str(i)] = []
@@ -930,8 +921,8 @@ def fill_rsites(lib, genome_db, enzyme_name='auto', min_frag_size=None):
                 (enzyme_name,))
         genome_db.setEnzyme(enzyme_name)
 
+    rsite_size = eval('len(Bio.Restriction.%s.site)' % genome_db.enzymeName)
     if min_frag_size is None:
-        rsite_size = eval('len(Bio.Restriction.%s.site)' % genome_db.enzymeName)
         _min_frag_size = rsite_size / 2.0
     else:
         _min_frag_size = min_frag_size

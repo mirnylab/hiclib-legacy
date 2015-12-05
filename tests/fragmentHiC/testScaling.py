@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 from hiclib.fragmentHiC import HiCdataset
 from mirnylib.h5dict import h5dict
 import matplotlib.pyplot as plt 
@@ -13,7 +14,7 @@ workingGenome = "hg19"
 
 genomeFolder = sys.argv[1]
 if not os.path.exists(genomeFolder):
-    raise StandardError("Please provide hg19 Genome folder in the code or as a first argument")
+    raise Exception("Please provide hg19 Genome folder in the code or as a first argument")
 mygenome = Genome(genomeFolder, readChrms = ["#","X"])
 
 def source(ID):
@@ -37,7 +38,7 @@ strands2 = np.random.random(N) > 0.5
 mydict = {"chrms1":chrms1, "chrms2":chrms2,"cuts1":pos1,"cuts2":pos2,"strands1":strands1,"strands2":strands2}
 
 TR = HiCdataset("bla", genome=mygenome, enzymeName="MboI",maximumMoleculeLength=500, inMemory=True)
-print "\nTesting loading new data without rsite information    "
+print("\nTesting loading new data without rsite information    ")
 TR.parseInputData(dictLike=mydict,
                   enzymeToFillRsites="MboI")
 TR.filterLarge(cutlarge=50000, cutsmall=100)
@@ -46,7 +47,7 @@ sc = TR.plotScaling()
 
 g = mygenome
 
-print sc
+print(sc)
 plt.title("Scaling should be 1/x")
 plt.plot(*sc)
 

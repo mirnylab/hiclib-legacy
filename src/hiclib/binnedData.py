@@ -396,6 +396,7 @@ class binnedData(object):
             pass
         if "resolution" in alldata:
             if self.resolution != alldata["resolution"]:
+                print "Resolution of data is {0}; should be {1}".format(self.resolution, alldata["resolution"])
                 print "resolution mismatch!!!"
                 print "--------------> Bye <-------------"
                 raise StandardError("Resolution mismatch! ")
