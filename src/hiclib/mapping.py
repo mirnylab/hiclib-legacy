@@ -21,6 +21,7 @@ API Documentation
 '''
 
 from __future__ import absolute_import, division, print_function, unicode_literals
+import six 
 import os
 import re
 import glob
@@ -103,7 +104,7 @@ def splitSRA(filename, outFile="auto", splitBy=4000000, FASTQ_BINARY="./fastq-du
             try:
             
             
-                assert line[0] == 64  #"@"
+                assert six.indexbytes(line,0) == 64  #"@"
             except AssertionError:
                 print('Not fastq')
                 print("bad line: {0}".format(line))
@@ -159,7 +160,7 @@ def splitSingleFastq(filename, outFile, splitBy=4000000, convertReadID=lambda x:
             line = inStream.readline()
 
             try:
-                assert line[0] == 64 #"@"
+                assert six.indexbytes(line,0) == 64 #"@"
             except AssertionError:
                 print('Not fastq')
                 print("bad line: {0}".format(line))                
@@ -246,7 +247,7 @@ def _filter_fastq(ids, inStream, out_fastq, in_filename="none"):  # @UnusedVaria
 
         line = inStream.readline()
         try:
-            assert line[0] == 64 # "@"
+            assert six.indexbytes(line,0) == 64 # "@"
         except AssertionError:
             print('Not fastq')
             raise
