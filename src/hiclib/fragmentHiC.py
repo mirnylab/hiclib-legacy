@@ -1586,6 +1586,395 @@ class HiCdataset(object):
 
         return
 
+
+
+
+    def buildHeatmapWithOverlapCpp(self, resolution, countDiagonalReads="Twice",
+        maxBinSpawn=10):
+        """
+        __NOT optimized for large datasets__
+        Creates an all-by-all heatmap in accordance with mapping
+        provided by 'genome' class
+
+        This method assigns fragments to all bins which
+        the fragment overlaps, proportionally
+
+        Parameters
+        ----------
+        resolution : int or str
+            Resolution of a heatmap. May be an int or 'fragment' for
+            restriction fragment resolution.
+        countDiagonalReads : "once" or "twice"
+            How many times to count reads in the diagonal bin
+        maxBinSpawn : int, optional, not more than 10
+            Discard read if it spawns more than maxBinSpawn bins
+
+        """
+
+        if type(resolution) == int:
+
+            # many bytes per record + heatmap
+            self.genome.setResolution(resolution)
+            N = self.N
+            N = int(N)
+
+            low1 = self.genome.chrmStartsBinCont[self.chrms1]
+            low1 = np.asarray(low1, dtype="float32")
+            low1 += (self.mids1 - self.fraglens1 / 2) / float(resolution)
+
+            high1 = self.genome.chrmStartsBinCont[self.chrms1]
+            high1 = np.asarray(high1, dtype="float32")
+            high1 += (self.mids1 + self.fraglens1 / 2) / float(resolution)
+
+            low2 = self.genome.chrmStartsBinCont[self.chrms2]
+            low2 = np.asarray(low2, dtype="float32")
+            low2 += (self.mids2 - self.fraglens2 / 2) / float(resolution)
+
+            high2 = self.genome.chrmStartsBinCont[self.chrms2]
+            high2 = np.asarray(high2, dtype="float32")
+            high2 += (self.mids2 + self.fraglens2 / 2) / float(resolution)
+
+
+            heatmap = np.zeros((self.genome.numBins, self.genome.numBins),
+                               dtype="float64", order="C")
+            heatmapSize = len(heatmap)  # @UnusedVariable
+
+
+            from scipy import weave
+            code = """
+            #line 1045 "fragmentHiC.py"
+            double vector1[100];
+            double vector2[100];
+
+            for (int readNum = 0;  readNum < N; readNum++)
+            {
+                for (int i=0; i<10; i++)
+                {
+                    vector1[i] = 0;
+                    vector2[i] = 0;
+                }
+
+                double l1 = low1[readNum];
+                double l2 = low2[readNum];
+                double h1 = high1[readNum];
+                double h2 = high2[readNum];
+
+
+                if ((h1 - l1) > maxBinSpawn) continue;
+                if ((h2 - l2) > maxBinSpawn) continue;
+
+                int binNum1 = ceil(h1) - floor(l1);
+                int binNum2 = ceil(h2) - floor(l2);
+                double binLen1 = h1 - l1;
+                double binLen2 = h2 - l2;
+
+                int b1 = floor(l1);
+                int b2 = floor(l2);
+
+                if (binNum1 == 1)
+                    vector1[0] = 1.;
+                else
+                    {
+                    vector1[0] = (ceil(l1 + 0.00001) - l1) / binLen1;
+                    for (int t = 1; t< binNum1 - 1; t++)
+                        {vector1[t] = 1. / binLen1;}
+                    vector1[binNum1 - 1] = (h1 - floor(h1)) / binLen1;
+                    }
+
+                if (binNum2 == 1) vector2[0] = 1.;
+
+                else
+                    {
+                    vector2[0] = (ceil(l2 + 0.0001) - l2) / binLen2;
+                    for (int t = 1; t< binNum2 - 1; t++)
+                        {vector2[t] = 1. / binLen2;}
+                    vector2[binNum2 - 1] = (h2 - floor(h2)) / binLen2;
+                    }
+
+                for (int i = 0; i< binNum1; i++)
+                    {
+                    for (int j = 0; j < binNum2; j++)
+                        {
+                        heatmap[(b1 + i) * heatmapSize +  b2 + j] += vector1[i] * vector2[j];
+                        }
+                    }
+                }
+        """
+        weave.inline(code,
+                     ['low1', "high1", "low2", "high2",
+                       "N", "heatmap", "maxBinSpawn",
+                      "heatmapSize",
+                       ],
+                     extra_compile_args=['-march=native  -O3 '],
+                     support_code=r"""
+                    #include <stdio.h>
+                    #include <math.h>""")
+
+        counts = heatmap
+        for i in range(len(counts)):
+            counts[i, i:] += counts[i:, i]
+            counts[i:, i] = counts[i, i:]
+            diag = np.diag(counts)
+        if countDiagonalReads.lower() == "once":
+            fillDiagonal(counts, diag / 2)
+        elif countDiagonalReads.lower() == "twice":
+            pass
+        else:
+            raise ValueError("Bad value for countDiagonalReads")
+        return counts
+
+    def getFragmentHeatmap(self, absFragIdx1=0, absFragIdx2=None):
+        """returns fragment heatmap from absFragIdx1 to absFragIdx2 not including the end
+        Sort of works, but is still buggy"""
+        c1 = self.h5dict.get_dataset("chrms1")
+        p1 = self.h5dict.get_dataset("cuts1")
+
+
+        rsiteId1 = self.rsites[absFragIdx1 - 1] + 6
+        rsiteId2 = self.rsites[absFragIdx2 - 1] - 6
+        if absFragIdx1 == 0:
+            low = 0
+        else:
+            clow, plow = rsiteId1 / self.fragIDmult, rsiteId1 % self.fragIDmult
+            low = h5dictBinarySearch(c1, p1, (clow, plow + 5), "left") + 1
+
+        if absFragIdx2 == None:
+            absFragIdx2 = len(self.rFragIDs)
+            high = self.N
+        else:
+            chigh, phigh = rsiteId2 / self.fragIDmult, rsiteId2 % self.fragIDmult
+            high = h5dictBinarySearch(c1, p1, (chigh, phigh - 5), "right") - 1
+
+        setExceptionHook()
+        M = absFragIdx2 - absFragIdx1
+        if M > 10000:
+            warnings.warn("Returned heatmap is more than 10000 long, make sure you have enough memory!")
+        elif M > 100000:
+            raise ValueError("Cannot build a heatmap more than 100000 long ")
+        ind = np.array(self._getVector("rfragAbsIdxs1", low, high)) - absFragIdx1
+        assert ind.min() >= 0
+        assert ind.max() < M
+        ind2 = np.array(self._getVector("rfragAbsIdxs2", low, high)) - absFragIdx1
+        mask = (ind2 >= 0) * (ind2 < M)
+        ind = ind[mask]
+        ind2 = ind2[mask]
+        assert (ind < ind2).sum() == len(ind)
+
+        ind2d = ind + M * ind2
+        matrix = np.bincount(ind2d, minlength=M * M)
+        matrix.shape = ((M, M))
+        return matrix + matrix.T
+
+
+
+
+    def getHiResHeatmapWithOverlaps(self, resolution, chromosome, start=0, end=None, countDiagonalReads="Twice", maxBinSpawn=10):
+
+        c1 = self.h5dict.get_dataset("chrms1")
+        p1 = self.h5dict.get_dataset("cuts1")
+        print("getting heatmap", chromosome, start, end)
+        from scipy import weave
+        if end == None:
+            end = self.genome.chrmLens[chromosome]
+        low = h5dictBinarySearch(c1, p1, (chromosome, start), "left")
+        high = h5dictBinarySearch(c1, p1, (chromosome, end), "right")
+
+
+        c1 = self._getVector("chrms1", low, high)
+        c2 = self._getVector("chrms2", low, high)
+        mids1 = self._getVector("mids1", low, high)
+        mids2 = self._getVector("mids2", low, high)
+        fraglens1 = self._getVector("fraglens1", low, high)
+        fraglens2 = self._getVector("fraglens2", low, high)
+
+        mask = (c1 == c2) * (mids2 >= start) * (mids2 < end)
+        mids1 = mids1[mask]
+        mids2 = mids2[mask]
+        fraglens1 = fraglens1[mask]
+        fraglens2 = fraglens2[mask]
+
+        low1 = mids1 - fraglens1 / 2 - start
+        high1 = low1 + fraglens1
+        low2 = mids2 - fraglens2 / 2 - start
+        high2 = low2 + fraglens2
+
+        low1 = low1 / float(resolution)
+        high1 = high1 / float(resolution)
+        low2 = low2 / float(resolution)
+        high2 = high2 / float(resolution)
+
+        N = len(low1)  # @UnusedVariable
+
+        if chromosome == 1:
+            pass
+            # 0/0
+
+        heatmapSize = int(np.ceil((end - start) / float(resolution)))
+
+        heatmap = np.zeros((heatmapSize, heatmapSize),
+                           dtype="float64", order="C")
+
+
+
+
+        code = r"""
+            #line 1045 "fragmentHiC.py"
+            double vector1[1000];
+            double vector2[1000];
+
+            for (int readNum = 0;  readNum < N; readNum++)
+            {
+                for (int i=0; i<10; i++)
+                {
+                    vector1[i] = 0;
+                    vector2[i] = 0;
+                }
+
+                double l1 = low1[readNum];
+                double l2 = low2[readNum];
+                double h1 = high1[readNum];
+                double h2 = high2[readNum];
+
+
+                if ((h1 - l1) > maxBinSpawn) continue;
+                if ((h2 - l2) > maxBinSpawn) continue;
+
+                int binNum1 = ceil(h1) - floor(l1);
+                int binNum2 = ceil(h2) - floor(l2);
+                double binLen1 = h1 - l1;
+                double binLen2 = h2 - l2;
+
+                int b1 = floor(l1);
+                int b2 = floor(l2);
+
+                if (binNum1 == 1)
+                    vector1[0] = 1.;
+                else
+                    {
+                    vector1[0] = (ceil(l1+ 0.00000001) - l1) / binLen1;
+                    for (int t = 1; t< binNum1 - 1; t++)
+                        {vector1[t] = 1. / binLen1;}
+                    vector1[binNum1 - 1] = (h1 - floor(h1)) / binLen1;
+                    }
+
+                if (binNum2 == 1) vector2[0] = 1.;
+
+                else
+                    {
+                    vector2[0] = (ceil(l2 + 0.00000001) - l2) / binLen2;
+                    for (int t = 1; t< binNum2 - 1; t++)
+                        {vector2[t] = 1. / binLen2;}
+                    vector2[binNum2 - 1] = (h2 - floor(h2)) / binLen2;
+                    }
+                if ((b1 + binNum1) >= heatmapSize) { continue;}
+                if ((b2 + binNum2) >= heatmapSize) { continue;}
+                if ((b1 < 0)) {continue;}
+                if ((b2 < 0)) {continue;}
+                double psum = 0;
+                for (int i = 0; i< binNum1; i++)
+                    {
+                    for (int j = 0; j < binNum2; j++)
+                        {
+                        heatmap[(b1 + i) * heatmapSize +  b2 + j] += vector1[i] * vector2[j];
+                        psum += vector1[i] * vector2[j];
+                        }
+                    }
+                    if (abs(psum-1) > 0.0000001)
+                        {
+                            printf("bins num 1 = %d \n",binNum1);
+                            printf("bins num 2 = %d \n",binNum2);
+                            printf("psum = %f \n", psum);
+                        }
+
+                }
+        """
+        weave.inline(code,
+                         ['low1', "high1", "low2", "high2",
+                           "N", "heatmap", "maxBinSpawn",
+                          "heatmapSize",
+                           ],
+                         extra_compile_args=['-march=native  -O3 '],
+                         support_code=r"""
+                        #include <stdio.h>
+                        #include <math.h>
+                        """)
+
+        for i in range(len(heatmap)):
+            heatmap[i, i:] += heatmap[i:, i]
+            heatmap[i:, i] = heatmap[i, i:]
+        if countDiagonalReads.lower() == "once":
+            diag = np.diag(heatmap).copy()
+            fillDiagonal(heatmap, diag / 2)
+            del diag
+        elif countDiagonalReads.lower() == "twice":
+            pass
+        else:
+            raise ValueError("Bad value for countDiagonalReads")
+        weave.inline("")  # to release all buffers of weave.inline
+        gc.collect()
+        return heatmap
+
+
+    def saveHiResHeatmapWithOverlaps(self, filename, resolution, countDiagonalReads="Twice", maxBinSpawn=10, chromosomes="all"):
+        """Creates within-chromosome heatmaps at very high resolution,
+        assigning each fragment to all the bins it overlaps with,
+        proportional to the area of overlaps.
+
+        Parameters
+        ----------
+        resolution : int or str
+            Resolution of a heatmap.
+        countDiagonalReads : "once" or "twice"
+            How many times to count reads in the diagonal bin
+        maxBinSpawn : int, optional, not more than 10
+            Discard read if it spawns more than maxBinSpawn bins
+
+        """
+
+        if not self._isSorted():
+            print("Data is not sorted!!!")
+            self._sortData()
+        tosave = mirnylib.h5dict.h5dict(filename)
+        if chromosomes == "all":
+            chromosomes = list(range(self.genome.chrmCount))
+        for chrom in chromosomes:
+            heatmap = self.getHiResHeatmapWithOverlaps(resolution, chrom,
+                               countDiagonalReads=countDiagonalReads, maxBinSpawn=maxBinSpawn)
+            tosave["{0} {0}".format(chrom)] = heatmap
+            del heatmap
+            gc.collect()
+        print("----> By chromosome Heatmap saved to '{0}' at {1} resolution".format(filename, resolution))
+
+    def saveSuperHighResMapWithOverlaps(self, filename, resolution, chunkSize=20000000, chunkStep=10000000, countDiagonalReads="Twice", maxBinSpawn=10, chromosomes="all"):
+        """Creates within-chromosome heatmaps at very high resolution,
+        assigning each fragment to all the bins it overlaps with,
+        proportional to the area of overlaps.
+
+        Parameters
+        ----------
+        resolution : int or str
+            Resolution of a heatmap.
+        countDiagonalReads : "once" or "twice"
+            How many times to count reads in the diagonal bin
+        maxBinSpawn : int, optional, not more than 10
+            Discard read if it spawns more than maxBinSpawn bins
+
+        """
+
+        tosave = mirnylib.h5dict.h5dict(filename)
+        if chromosomes == "all":
+            chromosomes = list(range(self.genome.chrmCount))
+        for chrom in chromosomes:
+            chrLen = self.genome.chrmLens[chrom]
+            chunks = [(i * chunkStep, min(i * chunkStep + chunkSize, chrLen)) for i in range(chrLen / chunkStep + 1)]
+            for chunk in chunks:
+                heatmap = self.getHiResHeatmapWithOverlaps(resolution, chrom,
+                                    start=chunk[0], end=chunk[1],
+                                   countDiagonalReads=countDiagonalReads, maxBinSpawn=maxBinSpawn)
+                tosave["{0}_{1}_{2}".format(chrom, chunk[0], chunk[1])] = heatmap
+        print("----> Super-high-resolution heatmap saved to '{0}' at {1} resolution".format(filename, resolution))
+
+
     def exitProgram(self, a):
         print(a)
         print("     ----> Bye! :) <----")
