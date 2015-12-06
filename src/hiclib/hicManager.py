@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import imp
 import numpy as np
 import os
@@ -69,7 +70,7 @@ class hicExperiment(object):
                 fnameFull = join(fol, fname)
                 checked = fileIsHeatmap(fnameFull)
                 if checked == False:
-                    print "Filename {0} cannot be loaded", fnameFull
+                    print("Filename {0} cannot be loaded", fnameFull)
                     continue
                 hmType, resolution = checked
                 if hmType == "heatmap":
@@ -96,7 +97,7 @@ class hicExperiment(object):
         return False
 
     def getMinResolution(self):
-        return min(self.heatmaps.keys() + self.byChr.keys() + self.byChrCis.keys() + self.byChrSuper.keys())
+        return min(list(self.heatmaps.keys()) + list(self.byChr.keys()) + list(self.byChrCis.keys()) + list(self.byChrSuper.keys()))
 
     def isMaster(self):
         """
@@ -122,8 +123,8 @@ class hicExperiment(object):
     def getNumCisReads(self):
         hd = h5dict(self.refined, 'r')
         mylen = len(hd.get_dataset("strands1"))
-        chunks = range(0, mylen, 200000000) + [mylen]
-        chunks = zip(chunks[:-1], chunks[1:])
+        chunks = list(range(0, mylen, 200000000)) + [mylen]
+        chunks = list(zip(chunks[:-1], chunks[1:]))
         c1 = hd.get_dataset("chrms1")
         c2 = hd.get_dataset("chrms2")
         totsum = 0
@@ -136,7 +137,7 @@ class hicExperiment(object):
         for enz in enzymes:
             if enz in self.base:
                 return enz
-        print "Enzyme not found!"
+        print("Enzyme not found!")
         return None
 
     def getGenomeObject(self):
@@ -160,7 +161,7 @@ class hicExperiment(object):
     def getByChromosomeScaling(self):
         HD = HiCdataset(self.refined, self.getGenomeObject(), self.getEnzyme(), 1000, mode='r', tmpFolder="\tmp", dictToStoreIDs="h5dict")
         scals = {}
-        for chrom in xrange(self.getGenomeObject().chrmCount):
+        for chrom in range(self.getGenomeObject().chrmCount):
             for arm in [0, 1]:
                 if arm == 0:
                     region = (chrom, 0, self.genomeObject.cntrMids[chrom])
@@ -214,10 +215,10 @@ def scanHiCFolders(folderList, genomes=["hg18", "hg19", "mm9", "mm10"], baseFold
         subfolders = [i for i in subfolders if i in genomes]
         for subfolder in subfolders:
             curExperiments = scanHicFolder(join(folder, subfolder), genomeName=subfolder)
-            for experiment in curExperiments.values():
+            for experiment in list(curExperiments.values()):
                 experiment.experiment = folder
             globalDict.update(curExperiments)
-            print "scanned:", folder, subfolder
+            print("scanned:", folder, subfolder)
     return globalDict
 
 
