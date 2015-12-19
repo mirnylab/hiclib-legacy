@@ -50,7 +50,6 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 MIN_MAPQ = 1
-
 def readIsUnmapped(read):
     if (read.mapq < MIN_MAPQ):
         return True

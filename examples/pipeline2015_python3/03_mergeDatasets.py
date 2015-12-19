@@ -100,7 +100,7 @@ def refineDataset(filenames, create=True, delete=True, parseInMemory=True):
 
                     TR.parseInputData(dictLike=onename)
                     folder = os.path.split(onename)[0]
-                    print onename
+                    print(onename)
                     TR.save(ensure(finalname))
                     folder, fname = os.path.split(onename)
                     statSubFolder = os.path.join(statFolder, folder)
@@ -108,7 +108,7 @@ def refineDataset(filenames, create=True, delete=True, parseInMemory=True):
 
                     TR.printMetadata(saveTo=ensure(os.path.join(statSubFolder, fname + ".stat")))
                 else:
-                    print "skipping parsed: ", onename
+                    print("skipping parsed: ", onename)
             else:
                 #Create dataset at destination, parse on HDD, then no need to save.
                 TR = HiCdataset(ensure(onename + "_parsed.frag"),
@@ -116,7 +116,7 @@ def refineDataset(filenames, create=True, delete=True, parseInMemory=True):
                                 maximumMoleculeLength=500, mode='w')
                 TR.parseInputData(dictLike=onename, enzymeToFillRsites=enzyme)
                 TR.printMetadata(saveTo=ensure(os.path.join(statFolder, onename + ".stat")))
-        map(parse_onename, in_files)
+        list(map(parse_onename, in_files))
         "Merging files alltogether, applying filters"
         TR = HiCdataset(ensure(out_file + "_merged.frag"),
                         genome=getGenome(workingGenome),enzymeName = enzyme,tmpFolder = "tmp",dictToStoreIDs="h5dict",
@@ -151,7 +151,7 @@ def refineDataset(filenames, create=True, delete=True, parseInMemory=True):
         TR.load(out_file + "_refined.frag")
         TR.printMetadata(saveTo=statFolder + ".stat")
 
-    print "----->Building Raw heatmap at different resolutions"
+    print("----->Building Raw heatmap at different resolutions")
     TR.printStats()
     for res in wholeGenomeResolutionsKb:    
         TR.saveHeatmap(out_file + "-{0}k.hm".format(res), res*1000)
@@ -180,18 +180,18 @@ lines = [i for i in lines if i[0] != "#"]
 lines = [i.split() for i in lines if (len(i) > 3) and (i[0] != "#")]
 for line in lines:
     if len(line) != 5:
-        print "bad line", line
+        print("bad line", line)
         raise
 
 for i in lines:
     if len(i) == 4:
-        print i 
+        print(i) 
         #Now we assume that enzyme is fifth argument in datasets.tsv or second commandline argument
         try:
             i.append(sys.argv[2])
         except:
-            print "bad line", i
-            print "Please specify enzyme as a second command line argument, or as a fifth column"
+            print("bad line", i)
+            print("Please specify enzyme as a second command line argument, or as a fifth column")
             raise ValueError("Please specify enzyme as a second command line argument, or as a fifth column")
 
 assert False not in [len(i) == 5 for i in lines]
@@ -224,7 +224,7 @@ for i in byExperiment:
 #Now merging different experiments alltogether
 #note that the first column is not here, as it is a replica 
 experiments = set([(i[0], i[2], i[3]) for i in combinedExperimentNames])
-print experiments
+print(experiments)
 
 for experiment in experiments:
     workingGenome = experiment[1]

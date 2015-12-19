@@ -42,7 +42,7 @@ SRRs = [i.split() for i in open("runs.tsv").readlines() if len(i) > 4]
 newfile = open("datasets.tsv",'w')
 for i in SRRs: 
     folder = i[0]
-    print folder 
+    print(folder) 
     filenames = [j for j in os.listdir(folder) if ("chunk" in j) and (j.endswith(".hdf5")) ]
     for fname in filenames:
         try: 

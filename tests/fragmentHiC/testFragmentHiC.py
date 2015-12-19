@@ -6,6 +6,7 @@ import sys
 import numpy as np
 from mirnylib.systemutils import setExceptionHook
 from mirnylib.numutils import coarsegrain
+import json 
 
 setExceptionHook()
 
@@ -82,7 +83,7 @@ def refine_paper(filename, create=True):
     import pickle
 
     stop = False
-    mdata = pickle.load(open("sampleMetadata"))
+    mdata = json.load(open("sampleMetadata.json",'r'))
     for i in sorted(mdata.keys()):
         if TR.metadata[i] != mdata[i]:
             print("Key {0} is not consistent: should be {1}, is {2}".format(i, mdata[i], TR.metadata[i]))

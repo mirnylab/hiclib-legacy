@@ -159,7 +159,7 @@ Functions to work with fragmentHiC related numpy record arrays and with hdf5 dat
 
 # defining data types for building heatmaps, and sorter functions for externalMergeSort
 mydtype = np.dtype("i2,i4,i2,i4,b,b")
-mydtype.names = (map(str, ["chrms1", "pos1", "chrms2", "pos2", "strands1", "strands2"]))
+mydtype.names = (list(map(str, ["chrms1", "pos1", "chrms2", "pos2", "strands1", "strands2"])))
 
 def mydtypeSorter(x):
     """fuction which sorts mydtype type datasets over first two fields

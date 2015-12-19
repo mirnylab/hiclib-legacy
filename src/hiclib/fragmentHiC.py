@@ -1966,7 +1966,7 @@ class HiCdataset(object):
             chromosomes = list(range(self.genome.chrmCount))
         for chrom in chromosomes:
             chrLen = self.genome.chrmLens[chrom]
-            chunks = [(i * chunkStep, min(i * chunkStep + chunkSize, chrLen)) for i in range(chrLen / chunkStep + 1)]
+            chunks = [(i * chunkStep, min(i * chunkStep + chunkSize, chrLen)) for i in range(chrLen // chunkStep + 1)]
             for chunk in chunks:
                 heatmap = self.getHiResHeatmapWithOverlaps(resolution, chrom,
                                     start=chunk[0], end=chunk[1],

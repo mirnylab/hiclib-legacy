@@ -48,6 +48,10 @@ Detailed documentation for each module can be found in API documentation below.
 Note about suggested usage
 --------------------------
 
+.. note :: "**Updated from 2015-12-10**" I have modified the library to be python 2-3 compatible. It is also easily installable with the setup.py
+            script right now. It can bring many bugs, but is generally a good thing to do.
+
+
 .. note :: "**Updated from 2015-05-17**" I have rewritten the library considerably to allow analyses of the datasets such as (Rao, 2014), with 
            many billion reads. This dataset can really be analyzed on a 32GB machine with no problems. Mapping was also made very automatic, 
            and better mapping scripts are now provided. 

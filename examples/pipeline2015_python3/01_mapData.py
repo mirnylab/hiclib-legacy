@@ -10,7 +10,7 @@ import gzip
 import logging
 from hiclib import mapping
 from mirnylib import h5dict, genome
-import cPickle
+import pickle
 import numpy as np
 logging.basicConfig(level=logging.DEBUG)
 from mirnylib.systemutils import setExceptionHook
@@ -79,7 +79,7 @@ bowtieIndex = "../bin/bowtie2/index/{0}".format(genomeName)  # change this if yo
 bowtieFlags = "--very-sensitive"
 
 "IDs from GEO (SRR numbers)"
-GEOids = range(1665087,1665096)
+GEOids = list(range(1665087,1665096))
 # Set this for for mapping .sra files
 # You can do it like this:
 # GEOids = range(1658523,1658540) + [398318, 398920,398921]  #taken from an actual study
@@ -137,7 +137,7 @@ for i in  iterList:
     if mode == "fastq":
         if not i.endswith(sidePrefixes[0] + ".fastq.gz"):
             if not i.endswith(sidePrefixes[1] + ".fastq.gz"):
-                print "ignoring file", i, "does not end with fastq.gz"
+                print("ignoring file", i, "does not end with fastq.gz")
             continue
         expName = i.replace(sidePrefixes[0] + ".fastq.gz", "")
 
@@ -156,11 +156,11 @@ for i in  iterList:
     completedName = os.path.join(saveFolder, "completed")
 
     if os.path.exists(completedName) and not os.path.exists(lockName):
-        print "skipping", expName
+        print("skipping", expName)
         continue
 
     if os.path.exists(lockName):
-        print "someone is working on", expName
+        print("someone is working on", expName)
         continue
     if os.path.exists(completedName) and os.path.exists(lockName):
         raise
@@ -184,7 +184,7 @@ for i in  iterList:
 
         counters = mapping.splitSRA(sraName, os.path.join(fastqFolder, expName + "_chunk{0:04d}_fhtagn_side{1}.fastq.gz"), chunkSize)  # creating unique IDs requires creativity
         os.remove(sraName)
-        cPickle.dump(counters, open(os.path.join(saveFolder, "read_counts"), 'w'))
+        pickle.dump(counters, open(os.path.join(saveFolder, "read_counts"), 'w'))
     elif mode == "fastq":
 
         firstSide = os.path.join(inFastqDir, expName + sidePrefixes[0] + ".fastq.gz")
@@ -200,12 +200,12 @@ for i in  iterList:
     inFiles1 = sorted([i for i in inFiles if "fhtagn_side1" in i])
     inFiles2 = sorted([i for i in inFiles if "fhtagn_side2" in i])
     assert len(inFiles1) == len(inFiles2)
-    outFiles = [os.path.join(saveFolder, "chunk{0:04d}.hdf5".format(i + 1)) for i in xrange(len(inFiles1))]
+    outFiles = [os.path.join(saveFolder, "chunk{0:04d}.hdf5".format(i + 1)) for i in range(len(inFiles1))]
 
 
     def doOne(inData):
         file1, file2, outfile = inData
-        print "Mapping {0} and {1} into {2}".format(*inData)
+        print("Mapping {0} and {1} into {2}".format(*inData))
 
 
         for onefile in file1, file2:
@@ -242,12 +242,12 @@ for i in  iterList:
             out_dict=mapped_reads, genome_db=genome_db, save_seqs=False, maxReads=int(chunkSize*1.6), IDLen=50)
         for i in os.listdir(samFolder):
             if (os.path.split(file1)[1] in i) or (os.path.split(file2)[1] in i):
-                print "deleting", i
+                print("deleting", i)
                 os.remove(os.path.join(samFolder, i))
 
     if len(inFiles1) == 0:
         raise ValueError("No files supplied")
-    map(doOne, zip(inFiles1, inFiles2, outFiles))
+    list(map(doOne, list(zip(inFiles1, inFiles2, outFiles))))
     a = open(completedName, 'w')
     a.close()
 
