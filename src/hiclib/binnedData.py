@@ -151,7 +151,7 @@ API documentation
 -----------------
 
 """
-
+from __future__ import division, print_function
 import os
 from mirnylib import numutils
 import warnings
@@ -165,6 +165,7 @@ from math import exp
 from mirnylib.h5dict import h5dict
 from scipy.stats.stats import spearmanr
 from mirnylib.numutils import  fakeCisImpl
+from functools import reduce
 
 
 class binnedData(object):
@@ -233,8 +234,8 @@ class binnedData(object):
 
     def _giveMask(self):
         "Returns index of all bins with non-zero read counts"
-        self.mask = np.ones(len(self.dataDict.values()[0]), np.bool)
-        for data in self.dataDict.values():
+        self.mask = np.ones(len(list(self.dataDict.values())[0]), np.bool)
+        for data in list(self.dataDict.values()):
             datasum = np.sum(data, axis=0)
             datamask = datasum > 0
             self.mask *= datamask
@@ -254,7 +255,7 @@ class binnedData(object):
     def _checkItertiveCorrectionError(self):
         """internal method for checking if iterative correction
         might be bad to apply"""
-        for value in self.dataDict.values():
+        for value in list(self.dataDict.values()):
 
             if isInteger(value) == True:
                 s = np.sum(value, axis=0)
@@ -268,20 +269,20 @@ class binnedData(object):
                                   (message1, error))
 
                     if sums[0] < 5:
-                        raise StandardError("Iterative correction is \
+                        raise Exception("Iterative correction is \
                         very dangerous. Use force=true to override.")
 
             else:
                 s = np.sum(value > 0, axis=0)
                 sums = np.sort(s[s != 0])
-                if sums[0] < min(100, len(value) / 2):
+                if sums[0] < min(100, len(value) // 2):
                     error = int(100. / np.sqrt(sums[0]))
-                    print "Got floating-point array for correction. Rows with \
-                    5 least entrees are:", sums[:5]
+                    print("Got floating-point array for correction. Rows with \
+                    5 least entrees are:", sums[:5])
                     warnings.warn("\nIterative correction might lead to about\
                      %d %% relative error for certain columns" % error)
                     if sums[0] < 4:
-                        raise StandardError("Iterative correction is \
+                        raise Exception("Iterative correction is \
                         very dangerous. Use force=true to override.")
 
     def _checkAppliedOperations(self, neededKeys=[],
@@ -290,20 +291,20 @@ class binnedData(object):
         "Internal method to check if all needed operations were applied"
 
         if (True in [i in self.appliedOperations for i in excludedKeys]):
-            print "Operations that are not allowed:", excludedKeys
-            print "applied operations: ", self.appliedOperations
-            print "use 'force = True' to override this message"
-            raise StandardError("Prohibited filter was applied")
+            print("Operations that are not allowed:", excludedKeys)
+            print("applied operations: ", self.appliedOperations)
+            print("use 'force = True' to override this message")
+            raise Exception("Prohibited filter was applied")
 
         if (False in [i in self.appliedOperations for i in neededKeys]):
-            print "needed operations:", neededKeys
-            print "applied operations:", self.appliedOperations
-            print "use 'force = True' to override this message"
-            raise StandardError("Critical filter not applied")
+            print("needed operations:", neededKeys)
+            print("applied operations:", self.appliedOperations)
+            print("use 'force = True' to override this message")
+            raise Exception("Critical filter not applied")
 
         if (False in [i in self.appliedOperations for i in advicedKeys]):
-            print "Adviced operations:", advicedKeys
-            print "Applied operations:", self.appliedOperations
+            print("Adviced operations:", advicedKeys)
+            print("Applied operations:", self.appliedOperations)
             warnings.warn("\nNot all adviced filters applied")
 
     def _recoverOriginalReads(self, key):
@@ -361,11 +362,11 @@ class binnedData(object):
         else:
             alldata = {"heatmap":in_data}
         if type(alldata) == h5dict:
-            if ("0 0" in alldata.keys()) and ("heatmap" not in alldata.keys()):
+            if ("0 0" in list(alldata.keys())) and ("heatmap" not in list(alldata.keys())):
                 if chromosomeOrder != None:
                     chromosomes = chromosomeOrder
                 else:
-                    chromosomes = xrange(self.chromosomeCount)
+                    chromosomes = range(self.chromosomeCount)
                 datas = []
                 for i in chromosomes:
                     newdatas = []
@@ -378,7 +379,7 @@ class binnedData(object):
 
                     datas.append(np.concatenate(newdatas, axis=1))
                 newdata = {"heatmap": np.concatenate(datas)}
-                for i in alldata.keys():
+                for i in list(alldata.keys()):
                     newdata[i] = alldata[i]
                 alldata = newdata
 
@@ -386,27 +387,27 @@ class binnedData(object):
         try:
             self.singlesDict[name] = alldata["singles"]
         except:
-            print "No SS reads found"
+            print("No SS reads found")
         try:
             if len(alldata["frags"]) == self.genome.numBins:
                 self.fragsDict[name] = alldata["frags"]
             else:
-                print "Different bin number in frag dict"
+                print("Different bin number in frag dict")
         except:
             pass
         if "resolution" in alldata:
             if self.resolution != alldata["resolution"]:
-                print "Resolution of data is {0}; should be {1}".format(self.resolution, alldata["resolution"])
-                print "resolution mismatch!!!"
-                print "--------------> Bye <-------------"
-                raise StandardError("Resolution mismatch! ")
+                print("Resolution of data is {0}; should be {1}".format(self.resolution, alldata["resolution"]))
+                print("resolution mismatch!!!")
+                print("--------------> Bye <-------------")
+                raise Exception("Resolution mismatch! ")
 
         if self.genome.numBins != len(alldata["heatmap"]):
-            print "Genome length mismatch!!!"
-            print "source genome", len(alldata["heatmap"])
-            print "our genome", self.genome.numBins
-            print "Check for readChrms parameter when you identify the genome"
-            raise StandardError("Genome size mismatch! ")
+            print("Genome length mismatch!!!")
+            print("source genome", len(alldata["heatmap"]))
+            print("our genome", self.genome.numBins)
+            print("Check for readChrms parameter when you identify the genome")
+            raise Exception("Genome size mismatch! ")
 
     def export(self, name, outFilename, byChromosome=False, **kwargs):
         """
@@ -423,7 +424,7 @@ class binnedData(object):
             Ignore SS reads.
             True means "all"
         """
-        if "out_filename" in kwargs.keys():
+        if "out_filename" in list(kwargs.keys()):
             raise ValueError("out_filename replaced with outFilename!")
 
         if name not in self.dataDict:
@@ -438,8 +439,8 @@ class binnedData(object):
 
         else:
             hm = self.dataDict[name]
-            for i in xrange(self.genome.chrmCount):
-                for j in xrange(self.genome.chrmCount):
+            for i in range(self.genome.chrmCount):
+                for j in range(self.genome.chrmCount):
                     if (byChromosome == "cis") and (i != j):
                         continue
                     st1 = self.chromosomeStarts[i]
@@ -470,7 +471,7 @@ class binnedData(object):
         m : int, optional
             Number of bins to remove
         """
-        for i in self.dataDict.keys():
+        for i in list(self.dataDict.keys()):
             self.dataDict[i] = np.asarray(
                 self.dataDict[i], dtype=np.double, order="C")
             removeDiagonals(self.dataDict[i], m)
@@ -492,13 +493,13 @@ class binnedData(object):
         beginsmask = (ends - begins) <= offset
         newbegins = begins[beginsmask]
         newends = ends[beginsmask]
-        print "removing %d standalone bins" % np.sum(newends - newbegins)
+        print("removing %d standalone bins" % np.sum(newends - newbegins))
         mask = self._giveMask()
-        for i in xrange(len(newbegins)):
+        for i in range(len(newbegins)):
             mask[newbegins[i]:newends[i]] = False
         mask2D = mask[:, None] * mask[None, :]
         antimask = np.nonzero(mask2D.flat == False)[0]
-        for i in self.dataDict.values():
+        for i in list(self.dataDict.values()):
             i.flat[antimask] = 0
         self.appliedOperations["RemovedStandalone"] = True
 
@@ -526,13 +527,13 @@ class binnedData(object):
         nzmask = np.zeros(
             len(mask), bool)  # mask of regions with non-zero counts
 
-        for i in self.dataDict.values():
+        for i in list(self.dataDict.values()):
             sumData = np.sum(i[mask], axis=1) > 0
             nzmask[mask] = nzmask[mask] + sumData
             i[mask, :] = 0
             i[:, mask] = 0
-        print "Removing %d bins with <%lf %% coverage by sequenced reads" % \
-            ((nzmask > 0).sum(), 100 * sequencedFraction)
+        print("Removing %d bins with <%lf %% coverage by sequenced reads" % \
+            ((nzmask > 0).sum(), 100 * sequencedFraction))
         self.appliedOperations["RemovedUnsequenced"] = True
         pass
 
@@ -546,10 +547,10 @@ class binnedData(object):
         cutoff : int, 0<cutoff<100
             Percent of lowest-counts bins to be removed
         """
-        statmask = np.zeros(len(self.dataDict.values()[0]), np.bool)
-        mask = np.ones(len(self.dataDict.values()[0]), np.bool)
+        statmask = np.zeros(len(list(self.dataDict.values())[0]), np.bool)
+        mask = np.ones(len(list(self.dataDict.values())[0]), np.bool)
         if names is None:
-            names = self.dataDict.keys()
+            names = list(self.dataDict.keys())
         for i in names:
             data = self.dataDict[i]
             if trans:
@@ -567,10 +568,10 @@ class binnedData(object):
             newmask = countsum >= np.percentile(countsum[datamask], cutoff)
             mask *= newmask
             statmask[(newmask == False) * (datamask == True)] = True
-        print "removed {0} poor bins".format(statmask.sum())
+        print("removed {0} poor bins".format(statmask.sum()))
         inds = np.nonzero(mask == False)
 
-        for i in self.dataDict.values():
+        for i in list(self.dataDict.values()):
             i[inds, :] = 0
             i[:, inds] = 0
         self.appliedOperations["RemovedPoor"] = True
@@ -583,12 +584,12 @@ class binnedData(object):
         high : float, 0<high<1, optional
             Fraction of top trans interactions to be removed
         """
-        for i in self.dataDict.keys():
+        for i in list(self.dataDict.keys()):
             data = self.dataDict[i]
             transmask = self.chromosomeIndex[:,
                                     None] != self.chromosomeIndex[None, :]
             lim = np.percentile(data[transmask], 100. * (1 - high))
-            print "dataset %s truncated at %lf" % (i, lim)
+            print("dataset %s truncated at %lf" % (i, lim))
             tdata = data[transmask]
             tdata[tdata > lim] = lim
             self.dataDict[i][transmask] = tdata
@@ -598,7 +599,7 @@ class binnedData(object):
         "sets to zero all cis contacts"
 
         mask = self.chromosomeIndex[:, None] == self.chromosomeIndex[None, :]
-        for i in self.dataDict.keys():
+        for i in list(self.dataDict.keys()):
             self.dataDict[i][mask] = 0
         self.appliedOperations["RemovedCis"] = True
         print("All cis counts set to zero")
@@ -625,13 +626,13 @@ class binnedData(object):
         # TODO (MIU): check this method!
         if silent == False:
             print("All cis counts are substituted with matching trans count")
-        for key in self.dataDict.keys():
+        for key in list(self.dataDict.keys()):
             data = np.asarray(self.dataDict[key], order="C", dtype=float)
             if mask == "CisCounts":
                 _mask = np.array(self.chromosomeIndex[:, None] ==
                                  self.chromosomeIndex[None, :], int, order="C")
             else:
-                assert mask.shape == self.dataDict.values()[0].shape
+                assert mask.shape == list(self.dataDict.values())[0].shape
                 _mask = np.array(mask, dtype=int, order="C")
                 _mask[self.chromosomeIndex[:, None] ==
                       self.chromosomeIndex[None, :]] = 2
@@ -685,14 +686,14 @@ class binnedData(object):
         for i in translocationRegions:
             st1 = self.genome.chrmStartsBinCont[i[0]]
             st2 = self.genome.chrmStartsBinCont[i[3]]
-            beg1 = st1 + i[1] / resolution
+            beg1 = st1 + i[1] // resolution
             if i[2] is not None:
-                end1 = st1 + i[2] / resolution + 1
+                end1 = st1 + i[2] // resolution + 1
             else:
                 end1 = self.genome.chrmEndsBinCont[i[0]]
-            beg2 = st2 + i[4] / resolution
+            beg2 = st2 + i[4] // resolution
             if i[5] is not None:
-                end2 = st2 + i[5] / resolution + 1
+                end2 = st2 + i[5] // resolution + 1
             else:
                 end2 = self.genome.chrmEndsBinCont[i[3]]
 
@@ -729,7 +730,7 @@ class binnedData(object):
                 "RemovedDiagonal", "RemovedPoor"])
 
         if names is None:
-            names = self.dataDict.keys()
+            names = list(self.dataDict.keys())
         for i in names:
             data, dummy, bias = ultracorrectSymmetricWithVector(
                 self.dataDict[i], M=M, tolerance=tolerance)
@@ -795,7 +796,7 @@ class binnedData(object):
 
         """
         if names is None:
-            names = self.dataDict.keys()
+            names = list(self.dataDict.keys())
         mask2D = self._giveMask2D()
 
         # If diagonal was removed, we should remember about it!
@@ -826,8 +827,8 @@ class binnedData(object):
 
             smoothed = np.zeros_like(data, dtype=float)
             N = self.chromosomeCount
-            for i in xrange(N):
-                for j in xrange(N):
+            for i in range(N):
+                for j in range(N):
                     st1 = self.chromosomeStarts[i]
                     st2 = self.chromosomeStarts[j]
                     end1 = self.chromosomeEnds[i]
@@ -857,16 +858,16 @@ class binnedData(object):
         """
         beg = self.genome.chrmStartsBinCont[chromNum]
         end = self.genome.chrmEndsBinCont[chromNum]
-        for i in self.dataDict.values():
+        for i in list(self.dataDict.values()):
             i[beg:end] = 0
             i[:, beg:end] = 0
 
         for mydict in self.dicts:
-            for value in mydict.values():
+            for value in list(mydict.values()):
                 value[beg:end] = 0
 
         for mydict in self.eigDicts:
-            for value in mydict.values():
+            for value in list(mydict.values()):
                 value[beg:end] = 0
 
     def removeZeros(self, zerosMask=None):
@@ -885,11 +886,11 @@ class binnedData(object):
             s = zerosMask
         else:
             s = np.sum(self._giveMask2D(), axis=0) > 0
-            for i in self.dataDict.values():
+            for i in list(self.dataDict.values()):
                 s *= (np.sum(i, axis=0) > 0)
         indices = np.zeros(len(s), int)
         count = 0
-        for i in xrange(len(indices)):
+        for i in range(len(indices)):
             if s[i] == True:
                 indices[i] = count
                 count += 1
@@ -897,7 +898,7 @@ class binnedData(object):
                 indices[i] = count
         indices = np.r_[indices, indices[-1] + 1]
         N = len(self.positionIndex)
-        for i in self.dataDict.keys():
+        for i in list(self.dataDict.keys()):
             a = self.dataDict[i]
             if len(a) != N:
                 raise ValueError("Wrong dimensions of data %i: \
@@ -907,12 +908,12 @@ class binnedData(object):
             self.dataDict[i] = c
 
         for mydict in self.dicts:
-            for key in mydict.keys():
+            for key in list(mydict.keys()):
                 if len(mydict[key]) != N:
                     raise ValueError("Wrong dimensions of data {0}: {1} instead of {2}".format(key, len(mydict[key]), N))
                 mydict[key] = mydict[key][s]
         for mydict in self.eigDicts:
-            for key in mydict.keys():
+            for key in list(mydict.keys()):
                 mydict[key] = mydict[key][:, s]
                 if len(mydict[key][0]) != N:
                     raise ValueError("Wrong dimensions of data %i: \
@@ -943,26 +944,26 @@ class binnedData(object):
             Value to fill in missing regions. By default, NAN.
         """
         if not hasattr(self, "removeZerosMask"):
-            raise StandardError("Zeros have not been removed!")
+            raise Exception("Zeros have not been removed!")
 
         s = self.removeZerosMask
         N = len(s)
 
-        for i in self.dataDict.keys():
+        for i in list(self.dataDict.keys()):
             a = self.dataDict[i]
             self.dataDict[i] = np.zeros((N, N), dtype=a.dtype) * value
             tmp = np.zeros((N, len(a)), dtype=a.dtype) * value
             tmp[s, :] = a
             self.dataDict[i][:, s] = tmp
         for mydict in self.dicts:
-            for key in mydict.keys():
+            for key in list(mydict.keys()):
                 a = mydict[key]
                 mydict[key] = np.zeros(N, dtype=a.dtype) * value
                 mydict[key][s] = a
 
         for mydict in self.eigDicts:
             # print mydict
-            for key in mydict.keys():
+            for key in list(mydict.keys()):
                 a = mydict[key]
                 mydict[key] = np.zeros((len(a), N), dtype=a.dtype) * value
                 mydict[key][:, s] = a
@@ -986,10 +987,10 @@ class binnedData(object):
         if force == False:
             self._checkAppliedOperations(neededKeys, advicedKeys)
 
-        for i in self.dataDict.keys():
+        for i in list(self.dataDict.keys()):
             currentPCA, eigenvalues = PCA(self.dataDict[i])
             self.PCAEigenvalueDict[i] = eigenvalues
-            for j in xrange(len(currentPCA)):
+            for j in range(len(currentPCA)):
                 if spearmanr(currentPCA[j], self.trackDict["GC"])[0] < 0:
                     currentPCA[j] = -currentPCA[j]
             self.PCDict[i] = currentPCA
@@ -1009,10 +1010,10 @@ class binnedData(object):
         if force == False:
             self._checkAppliedOperations(neededKeys, advicedKeys)
 
-        for i in self.dataDict.keys():
+        for i in list(self.dataDict.keys()):
             currentEIG, eigenvalues = EIG(self.dataDict[i], numPCs=numPCs)
             self.eigEigenvalueDict[i] = eigenvalues
-            for j in xrange(len(currentEIG)):
+            for j in range(len(currentEIG)):
                 if spearmanr(currentEIG[j], self.trackDict["GC"])[0] < 0:
                     currentEIG[j] = -currentEIG[j]
             self.EigDict[i] = currentEIG
@@ -1117,14 +1118,14 @@ class binnedData(object):
         corrdict, lengthdict = {}, {}
             # dict of per-chromosome correlation coefficients
 
-        for key in self.dataDict.keys():
+        for key in list(self.dataDict.keys()):
             corrdict[key] = []
             lengthdict[key] = []
             dataset = self.dataDict[key]
             N = len(dataset)
             PCArray = np.zeros((3, N))
 
-            for chrom in xrange(len(self.chromosomeStarts)):
+            for chrom in range(len(self.chromosomeStarts)):
                 if useArms == False:
                     begs = (self.chromosomeStarts[chrom],)
                     ends = (self.chromosomeEnds[chrom],)
@@ -1193,12 +1194,12 @@ class binnedDataAnalysis(binnedData):
         import matplotlib.pyplot as plt
         data = self.dataDict[name]
         bins = numutils.logbins(
-            2, self.genome.maxChrmArm / self.resolution, 1.17)
+            2, self.genome.maxChrmArm // self.resolution, 1.17)
         s = np.sum(data, axis=0) > 0
         mask = s[:, None] * s[None, :]
         chroms = []
         masks = []
-        for i in xrange(self.chromosomeCount):
+        for i in range(self.chromosomeCount):
             beg = self.chromosomeStarts[i]
             end = self.centromerePositions[i]
             chroms.append(data[beg:end, beg:end])
@@ -1209,16 +1210,16 @@ class binnedDataAnalysis(binnedData):
             masks.append(mask[beg:end, beg:end])
         observed = []
         expected = []
-        for i in xrange(len(bins) - 1):
+        for i in range(len(bins) - 1):
             low = bins[i]
             high = bins[i + 1]
             obs = 0
             exp = 0
-            for j in xrange(len(chroms)):
+            for j in range(len(chroms)):
                 if low > len(chroms[j]):
                     continue
                 high2 = min(high, len(chroms[j]))
-                for k in xrange(low, high2):
+                for k in range(low, high2):
                     obs += np.sum(np.diag(chroms[j], k))
                     exp += np.sum(np.diag(masks[j], k))
             observed.append(obs)
@@ -1244,22 +1245,22 @@ class binnedDataAnalysis(binnedData):
         avmasks = np.zeros((80, 80))
         discardCutoff = 10
 
-        for i in xrange(self.chromosomeCount):
-            print i
-            for j in xrange(self.chromosomeCount):
+        for i in range(self.chromosomeCount):
+            print(i)
+            for j in range(self.chromosomeCount):
                 for k in [-1, 1]:
                     for l in [-1, 1]:
                         if i == j:
                             continue
 
                         cenbeg1 = self.chromosomeStarts[i] + \
-                        self.genome.cntrStarts[i] / self.resolution
+                        self.genome.cntrStarts[i] // self.resolution
                         cenbeg2 = self.chromosomeStarts[j] + \
-                        self.genome.cntrStarts[j] / self.resolution
+                        self.genome.cntrStarts[j] // self.resolution
                         cenend1 = self.chromosomeStarts[i] + \
-                        self.genome.cntrEnds[i] / self.resolution
+                        self.genome.cntrEnds[i] // self.resolution
                         cenend2 = self.chromosomeStarts[j] + \
-                        self.genome.cntrEnds[j] / self.resolution
+                        self.genome.cntrEnds[j] // self.resolution
 
                         beg1 = self.chromosomeStarts[i]
                         beg2 = self.chromosomeStarts[j]
@@ -1296,7 +1297,7 @@ class binnedDataAnalysis(binnedData):
                             ey = None
 
                         arms = data[bx:ex:dx, by:ey:dy]
-                        assert max(arms.shape) <= self.genome.maxChrmArm / \
+                        assert max(arms.shape) <= self.genome.maxChrmArm // \
                             self.genome.resolution + 2
 
                         mx = np.sum(arms, axis=0)
@@ -1336,7 +1337,7 @@ class binnedDataAnalysis(binnedData):
         """
         cr = 0
         ln = 0
-        for i in xrange(self.chromosomeCount):
+        for i in range(self.chromosomeCount):
             if i in doByArms:
                 beg = self.chromosomeStarts[i]
                 end = self.centromerePositions[i]
@@ -1344,14 +1345,14 @@ class binnedDataAnalysis(binnedData):
                     cr += (abs(spearmanr(data1[beg:end], data2[beg:end]
                         )[0])) * (end - beg)
                     ln += (end - beg)
-                    print spearmanr(data1[beg:end], data2[beg:end])[0]
+                    print(spearmanr(data1[beg:end], data2[beg:end])[0])
                 beg = self.centromerePositions[i]
                 end = self.chromosomeEnds[i]
                 if end > beg:
                     cr += (abs(spearmanr(data1[beg:end], data2[beg:end]
                         )[0])) * (end - beg)
                     ln += (end - beg)
-                    print spearmanr(data1[beg:end], data2[beg:end])[0]
+                    print(spearmanr(data1[beg:end], data2[beg:end])[0])
             else:
                 beg = self.chromosomeStarts[i]
                 end = self.chromosomeEnds[i]
@@ -1364,9 +1365,9 @@ class binnedDataAnalysis(binnedData):
     def divideOutAveragesPerChromosome(self):
         "divides each interchromosomal map by it's mean value"
         mask2D = self._giveMask2D()
-        for chrom1 in xrange(self.chromosomeCount):
-            for chrom2 in xrange(self.chromosomeCount):
-                for i in self.dataDict.keys():
+        for chrom1 in range(self.chromosomeCount):
+            for chrom2 in range(self.chromosomeCount):
+                for i in list(self.dataDict.keys()):
                     value = self.dataDict[i]
                     submatrix = value[self.chromosomeStarts[chrom1]:
                                       self.chromosomeEnds[chrom1],
@@ -1424,7 +1425,7 @@ class experimentalBinnedData(binnedData):
 
         """
 
-        for name in self.dataDict.keys():
+        for name in list(self.dataDict.keys()):
             if name not in self.EigDict:
                 raise RuntimeError("Calculate eigenvectors first!")
 
@@ -1438,7 +1439,7 @@ class experimentalBinnedData(binnedData):
 
             proj = reduce(lambda x, y: x + y,
                           [PCs[i][:, None] * PCs[i][None, :] * \
-                           eigenvalues[i] for i in xrange(len(PCs))])
+                           eigenvalues[i] for i in range(len(PCs))])
             mask = PCs[0] != 0
             mask = mask[:, None] * mask[None, :]  # maks of non-zero elements
             data = self.dataDict[name]
@@ -1453,7 +1454,7 @@ class experimentalBinnedData(binnedData):
         transmap = self.chromosomeIndex[:,
             None] == self.chromosomeIndex[None, :]
         len(transmap)
-        for i in self.dataDict.keys():
+        for i in list(self.dataDict.keys()):
             data = self.dataDict[i] * 1.
             N = len(data)
             N
@@ -1488,7 +1489,7 @@ class experimentalBinnedData(binnedData):
          at the same diagonal.
         """
         from scipy import weave
-        for i in self.dataDict.keys():
+        for i in list(self.dataDict.keys()):
             data = self.dataDict[i] * 1.
             sm = np.sum(data, axis=0) > 0
             mask = sm[:, None] * sm[None, :]
@@ -1530,7 +1531,7 @@ class experimentalBinnedData(binnedData):
             support = """
             #include <math.h>
             """
-            for _ in xrange(5):
+            for _ in range(5):
                 weave.inline(code, ['transmask', 'mask', 'data', "N"],
                              extra_compile_args=['-march=native'
                                                    ' -malign-double -O3'],
@@ -1549,7 +1550,7 @@ class experimentalBinnedData(binnedData):
         """
         self.appliedOperations["Corrected"] = True
         if names is None:
-            names = self.dataDict.keys()
+            names = list(self.dataDict.keys())
         self.transmap = self.chromosomeIndex[:,
             None] != self.chromosomeIndex[None, :]
         # mat_img(self.transmap)
@@ -1560,7 +1561,7 @@ class experimentalBinnedData(binnedData):
             try:
                 self.singlesDict[i] /= self.biasDict[i]
             except:
-                print "bla"
+                print("bla")
 
     def loadWigFile(self, filenames, label, control=None,
                     wigFileType="Auto", functionToAverage=np.log, internalResolution=1000):
@@ -1574,9 +1575,9 @@ class experimentalBinnedData(binnedData):
     def loadErezEigenvector1MB(self, erezFolder):
         "Loads Erez chromatin domain eigenvector for HindIII"
         if self.resolution != 1000000:
-            raise StandardError("Erez eigenvector is only at 1MB resolution")
+            raise Exception("Erez eigenvector is only at 1MB resolution")
         if self.genome.folderName != "hg18":
-            raise StandardError("Erez eigenvector is for hg18 only!")
+            raise Exception("Erez eigenvector is for hg18 only!")
         folder = os.path.join(erezFolder, "GM-combined.ctgDATA1.ctgDATA1."
         "1000000bp.hm.eigenvector.tab")
         folder2 = os.path.join(erezFolder, "GM-combined.ctgDATA1.ctgDATA1."
@@ -1595,7 +1596,7 @@ class experimentalBinnedData(binnedData):
     def loadTanayDomains(self):
         "domains, extracted from Tanay paper image"
         if self.genome.folderName != "hg18":
-            raise StandardError("Tanay domains work only with hg18")
+            raise Exception("Tanay domains work only with hg18")
         data = """0 - 17, 1 - 13.5, 2 - 6.5, 0 - 2, 2 - 2; x - 6.5, 0 - 6,\
         1 - 13.5, 0 - 1.5, 1 - 14.5
     1 - 8.5, 0 - 2.5, 1 - 14, 2 - 6; 0 - 1.5, 2 - 11.5, 1 - 35
@@ -1638,9 +1639,9 @@ class experimentalBinnedData(binnedData):
         # lenses = [len(i) for i in result]
 
         domains = np.zeros(self.genome.numBins, int)
-        for i in xrange(self.genome.chrmCount):
-            for j in xrange((self.genome.chrmLens[i] / self.resolution)):
+        for i in range(self.genome.chrmCount):
+            for j in range((self.genome.chrmLens[i] // self.resolution)):
                 domains[self.genome.chrmStartsBinCont[i] + j] = \
-                result[i][(j * len(result[i]) / ((self.genome.chrmLens[i] /
+                result[i][(j * len(result[i]) // ((self.genome.chrmLens[i] //
                                                    self.resolution)))]
         self.trackDict['TanayDomains'] = domains

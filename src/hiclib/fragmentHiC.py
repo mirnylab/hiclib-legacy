@@ -76,6 +76,7 @@ API documentation
 from __future__ import absolute_import, division, print_function, unicode_literals
 import warnings
 import os
+import six
 import traceback
 from copy import copy
 from mirnylib.genome import Genome
@@ -188,7 +189,7 @@ class HiCdataset(object):
 
         #-------Initialization of the genome and parameters-----
         self.mode = mode
-        if type(genome) == str:
+        if isinstance(genome, six.string_types):
             self.genome = Genome(genomePath=genome, readChrms=["#", "X"])
         else:
             self.genome = genome
@@ -566,7 +567,7 @@ class HiCdataset(object):
             Variable to output the data. Either internal variable, or tuple
             (name,value), where value is an array
         """
-        if type(internalVariables) == str:
+        if isinstance(internalVariables, six.string_types):
             internalVariables = [internalVariables]
 
         # detecting output variable automatically
@@ -600,7 +601,7 @@ class HiCdataset(object):
                 dtype = variables[outVariable[0]].dtype
                 outVariable = (outVariable[0], np.zeros(self.N, dtype))
 
-            if type(outVariable) == str:
+            if isinstance(outVariable, six.string_types):
                 self.h5dict.get_dataset(outVariable)[start:end] = variables[outVariable]
             elif len(outVariable) == 2:
                 outVariable[1][start:end] = variables[outVariable[0]]
@@ -720,7 +721,7 @@ class HiCdataset(object):
 
 
 
-        if type(dictLike) == str:
+        if isinstance(dictLike, six.string_types):
             if not os.path.exists(dictLike):
                 raise IOError("File not found: %s" % dictLike)
             print("     loading data from file %s (assuming h5dict)" % dictLike)
@@ -1209,7 +1210,7 @@ class HiCdataset(object):
         self.metadata["310_startNearRsiteRemoved"] = len(mask) - mask.sum()
         self.maskFilter(mask)
 
-    def filterDuplicates(self, mode="hdd", tmpDir="default", chunkSize=100000000):
+    def filterDuplicates(self, mode="auto", tmpDir="default", chunkSize=100000000):
         """
         __optimized for large datasets__
         removes duplicate molecules"""
@@ -1217,6 +1218,11 @@ class HiCdataset(object):
         # Uses a lot!
         print("----->Filtering duplicates in DS reads: ")
 
+        if mode == "auto":
+            if self.N > 400000000:
+                mode = "hdd"
+            else:
+                mode = "ram"
 
         if tmpDir == "default":
             tmpDir = self.tmpDir
@@ -1766,6 +1772,52 @@ class HiCdataset(object):
         return matrix + matrix.T
 
 
+    def getHiResHeatmap(self, resolution, chromosome, start=0, end=None, countDiagonalReads="Twice", maxBinSpawn=10):
+        c1 = self.h5dict.get_dataset("chrms1")
+        p1 = self.h5dict.get_dataset("cuts1")
+        print("getting heatmap", chromosome, start, end)
+        if end == None:
+            end = self.genome.chrmLens[chromosome]
+        low = h5dictBinarySearch(c1, p1, (chromosome, start), "left")
+        high = h5dictBinarySearch(c1, p1, (chromosome, end), "right")
+        c1 = self._getVector("chrms1", low, high)
+        c2 = self._getVector("chrms2", low, high)
+        p1 = self._getVector("cuts1", low, high)
+        p2 = self._getVector("cuts1", low, high)
+        mask = (c1 == c2) * (p2 >= start) * (p2 < end)
+        p1 = p1[mask]
+        p2 = p2[mask]
+        del c1
+        del c2
+        assert start % resolution == 0
+
+        heatmapSize = int(np.ceil((end - start) / float(resolution)))
+
+        heatmap = np.zeros((heatmapSize, heatmapSize),
+                           dtype="float64", order="C")
+
+        p1 -= start
+        p2 -= start
+
+        ind1 = p1 // resolution + heatmapSize * (p2 // resolution)
+        inds = np.bincount(ind1, minlength=heatmapSize * heatmapSize)
+        inds = np.array(inds, dtype = np.int32)
+        inds.shape = ((heatmapSize, heatmapSize))
+        heatmap = inds
+
+        if countDiagonalReads.lower() == "once":
+            diag = np.diag(heatmap).copy()
+            fillDiagonal(heatmap, diag / 2)
+            del diag
+        elif countDiagonalReads.lower() == "twice":
+            pass
+        else:
+            raise ValueError("Bad value for countDiagonalReads")
+
+        return heatmap
+
+    def setSimpleHighResHeatmap(self):
+        self.getHiResHeatmapWithOverlaps = self.getHiResHeatmap
 
 
     def getHiResHeatmapWithOverlaps(self, resolution, chromosome, start=0, end=None, countDiagonalReads="Twice", maxBinSpawn=10):
