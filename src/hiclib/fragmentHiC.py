@@ -571,7 +571,7 @@ class HiCdataset(object):
             internalVariables = [internalVariables]
 
         # detecting output variable automatically
-        if outVariable == "autodetect":
+        if isinstance(outVariable, six.string_types) and (outVariable == "autodetect"):
             outVariable = expression.split("\n")[-1].split("=")[0].strip()
             if outVariable not in self.vectors:
                 outVariable = (outVariable, "ToDefine")
@@ -2162,8 +2162,8 @@ class HiCdataset(object):
         if not self._isSorted():
             self._sortData()
         import matplotlib.pyplot as plt
-        if excludeNeighbors <= 0:
-            excludeNeighbors = None  # Not excluding neighbors
+        if (excludeNeighbors is None) or (excludeNeighbors < 0):
+            excludeNeighbors = 0
 
         # use all fragments if they're not specified
         # parse fragment array if it's bool
@@ -2352,7 +2352,7 @@ class HiCdataset(object):
             p2arg = np.argsort(bp2)
             p2 = bp2[p2arg]  # sorted positions on the second fragment
 
-            if excludeNeighbors is not None:
+            if excludeNeighbors != 0:
                 "calculating excluded fragments (neighbors) and their weights"\
                 " to subtract them later"
                 excFrag1, excFrag2 = self.genome.getPairsLessThanDistance(
@@ -2395,7 +2395,7 @@ class HiCdataset(object):
                     curcount += np.sum(w1 * np.abs(sw2[val1] - sw2[val2]))
 
                 # now modifying expected count because of excluded fragments
-                if excludeNeighbors is not None:
+                if excludeNeighbors != 0:
                     if useWeights == False:
                         ignore = ((excDists > minDist) *
                             (excDists < maxDist)).sum()
