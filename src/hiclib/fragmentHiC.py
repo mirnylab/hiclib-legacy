@@ -1547,27 +1547,14 @@ class HiCdataset(object):
             chr1 = self._getVector("chrms1", low, high)
             chr2 = self._getVector("chrms2", low, high)
             pos1 = np.array(self._getVector("mids1", low, high) // resolution, dtype=np.int32)
-            pos2 = np.array(self._getVector("mids2", low, high) // resolution, dtype=np.int32)
+            pos2 = np.array(self._getVector("mids2", low, high) // resolution, dtype=np.int32)           
 
-
-            if includeTrans == True:
-                mask = ((chr1 == chromosome) + (chr2 == chromosome))
-                chr1 = chr1[mask]
-                chr2 = chr2[mask]
-                pos1 = pos1[mask]
-                pos2 = pos2[mask]
-            # Located chromosomes and positions of chromosomes
-
-            if includeTrans == True:
-                # moving different chromosomes to c2
-                # c1 == chrom now
-                mask = (chr2 == chromosome) * (chr1 != chromosome)
-                chr1[mask], chr2[mask], pos1[mask], pos2[mask] = chr2[mask].copy(), chr1[
-                    mask].copy(), pos2[mask].copy(), pos1[mask].copy()
-                args = np.argsort(chr2)
-                chr2 = chr2[args]
-                pos1 = pos1[args]
-                pos2 = pos2[args]
+            assert (chr1 == chromosome).all()  # getting sure that bincount worked 
+            
+            args = np.argsort(chr2)
+            chr2 = chr2[args]
+            pos1 = pos1[args]
+            pos2 = pos2[args]
 
             for chrom2 in range(chromosome, self.genome.chrmCount):
                 if (includeTrans == False) and (chrom2 != chromosome):
