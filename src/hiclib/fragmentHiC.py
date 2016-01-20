@@ -1770,7 +1770,7 @@ class HiCdataset(object):
         c1 = self._getVector("chrms1", low, high)
         c2 = self._getVector("chrms2", low, high)
         p1 = self._getVector("cuts1", low, high)
-        p2 = self._getVector("cuts1", low, high)
+        p2 = self._getVector("cuts1", low, high)        
         mask = (c1 == c2) * (p2 >= start) * (p2 < end)
         p1 = p1[mask]
         p2 = p2[mask]
@@ -1780,8 +1780,11 @@ class HiCdataset(object):
 
         heatmapSize = int(np.ceil((end - start) / float(resolution)))
 
-        heatmap = np.zeros((heatmapSize, heatmapSize),
-                           dtype="float64", order="C")
+
+        if len(c1) == 0:
+            heatmap = np.zeros((heatmapSize, heatmapSize),
+                           dtype="int32", order="C")
+            return heatmap
 
         p1 -= start
         p2 -= start
