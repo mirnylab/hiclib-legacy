@@ -1781,7 +1781,7 @@ class HiCdataset(object):
         heatmapSize = int(np.ceil((end - start) / float(resolution)))
 
 
-        if len(c1) == 0:
+        if len(p1) == 0:
             heatmap = np.zeros((heatmapSize, heatmapSize),
                            dtype="int32", order="C")
             return heatmap
