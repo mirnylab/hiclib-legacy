@@ -1770,7 +1770,7 @@ class HiCdataset(object):
         c1 = self._getVector("chrms1", low, high)
         c2 = self._getVector("chrms2", low, high)
         p1 = self._getVector("cuts1", low, high)
-        p2 = self._getVector("cuts1", low, high)        
+        p2 = self._getVector("cuts2", low, high)
         mask = (c1 == c2) * (p2 >= start) * (p2 < end)
         p1 = p1[mask]
         p2 = p2[mask]
