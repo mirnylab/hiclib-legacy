@@ -1793,7 +1793,8 @@ class HiCdataset(object):
         inds = np.bincount(ind1, minlength=heatmapSize * heatmapSize)
         inds = np.array(inds, dtype = np.int32)
         inds.shape = ((heatmapSize, heatmapSize))
-        heatmap = inds
+        heatmap = inds + inds.T
+
 
         if countDiagonalReads.lower() == "once":
             diag = np.diag(heatmap).copy()
