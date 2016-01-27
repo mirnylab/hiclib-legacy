@@ -3,6 +3,8 @@ syntax: glob
 
 *~
 *.pyc
+*.so
+*.o
 .DS_Store
 doc/build
 tests/mapping/tmp
