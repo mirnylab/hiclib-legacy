@@ -795,8 +795,8 @@ class HiCdataset(object):
         self.metadata["201_DS+SS"] = len(DSmask)
         self.metadata["202_SSReadsRemoved"] = len(DSmask) - DSmask.sum()
 
-        sameFragMask = self.evaluate("a = (fragids1 == fragids2)",
-                     ["fragids1", "fragids2"]) * DSmask
+        sameFragMask = self.evaluate("a = (rfragAbsIdxs1 == rfragAbsIdxs2)",
+                     ["rfragAbsIdxs1", "rfragAbsIdxs2"]) * DSmask
 
         cutDifs = self.cuts2[sameFragMask] > self.cuts1[sameFragMask]
         s1 = self.strands1[sameFragMask]
