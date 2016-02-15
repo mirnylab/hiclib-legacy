@@ -631,22 +631,27 @@ class HiCdataset(object):
                 raise IOError("\nCannot open file: %s" % filename)
         log.debug("Getting h5dicts")
         h5dicts = [mirnylib.h5dict.h5dict(i, mode='r') for i in filenames]
+
         if all(["metadata" in i for i in h5dicts]):
-            metadatas = [mydict["metadata"] for mydict in h5dicts]
-            # print metadatas
-            newMetadata = metadatas.pop()
-            for oldData in metadatas:
-                for key, value in list(oldData.items()):
-                    if (key in newMetadata):
-                        try:
-                            newMetadata[key] += value
-                        except:
-                            print("Values {0} and {1} for key {2} cannot be added".format(metadatas[key], value, key))
-                            warnings.warn("Cannot add metadatas")
-                    else:
-                        warnings.warn("key {0} not found in some files".format(key))
-            self.metadata = newMetadata
-            self.h5dict["metadata"] = self.metadata
+            try:
+                metadatas = [mydict["metadata"] for mydict in h5dicts]
+            except:
+                print("Failed load metadata")
+            else:
+                # print metadatas
+                newMetadata = metadatas.pop()
+                for oldData in metadatas:
+                    for key, value in list(oldData.items()):
+                        if (key in newMetadata):
+                            try:
+                                newMetadata[key] += value
+                            except:
+                                print("Values {0} and {1} for key {2} cannot be added".format(metadatas[key], value, key))
+                                warnings.warn("Cannot add metadatas")
+                        else:
+                            warnings.warn("key {0} not found in some files".format(key))
+                self.metadata = newMetadata
+                self.h5dict["metadata"] = self.metadata
         log.debug("Calculating final length")
         self.N = sum([len(i.get_dataset("strands1")) for i in h5dicts])
         log.debug("Final length equals: {0}".format(self.N))
@@ -1427,7 +1432,10 @@ class HiCdataset(object):
         "Loads dataset from file to working file; check for inconsistency"
         otherh5dict = mirnylib.h5dict.h5dict(filename, 'r')
         if "metadata" in otherh5dict:
-            self.metadata = otherh5dict["metadata"]
+            try:
+                self.metadata = otherh5dict["metadata"]
+            except:
+                warnings.warn("Metadata not found!!!")
         else:
             print(list(otherh5dict.keys()))
             warnings.warn("Metadata not found!!!")
