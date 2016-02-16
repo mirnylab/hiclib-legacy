@@ -908,7 +908,7 @@ class HiCdataset(object):
             oldGenome = self.genome
         upgrade = newGenome.upgradeMatrix(oldGenome)
         if isinstance(oldGenome, Genome):
-            if oldGenome.hasEnzyme():
+            if (oldGenome.hasEnzyme()==True) and (newGenome.hasEnzyme()==False):
                 newGenome.setEnzyme(oldGenome.enzymeName)
             oldGenome = oldGenome.idx2label
         oldN = len(list(oldGenome.keys()))
