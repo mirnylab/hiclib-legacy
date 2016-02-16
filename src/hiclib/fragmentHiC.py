@@ -917,8 +917,11 @@ class HiCdataset(object):
         chrms2 = np.array(self.chrms2, int)
         SS = (chrms1 < 0) + (chrms2 < 0)
         metadata = {}
-        if "M" in label2idx:
-            Midx = label2idx["M"]
+        if ("M" in label2idx) or ("MT" in label2idx):
+            if ("M" in label2idx):
+                Midx = label2idx["M"]
+            if ("MT" in label2idx):
+                Midx = label2idx["MT"]
             M1 = chrms1 == Midx
             M2 = chrms2 == Midx
             mToM = (M1 * M2).sum()
