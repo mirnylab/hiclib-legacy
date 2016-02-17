@@ -720,7 +720,10 @@ class HiCdataset(object):
         noFiltering : bool, optional
             If True then no filters are applied to the data. False by default.
             Overrides removeSS. Experimental, do not use if you are not sure.
-
+        keepSingleSided : bool, optional
+            Do not remove SS reads
+        keepReadsMolecules : bool, optional
+            Do not remove --> <-- reads less than size selection
 
         """
 
@@ -794,68 +797,75 @@ class HiCdataset(object):
         self.metadata["152_removedUnusedChromosomes"] = self.trackLen - self.N
         self.metadata["150_ReadsWithoutUnusedChromosomes"] = self.N
 
-        # Discard dangling ends and self-circles
+        # Discard single-sided reads
         DSmask = (self.chrms1 >= 0) * (self.chrms2 >= 0)
         self.metadata["200_totalDSReads"] = DSmask.sum()
         self.metadata["201_DS+SS"] = len(DSmask)
-        self.metadata["202_SSReadsRemoved"] = len(DSmask) - DSmask.sum()
-
-        sameFragMask = self.evaluate("a = (rfragAbsIdxs1 == rfragAbsIdxs2)",
-                     ["rfragAbsIdxs1", "rfragAbsIdxs2"]) * DSmask
-
-        cutDifs = self.cuts2[sameFragMask] > self.cuts1[sameFragMask]
-        s1 = self.strands1[sameFragMask]
-        s2 = self.strands2[sameFragMask]
-        SSDE = (s1 != s2)
-        SS = SSDE * (cutDifs == s2)
-        SS_N = SS.sum()
-        SSDE_N = SSDE.sum()
-        sameFrag_N = sameFragMask.sum()
-        self.metadata["210_sameFragmentReadsRemoved"] = sameFrag_N
-        self.metadata["212_Self-Circles"] = SS_N
-        self.metadata["214_DandlingEnds"] = SSDE_N - SS_N
-        self.metadata["216_error"] = sameFrag_N - SSDE_N
-
-        if kwargs.get("keepSameFragment", False):
-            print("Keeping same fragment reads")
+        self.metadata["202_SSReadsRemoved"] = len(DSmask) - DSmask.sum()       
+        if not kwargs.get("keepSingleSided", True):
+            print('filtering SS reads')
             mask = DSmask
         else:
-            mask = DSmask * (-sameFragMask)
-
-        del DSmask, sameFragMask
+            print('keeping SS reads')
+            mask = np.ones(np.shape(DSmask)) > 0
+                   
+        # Discard dangling ends and self-circles
+        if not kwargs.get("keepSameFragment", True):
+            sameFragMask = self.evaluate("a = (rfragAbsIdxs1 == rfragAbsIdxs2)", ["rfragAbsIdxs1", "rfragAbsIdxs2"]) * DSmask
+            cutDifs = self.cuts2[sameFragMask] > self.cuts1[sameFragMask]
+            s1 = self.strands1[sameFragMask]
+            s2 = self.strands2[sameFragMask]
+            SSDE = (s1 != s2)
+            SS = SSDE * (cutDifs == s2)
+            SS_N = SS.sum()
+            SSDE_N = SSDE.sum()
+            sameFrag_N = sameFragMask.sum()
+            self.metadata["210_sameFragmentReadsRemoved"] = sameFrag_N
+            self.metadata["212_Self-Circles"] = SS_N
+            self.metadata["214_DandlingEnds"] = SSDE_N - SS_N
+            self.metadata["216_error"] = sameFrag_N - SSDE_N
+            print("Removing same-fragment reads")
+            mask  *= (-sameFragMask)
+            del DSmask, sameFragMask
+        else:
+            print("Keeping same-fragment reads")
         noSameFrag = mask.sum()
 
-        # Discard unused chromosomes
+        # Discard reads longer than size-selection
+        if not kwargs.get("keepReadsMolecules", True):
+            if noStrand == True:
+                # Can't tell if reads point to each other.
+                dist = self.evaluate("a = np.abs(cuts1 - cuts2)",
+                                     ["cuts1", "cuts2"])
+            else:
+                # distance between sites facing each other
+                dist = self.evaluate("a = numexpr.evaluate('- cuts1 * (2 * strands1 -1) - "
+                                     "cuts2 * (2 * strands2 - 1)')",
+                                     ["cuts1", "cuts2", "strands1", "strands2"],
+                                     constants={"numexpr":numexpr})
 
-        if noStrand == True:
-            # Can't tell if reads point to each other.
-            dist = self.evaluate("a = np.abs(cuts1 - cuts2)",
-                                 ["cuts1", "cuts2"])
+            readsMolecules = self.evaluate(
+               "a = numexpr.evaluate('(chrms1 == chrms2)&(strands1 != strands2) &  (dist >=0) &"
+               " (dist <= maximumMoleculeLength)')",
+               internalVariables=["chrms1", "chrms2", "strands1", "strands2"],
+               externalVariables={"dist": dist},
+               constants={"maximumMoleculeLength": self.maximumMoleculeLength, "numexpr":numexpr})
+            mask *= (readsMolecules == False)
+            print('removing extraDEs, when they exceed maximumMoleculeLength') 
+            extraDE = mask.sum()
+            self.metadata["220_extraDandlingEndsRemoved"] = -extraDE + noSameFrag
+            del dist
+            del readsMolecules
         else:
-            # distance between sites facing each other
-            dist = self.evaluate("a = numexpr.evaluate('- cuts1 * (2 * strands1 -1) - "
-                                 "cuts2 * (2 * strands2 - 1)')",
-                                 ["cuts1", "cuts2", "strands1", "strands2"],
-                                 constants={"numexpr":numexpr})
+            print('keeping --> <-- reads even if they exceed maximumMoleculeLength') 
 
-        readsMolecules = self.evaluate(
-           "a = numexpr.evaluate('(chrms1 == chrms2)&(strands1 != strands2) &  (dist >=0) &"
-           " (dist <= maximumMoleculeLength)')",
-           internalVariables=["chrms1", "chrms2", "strands1", "strands2"],
-           externalVariables={"dist": dist},
-           constants={"maximumMoleculeLength": self.maximumMoleculeLength, "numexpr":numexpr})
-
-        mask *= (readsMolecules == False)
-        extraDE = mask.sum()
-        self.metadata["220_extraDandlingEndsRemoved"] = -extraDE + noSameFrag
+        # Summary & Tests
         if mask.sum() == 0:
             raise Exception('No reads left after filtering. Please, check the input data')
-
-        del dist
-        del readsMolecules
         if not kwargs.get('noFiltering', False):
             self.maskFilter(mask)
         self.metadata["300_ValidPairs"] = self.N
+        print('300_validPairs: ', self.N)
         del dictLike
 
 
