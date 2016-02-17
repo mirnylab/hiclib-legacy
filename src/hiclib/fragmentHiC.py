@@ -803,7 +803,7 @@ class HiCdataset(object):
         self.metadata["200_totalDSReads"] = DSmask.sum()
         self.metadata["201_DS+SS"] = len(DSmask)
         self.metadata["202_SSReadsRemoved"] = len(DSmask) - DSmask.sum()       
-        if not kwargs.get("keepSingleSided", True):
+        if not kwargs.get("keepSingleSided", False):
             print('filtering SS reads')
             mask = DSmask
         else:
@@ -811,7 +811,7 @@ class HiCdataset(object):
             mask = np.ones(np.shape(DSmask)) > 0
                    
         # Discard dangling ends and self-circles
-        if not kwargs.get("keepSameFragment", True):
+        if not kwargs.get("keepSameFragment", False):
             sameFragMask = self.evaluate("a = (rfragAbsIdxs1 == rfragAbsIdxs2)", ["rfragAbsIdxs1", "rfragAbsIdxs2"]) * DSmask
             cutDifs = self.cuts2[sameFragMask] > self.cuts1[sameFragMask]
             s1 = self.strands1[sameFragMask]
@@ -833,7 +833,7 @@ class HiCdataset(object):
         noSameFrag = mask.sum()
 
         # Discard reads longer than size-selection
-        if not kwargs.get("keepReadsMolecules", True):
+        if not kwargs.get("keepReadsMolecules", False):
             if noStrand == True:
                 # Can't tell if reads point to each other.
                 dist = self.evaluate("a = np.abs(cuts1 - cuts2)",
