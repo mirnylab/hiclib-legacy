@@ -307,6 +307,7 @@ class HiCdataset(object):
             return np.array([])
         if name in self.vectors:
             if name in self.h5dict:
+                assert self.N == len(self.h5dict.get_dataset(name))
                 return self.h5dict.get_dataset(name)[start:end]
             else:
                 raise ValueError("name {0} not in h5dict {1}".format(name, self.h5dict.path))
