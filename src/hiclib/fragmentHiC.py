@@ -152,28 +152,21 @@ class HiCdataset(object):
         # You can learn what variables mean from here too.
         self.vectors = {
             # chromosomes for each read.
-            "strands1": "bool", "strands2": "bool",
-            "chrms1": "int16", "chrms2": "int16",
-            # IDs of fragments. fragIDmult * chromosome + location
-            # distance to rsite
-            "cuts1": "int32", "cuts2": "int32",
+            "strands1": "bool", "strands2": "bool",  #strand to which the read maps
+            "chrms1": "int16", "chrms2": "int16",   # chromosome to which the read maps
+            "cuts1": "int32", "cuts2": "int32",     #Start of the read ("ultrasonic" cut site)
 
             }
         self.vectors2 = {
-             "fraglens1": "int32", "fraglens2": "int32",
-            # fragment lengthes
-            "fragids1": "int64", "fragids2": "int64",
-            "mids1": "int32", "mids2": "int32",
-            # midpoint of a fragment, determined as "(start+end)/2"
-
-            "dists1": "int32", "dists2": "int32",
-            # distance from a cut site to the restriction fragment
-
-            "distances": "int32",
-            # distance between fragments. If -1, different chromosomes.
-            # If -2, different arms.
+             "fraglens1": "int32", "fraglens2": "int32", # fragment lengthes
+            "fragids1": "int64", "fragids2": "int64",    # fragid as defined in the manual
+            "mids1": "int32", "mids2": "int32",          # midpoint of a fragment, determined as "(start+end)/2"
+            "dists1": "int32", "dists2": "int32",        # distance from a cut site to the restriction fragment
+            "distances": "int32",      # distance between fragments. If -1, different chromosomes. If -2, different arms.
             }
-        self.vectors3 = {"rfragAbsIdxs1": "int32", "rfragAbsIdxs2": "int32", }
+        self.vectors3 = {
+            #absolute ID of a restriction fragment (0,1,2,... numFragments)
+            "rfragAbsIdxs1": "int32", "rfragAbsIdxs2": "int32", }
         if dictToStoreIDs == "dict":
             self.rfragIDDict = {}
         elif dictToStoreIDs == "h5dict":
@@ -1830,10 +1823,12 @@ class HiCdataset(object):
         return heatmap
 
     def setSimpleHighResHeatmap(self):
-        self.getHiResHeatmapWithOverlaps = self.getHiResHeatmap
+        self.simpleHeatmap = True
 
 
     def getHiResHeatmapWithOverlaps(self, resolution, chromosome, start=0, end=None, countDiagonalReads="Twice", maxBinSpawn=10):
+        if hasattr(self, "simpleHeatmap"):
+            return self.getHiResHeatmap(resolution, chromosome, start=0, end=None, countDiagonalReads="Twice", maxBinSpawn=10)
 
         c1 = self.h5dict.get_dataset("chrms1")
         p1 = self.h5dict.get_dataset("cuts1")
