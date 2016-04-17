@@ -5,9 +5,9 @@ Read the [documentation](http://mirnylab.bitbucket.org/hiclib/index.html).
 
 Installation
 ------------
-The easiest way is to use pip, but see notes below:
+The easiest way is to use pip.
 
-First, install [mirnylib](https://bitbucket.org/mirnylab/mirnylib):
+First, install [mirnylib](https://bitbucket.org/mirnylab/mirnylib), e.g:
 
 `$ pip install https://bitbucket.org/mirnylab/mirnylib/get/tip.tar.gz`
 
@@ -15,7 +15,7 @@ Then install hiclib:
 
 `$ pip install https://bitbucket.org/mirnylab/hiclib/get/tip.tar.gz`
 
-Alternatively, there is a linux install script that doesn't use pip.
+Or clone the repo and install from there. Alternatively, there is a install script that doesn't use pip (Linux only).
 
 Installation requirements
 -------------------------
@@ -30,13 +30,21 @@ Installation requirements
 
 Required:
 
-Getting the basic Scientific Python stack (numpy/scipy/matplotlib) can be trickier on some platforms than others. For more details, see the [instructions on scipy.org](http://www.scipy.org/install.html). You should already have these dependencies installed and running correctly before attempting to install this package.
+Getting the basic Scientific Python stack can be trickier on some platforms than others. For more details, see the [instructions on scipy.org](http://www.scipy.org/install.html). You should already have these dependencies installed and running correctly before attempting to install this package.
 
 - numpy (1.6+)
 - scipy
 - matplotlib
+- h5py
+- cython
+- numexpr
+- statsmodels
 
-Installed by setuptools if missing:
+We highly recommend using the [conda](http://conda.pydata.org/miniconda.html) package/environment manager if you have trouble building the core scientific Python packages.
+
+`$ conda install numpy scipy matplotlib h5py cython ...`
+
+Other deps:
 
 - biopython
 - pysam
