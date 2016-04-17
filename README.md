@@ -20,15 +20,9 @@ Or clone the repo and install from there. Alternatively, there is a install scri
 Installation requirements
 -------------------------
 
-### Non-python dependencies
-
-- Mirnylib provides a HDF5 dictionary type based on the Python h5py package. For the h5py package to install properly, you need to have the shared library and development headers for HDF5 1.8.4 or newer installed (`libhdf5-dev` or similar). See the [h5py docs](http://docs.h5py.org/en/latest/build.html) for more information.
-
-- You will also need the `bowtie2` mapping software which can be downloaded manually or installed via the download_bowtie.sh script in the hiclib folder.
-
 ### Python dependencies
 
-Required:
+Python 2.7/3.3+
 
 Getting the basic Scientific Python stack can be trickier on some platforms than others. For more details, see the [instructions on scipy.org](http://www.scipy.org/install.html). You should already have these dependencies installed and running correctly before attempting to install this package.
 
@@ -52,3 +46,9 @@ Other deps:
 Optional:
 
 - Sphinx (to generate documentation)
+
+### Non-python dependencies
+
+- Mirnylib provides a HDF5 dictionary type based on the Python h5py package. For the h5py package to install properly, you need to have the shared library and development headers for HDF5 1.8.4 or newer installed (`libhdf5-dev` or similar). See the [h5py docs](http://docs.h5py.org/en/latest/build.html) for more information.
+
+- You will also need the `bowtie2` mapping software which can be downloaded manually or installed via the download_bowtie.sh script in the hiclib folder.
