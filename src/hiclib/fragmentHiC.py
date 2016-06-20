@@ -2096,7 +2096,9 @@ class HiCdataset(object):
                     # Note that calculation might be extremely long
                     # (it might be proportional to # of regions for # > 100)
 
-                    appendReadCount=True, **kwargs
+                    appendReadCount=True, 
+                    dirs = ['unidir'],
+                    **kwargs
                         # Append read count to the plot label
                         # kwargs to be passed to plotting
                     ):  # Sad smiley, because this method
@@ -2158,6 +2160,13 @@ class HiCdataset(object):
             Append read count to the plot label
         plot : bool, optional
             If False then do not display the plot. True by default.
+        dirs : list, optional.
+            The list of fragment pair directionalities used to calculate the scaling.
+            The possible values are:
+            -- 'convergent' - fragment pairs that face towards each other
+            -- 'divergent' - fragment pairs that face away from each other
+            -- 'unidir' - fragment pairs oriented into the same direction 
+            The default value is ['unidir'].
         **kwargs :  optional
             All other keyword args are passed to plt.plot
 
@@ -2337,7 +2346,22 @@ class HiCdataset(object):
         # Keep only --> -->  or <-- <-- pairs, discard --> <-- and <-- -->
 
 
-            validFragPairs *= (mystrands1 == mystrands2)
+            dirMask = np.zeros_like(mystrands1)
+            for directionality in dirs:
+                if directionality == 'unidir':
+                    dirMask += (mystrands1 == mystrands2)
+                elif directionality == 'convergent':
+                    dirMask += (pos1>pos2) * (mystrands1) * (-mystrands2)
+                    dirMask += (pos1<pos2) * (-mystrands1) * (mystrands2)
+                elif directionality == 'divergent':
+                    dirMask += (pos1>pos2) * (-mystrands1) * (mystrands2)
+                    dirMask += (pos1<pos2) * (mystrands1) * (-mystrands2)
+                else:
+                    raise Exception(
+                        'Unknown fragment pair directionality: {}'.format(directionality))
+
+
+            validFragPairs *= dirMask
 
         # Keep only fragment pairs more than excludeNeighbors fragments apart.
             distsInFrags = self.genome.getFragmentDistance(
