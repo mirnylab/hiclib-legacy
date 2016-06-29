@@ -375,12 +375,12 @@ class HiResHiC(object):
         self.genome.setResolution(resolution)
 
         if self.genome.numBins < 7000:
-            print "Total number of bins in the genome is just %d" % self.genome.numBins
+            print("Total number of bins in the genome is just %d" % self.genome.numBins)
             warnings.warn("For low-resolution analysis use binnedData, as it provides"
                           "more analysis tools")
 
         M = self.genome.chrmCount
-        self.cisKeys = [(i, i) for i in xrange(M)]
+        self.cisKeys = [(i, i) for i in range(M)]
         self.transKeys = [(i, j) for i in range(M) for j in range(M) if j > i]
         self.allKeys = self.cisKeys + self.transKeys
 
@@ -414,11 +414,11 @@ class HiResHiC(object):
                                  "got {1}".format(expected, shape, i))
 
     def _hasData(self):
-        mykeys = self.data.keys()
-        for i in xrange(self.genome.chrmCount):
+        mykeys = list(self.data.keys())
+        for i in range(self.genome.chrmCount):
             if ((i, i)) not in mykeys:
-                print "Not all cis keys found in data!"
-                print "Please load data!"
+                print("Not all cis keys found in data!")
+                print("Please load data!")
                 raise ValueError("Please load data first")
 
     def _marginalError(self, marginals=None, percentile=99.9):
@@ -574,7 +574,7 @@ class HiResHiC(object):
             m = self.getMarginals(normalizeForIC=True)
             marginals *= np.concatenate(m)
             self.divideByMarginals()
-            print "Pass = %d, Error = %lf" % (curPass, self._marginalError())
+            print("Pass = %d, Error = %lf" % (curPass, self._marginalError()))
             curPass += 1
         self.biases = marginals
         return self.biases
@@ -602,7 +602,7 @@ class HiResHiC(object):
         numRemoved = (nonZeroMarg < cut).sum()
         toRemove = [np.nonzero(i < cut)[0] for i in marg]
         self.setRowsToZero(toRemove)
-        print "Removed %d poor bins" % numRemoved
+        print("Removed %d poor bins" % numRemoved)
 
     def export(self, filename):
         mydict = h5dict(filename)
