@@ -930,7 +930,7 @@ def fill_rsites(lib, genome_db, enzyme_name='auto', min_frag_size=None):
             raise Exception('Set a restriction enzyme in the genome object or '
                             'supply its name')
     else:
-        if enzyme_name not in Bio.Restriction.AllEnzymes:
+        if enzyme_name not in dir(Bio.Restriction):
             raise Exception('Enzyme is not found in the library: %s' %
                 (enzyme_name,))
         genome_db.setEnzyme(enzyme_name)
