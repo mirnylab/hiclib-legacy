@@ -995,10 +995,10 @@ class HiCdataset(object):
 
                 label = self.genome.chrmStartsBinCont[self._getVector("chrms1", start, end)]
                 label = np.asarray(label, dtype="int64")
-                label += self._getVector("mids1", start, end) // resolution
+                label += (self._getVector("mids1", start, end) // resolution).astype(np.int64)
                 label *= numBins
                 label += self.genome.chrmStartsBinCont[self._getVector("chrms2", start, end)]
-                label += self._getVector("mids2", start, end) // resolution
+                label += (self._getVector("mids2", start, end) // resolution).astype(np.int64)
 
             elif resolution == 'fragment':
                 numBins = self.genome.numRfrags
