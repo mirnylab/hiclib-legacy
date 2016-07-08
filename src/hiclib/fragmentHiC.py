@@ -1297,7 +1297,16 @@ class HiCdataset(object):
 
         self.metadata["320_duplicatesRemoved"] = len(stay) - stay.sum()
         self.maskFilter(stay)
-
+        
+    def filterSingleSided(self):
+        # Discard single-sided reads
+        DSmask = (self.chrms1 >= 0) * (self.chrms2 >= 0)
+        self.metadata["200_totalDSReads"] = DSmask.sum()
+        self.metadata["201_DS+SS"] = len(DSmask)
+        self.metadata["202_SSReadsRemoved"] = len(DSmask) - DSmask.sum()       
+        print('filtering SS reads')
+        self.maskFilter(DSmask)
+    
     def filterByCisToTotal(self, cutH=0.0, cutL=0.01):
         """
         __NOT optimized for large datasets__
