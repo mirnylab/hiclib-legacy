@@ -184,7 +184,7 @@ for i in  iterList:
 
         counters = mapping.splitSRA(sraName, os.path.join(fastqFolder, expName + "_chunk{0:04d}_fhtagn_side{1}.fastq.gz"), chunkSize)  # creating unique IDs requires creativity
         os.remove(sraName)
-        pickle.dump(counters, open(os.path.join(saveFolder, "read_counts"), 'w'))
+        pickle.dump(counters, open(os.path.join(saveFolder, "read_counts"), 'wb'))
     elif mode == "fastq":
 
         firstSide = os.path.join(inFastqDir, expName + sidePrefixes[0] + ".fastq.gz")
