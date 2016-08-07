@@ -996,7 +996,7 @@ class binnedData(object):
             self.PCDict[i] = currentPCA
         return self.PCDict
 
-    def doEig(self, numPCs=3, force=False):
+    def doEig(self, numPCs=3, force=False, properNormalization=True):
         """performs eigenvector expansion on the data
         creates dictionary self.EigDict with results
         Last row of the eigenvector matrix is the largest eigenvector, etc.
@@ -1011,12 +1011,24 @@ class binnedData(object):
             self._checkAppliedOperations(neededKeys, advicedKeys)
 
         for i in list(self.dataDict.keys()):
-            currentEIG, eigenvalues = EIG(self.dataDict[i], numPCs=numPCs)
-            self.eigEigenvalueDict[i] = eigenvalues
+            if properNormalization:
+                currentEIG, eigenvalues = EIG(
+                    self.dataDict[i], numPCs=numPCs, 
+                    subtractMean=True, divideByMean=True)
+                for j in range(len(eigenvalues)):
+                    # eigsh returns unit vectors, but just making sure
+                    currentEIG[j] /= np.sqrt(np.sum(currentEIG[j]**2))
+                    currentEIG[j] *= np.sqrt(np.abs(eigenvalues[j]))
+            else:
+                currentEIG, eigenvalues = EIG(
+                    self.dataDict[i], numPCs=numPCs,
+                    subtractMean=True, divideByMean=False)
+            # Flip vectors to correlate positively with GC.
             for j in range(len(currentEIG)):
                 if spearmanr(currentEIG[j], self.trackDict["GC"])[0] < 0:
                     currentEIG[j] = -currentEIG[j]
             self.EigDict[i] = currentEIG
+            self.eigEigenvalueDict[i] = eigenvalues
         return self.EigDict
 
     def doCisPCADomains(
