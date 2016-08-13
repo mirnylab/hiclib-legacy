@@ -795,14 +795,14 @@ class HiCdataset(object):
         DSmask = (self.chrms1 >= 0) * (self.chrms2 >= 0)
         self.metadata["200_totalDSReads"] = DSmask.sum()
         self.metadata["201_DS+SS"] = len(DSmask)
-        self.metadata["202_SSReadsRemoved"] = len(DSmask) - DSmask.sum()       
+        self.metadata["202_SSReadsRemoved"] = len(DSmask) - DSmask.sum()
         if not kwargs.get("keepSingleSided", False):
             print('filtering SS reads')
             mask = DSmask
         else:
             print('keeping SS reads')
             mask = np.ones(np.shape(DSmask)) > 0
-                   
+
         # Discard dangling ends and self-circles
         if not kwargs.get("keepSameFragment", False):
             sameFragMask = self.evaluate("a = (rfragAbsIdxs1 == rfragAbsIdxs2)", ["rfragAbsIdxs1", "rfragAbsIdxs2"]) * DSmask
@@ -845,13 +845,13 @@ class HiCdataset(object):
                externalVariables={"dist": dist},
                constants={"maximumMoleculeLength": self.maximumMoleculeLength, "numexpr":numexpr})
             mask *= (readsMolecules == False)
-            print('removing extraDEs, when they exceed maximumMoleculeLength') 
+            print('removing extraDEs, when they exceed maximumMoleculeLength')
             extraDE = mask.sum()
             self.metadata["220_extraDandlingEndsRemoved"] = -extraDE + noSameFrag
             del dist
             del readsMolecules
         else:
-            print('keeping --> <-- reads even if they exceed maximumMoleculeLength') 
+            print('keeping --> <-- reads even if they exceed maximumMoleculeLength')
 
         # Summary & Tests
         if mask.sum() == 0:
@@ -1297,16 +1297,16 @@ class HiCdataset(object):
 
         self.metadata["320_duplicatesRemoved"] = len(stay) - stay.sum()
         self.maskFilter(stay)
-        
+
     def filterSingleSided(self):
         # Discard single-sided reads
         DSmask = (self.chrms1 >= 0) * (self.chrms2 >= 0)
         self.metadata["200_totalDSReads"] = DSmask.sum()
         self.metadata["201_DS+SS"] = len(DSmask)
-        self.metadata["202_SSReadsRemoved"] = len(DSmask) - DSmask.sum()       
+        self.metadata["202_SSReadsRemoved"] = len(DSmask) - DSmask.sum()
         print('filtering SS reads')
         self.maskFilter(DSmask)
-    
+
     def filterByCisToTotal(self, cutH=0.0, cutL=0.01):
         """
         __NOT optimized for large datasets__
@@ -1571,10 +1571,10 @@ class HiCdataset(object):
             chr1 = self._getVector("chrms1", low, high)
             chr2 = self._getVector("chrms2", low, high)
             pos1 = np.array(self._getVector("mids1", low, high) // resolution, dtype=np.int32)
-            pos2 = np.array(self._getVector("mids2", low, high) // resolution, dtype=np.int32)           
+            pos2 = np.array(self._getVector("mids2", low, high) // resolution, dtype=np.int32)
 
-            assert (chr1 == chromosome).all()  # getting sure that bincount worked 
-            
+            assert (chr1 == chromosome).all()  # getting sure that bincount worked
+
             args = np.argsort(chr2)
             chr2 = chr2[args]
             pos1 = pos1[args]
@@ -2105,7 +2105,7 @@ class HiCdataset(object):
                     # Note that calculation might be extremely long
                     # (it might be proportional to # of regions for # > 100)
 
-                    appendReadCount=True, 
+                    appendReadCount=True,
                     dirs = ['unidir'],
                     **kwargs
                         # Append read count to the plot label
@@ -2174,7 +2174,7 @@ class HiCdataset(object):
             The possible values are:
             -- 'convergent' - fragment pairs that face towards each other
             -- 'divergent' - fragment pairs that face away from each other
-            -- 'unidir' - fragment pairs oriented into the same direction 
+            -- 'unidir' - fragment pairs oriented into the same direction
             The default value is ['unidir'].
         **kwargs :  optional
             All other keyword args are passed to plt.plot
@@ -2360,11 +2360,11 @@ class HiCdataset(object):
                 if directionality == 'unidir':
                     dirMask += (mystrands1 == mystrands2)
                 elif directionality == 'convergent':
-                    dirMask += (pos1>pos2) * (mystrands1) * (-mystrands2)
-                    dirMask += (pos1<pos2) * (-mystrands1) * (mystrands2)
+                    dirMask += (pos1<pos2) * (mystrands1) * (~mystrands2)
+                    dirMask += (pos1>pos2) * (~mystrands1) * (mystrands2)
                 elif directionality == 'divergent':
-                    dirMask += (pos1>pos2) * (-mystrands1) * (mystrands2)
-                    dirMask += (pos1<pos2) * (mystrands1) * (-mystrands2)
+                    dirMask += (pos1<pos2) * (~mystrands1) * (mystrands2)
+                    dirMask += (pos1>pos2) * (mystrands1) * (~mystrands2)
                 else:
                     raise Exception(
                         'Unknown fragment pair directionality: {}'.format(directionality))
