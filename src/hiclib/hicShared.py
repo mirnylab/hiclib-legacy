@@ -10,6 +10,7 @@ import os
 import mirnylib.h5dict
 import mirnylib.numutils
 import mirnylib.numutils_new
+import copy
 from scipy.stats.stats import spearmanr
 log = logging.getLogger(__name__)
 
@@ -322,6 +323,54 @@ def completeEig(data, GC=None, doSmooth=False):
             PC1 = -PC1
     return PC1
 
+def cisEigProperNorm(hm, reIC = False, numEigs = 3, GC=None, sortByGCCorr=False):
+    if hm.shape[0] <= 5:
+        return (
+            np.array([np.ones(hm.shape[0]) * np.nan for i in range(numEigs)]),
+            np.array([np.nan for i in range(numEigs)]),
+            )
+
+    if reIC:
+        hm = mirnylib.numutils.completeIC(hm)
+
+    mask = (hm.sum(axis=0) > 0)
+    if (mask.sum() <=5):
+        return (
+            np.array([np.ones(hm.shape[0]) * np.nan for i in range(numEigs)]),
+            np.array([np.nan for i in range(numEigs)]),
+            )
+
+    hm_obsexp = mirnylib.numutils.observedOverExpectedWithMask(
+        hm,
+        mask[:, None] * mask[None, :]
+        )
+
+    hm4eig = (hm_obsexp - 1.0)
+    hm4eig = hm4eig[mask, :][:,mask]
+    eigvecs, eigvals = mirnylib.numutils.EIG(
+        hm4eig, numEigs, subtractMean=False, divideByMean=False)
+    
+    if GC is not None:
+        GC_corrs = np.array([spearmanr(GC[mask], eig)[0] for eig in eigvecs])
+        signs = np.sign(GC_corrs)
+        if sortByGCCorr:
+            order = np.argsort(-np.abs(GC_corrs))
+        else:
+            order = np.argsort(-np.abs(eigvals))
+    else:
+        signs = [1] * numEigs
+        order = np.argsort(-np.abs(eigvals))
+
+    eigvecs, eigvals, signs = eigvecs[order], eigvals[order], signs[order]
+
+    eigvecs_full = []
+    for i in range(numEigs):
+        eigvec = np.ones(mask.shape[0]) * np.nan
+        eigvec[mask] = eigvecs[i] * np.sqrt(np.abs(eigvals[i])) * signs[i]
+        eigvecs_full.append(eigvec)
+
+    return np.array(eigvecs_full), np.array(eigvals)
+
 def byChrEig(filename, genome, chromosomes="all", resolution="auto", byArm=True, doSmooth=False):
     from mirnylib.genome import Genome
     if resolution == "auto":
@@ -350,5 +399,20 @@ def byChrEig(filename, genome, chromosomes="all", resolution="auto", byArm=True,
             result[-1][cent:] = completeEig(data[cent:, cent:], genome.GCBin[chrom][cent:], doSmooth=doSmooth)
     return result
 
+def MAD(data, axis=None):
+    return np.median(np.abs(data - np.median(data, axis)), axis)
 
+def getMasksMadMax(marginals, madMax=3.0, adjustByChromMedian=True):
+    marginals = copy.deepcopy(marginals)
 
+    if adjustByChromMedian:
+        for chrm in range(len(marginals)):
+            marginals[chrm] /= np.median(marginals[chrm][marginals[chrm] > 0])
+
+    margsArr = np.concatenate(marginals)
+    logNzMargs = np.log(margsArr[margsArr>0])
+    logMedMarg = np.median(logNzMargs)
+    madSigma = MAD(logNzMargs) / 0.6745
+    cutoff = np.exp(logMedMarg - madMax * madSigma)
+    masks = [marg>=cutoff for marg in marginals]
+    return masks

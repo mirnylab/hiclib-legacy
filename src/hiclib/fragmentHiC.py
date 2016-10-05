@@ -2370,14 +2370,16 @@ class HiCdataset(object):
                         'Unknown fragment pair directionality: {}'.format(directionality))
 
 
+            print(dirMask.sum())
             validFragPairs *= dirMask
 
         # Keep only fragment pairs more than excludeNeighbors fragments apart.
             distsInFrags = self.genome.getFragmentDistance(
                 myfragids1, myfragids2, self.genome.enzymeName)
 
-            validFragPairs *= distsInFrags > excludeNeighbors
+            validFragPairs *= (distsInFrags > excludeNeighbors)
 
+            print(validFragPairs.sum())
             distances = np.sort(mydists[validFragPairs])
 
             "calculating fragments lengths for exclusions to expected # of counts"

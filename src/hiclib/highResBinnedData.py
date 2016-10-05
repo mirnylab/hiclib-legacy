@@ -63,8 +63,10 @@ from mirnylib.genome import Genome
 import numpy as np
 import warnings
 from mirnylib.h5dict import h5dict
-from mirnylib.numutils import removeDiagonals
+from mirnylib import numutils
 from mirnylib.systemutils import setExceptionHook
+from scipy.stats.stats import spearmanr
+from hiclib import hicShared
 
 setExceptionHook()
 
@@ -587,7 +589,7 @@ class HiResHiC(object):
         self._hasData()
         for i in self.cisKeys:
             data = self.data[i].getData()
-            removeDiagonals(data, m)
+            numutils.removeDiagonals(data, m)
             self.data[i].setData(data)
 
     def removePoorRegions(self, percent=0.5):
@@ -610,4 +612,54 @@ class HiResHiC(object):
             data = self.data[i].getData()
             mydict["%d %d" % i] = data
         mydict["resolution"] = self.resolution
+
+    def removeMadMax(self, madMax=3.0, adjustByChromMedian=True):
+        margs = self.getMarginals()
+        masks = hicShared.getMasksMadMax(margs, madMax, adjustByChromMedian)
+        self.setRowsToZero([~mask for mask in masks])
+        print("Removed {} poor bins".format(sum([(~mask).sum() for mask in masks])))
+
+    def getCisEig(self, 
+            reIC = False, 
+            numEigs = 3, 
+            byArm=True, 
+            verbose=True, 
+            sortByGCCorr=False):
+
+        cisEigVecs = {}
+        cisEigVals = {}
+
+        for chr1, _ in self.cisKeys:
+            if verbose:
+                print('Processing chromosome #{}'.format(chr1))
+
+            hm = self.data[(chr1, chr1)]
+            GC = self.genome.GCBin[chr1]
+
+            if byArm:
+                cent = self.genome.cntrMids[chr1] // self.resolution
+
+                eigvecs_left, eigvals_left = hicShared.cisEigProperNorm(
+                    hm.getData()[:cent, :cent], reIC=reIC, numEigs=numEigs, 
+                    GC=GC[:cent], sortByGCCorr=sortByGCCorr)
+                eigvecs_right, eigvals_right = hicShared.cisEigProperNorm(
+                    hm.getData()[cent:, cent:], reIC=reIC, numEigs=numEigs,
+                    GC=GC[cent:],sortByGCCorr=sortByGCCorr)
+
+                cisEigVecs[chr1] = np.hstack([eigvecs_left, eigvecs_right])
+                cisEigVals[chr1] = np.vstack([eigvals_left, eigvals_right])
+            else:
+                eigvecs, eigvals = hicShared.cisEigProperNorm(
+                    hm.getData(), reIC=reIC, numEigs=numEigs, 
+                    GC=GC, sortByGCCorr=sortByGCCorr)
+                cisEigVecs[chr1] = eigvecs
+                cisEigVals[chr1] = eigvals
+        self.cisEigVecs = cisEigVecs
+        self.cisEigVals = cisEigVals
+        
+        return cisEigVecs, cisEigVals
+
+    def getTransEig():
+        pass
+
 
