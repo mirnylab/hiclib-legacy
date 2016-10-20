@@ -323,7 +323,13 @@ def completeEig(data, GC=None, doSmooth=False):
             PC1 = -PC1
     return PC1
 
-def cisEigProperNorm(hm, reIC = False, numEigs = 3, GC=None, sortByGCCorr=False):
+def cisEigProperNorm(
+        hm, 
+        robust=True,
+        reIC=False, 
+        numEigs = 3, 
+        GC=None, 
+        sortByGCCorr=False):
     if hm.shape[0] <= 5:
         return (
             np.array([np.ones(hm.shape[0]) * np.nan for i in range(numEigs)]),
@@ -339,6 +345,14 @@ def cisEigProperNorm(hm, reIC = False, numEigs = 3, GC=None, sortByGCCorr=False)
             np.array([np.ones(hm.shape[0]) * np.nan for i in range(numEigs)]),
             np.array([np.nan for i in range(numEigs)]),
             )
+
+    if robust:
+        hm = np.clip(hm, 0, np.percentile(hm, 99.5)) 
+
+        for dia in [-1, 0, 1]:                                                        
+            mirnylib.numutils.fillDiagonal(hm, np.mean(np.diag(hm, 2) * 2), dia) 
+            hm[~mask] = 0                                                              
+            hm[:, ~mask] = 0 
 
     hm_obsexp = mirnylib.numutils.observedOverExpectedWithMask(
         hm,
@@ -358,7 +372,7 @@ def cisEigProperNorm(hm, reIC = False, numEigs = 3, GC=None, sortByGCCorr=False)
         else:
             order = np.argsort(-np.abs(eigvals))
     else:
-        signs = [1] * numEigs
+        signs = np.ones(numEigs, dtype=np.int)
         order = np.argsort(-np.abs(eigvals))
 
     eigvecs, eigvals, signs = eigvecs[order], eigvals[order], signs[order]
