@@ -620,6 +620,7 @@ class HiResHiC(object):
         print("Removed {} poor bins".format(sum([(~mask).sum() for mask in masks])))
 
     def getCisEig(self, 
+            robust=True,
             reIC = False, 
             numEigs = 3, 
             byArm=True, 
@@ -640,10 +641,10 @@ class HiResHiC(object):
                 cent = self.genome.cntrMids[chr1] // self.resolution
 
                 eigvecs_left, eigvals_left = hicShared.cisEigProperNorm(
-                    hm.getData()[:cent, :cent], reIC=reIC, numEigs=numEigs, 
+                    hm.getData()[:cent, :cent], robust=robust, reIC=reIC, numEigs=numEigs, 
                     GC=GC[:cent], sortByGCCorr=sortByGCCorr)
                 eigvecs_right, eigvals_right = hicShared.cisEigProperNorm(
-                    hm.getData()[cent:, cent:], reIC=reIC, numEigs=numEigs,
+                    hm.getData()[cent:, cent:], robust=robust, reIC=reIC, numEigs=numEigs,
                     GC=GC[cent:],sortByGCCorr=sortByGCCorr)
 
                 cisEigVecs[chr1] = np.hstack([eigvecs_left, eigvecs_right])
