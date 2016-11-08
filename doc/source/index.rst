@@ -48,6 +48,10 @@ Detailed documentation for each module can be found in API documentation below.
 Note about suggested usage
 --------------------------
 
+.. note :: "**Update from 2016-06-22**" Although this library is still a main workhorse of the mirnylab Hi-C data processing, we would be migrating to 
+           sparse storage with much faster iterative correction and much more efficient storage. The new library is still in developement. 
+           You may expect it to appear, as a part of DCIC or a standalone tool, in early 2017. 
+
 .. note :: "**Updated from 2015-12-10**" I have modified the library to be python 2-3 compatible. It is also easily installable with the setup.py
             script right now. It can bring many bugs, but is generally a good thing to do.
 
