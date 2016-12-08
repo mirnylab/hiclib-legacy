@@ -159,8 +159,8 @@ Functions to work with fragmentHiC related numpy record arrays and with hdf5 dat
 """
 
 # defining data types for building heatmaps, and sorter functions for externalMergeSort
-mydtype = np.dtype("i2,i4,i2,i4,b,b")
-mydtype.names = (list(map(str, ["chrms1", "pos1", "chrms2", "pos2", "strands1", "strands2"])))
+mydtype = np.dtype("i2,i2,i4,i4,b,b")
+mydtype.names = (list(map(str, ["chrms1", "chrms2","pos1", "pos2", "strands1", "strands2"])))
 
 def mydtypeSorter(x):
     """fuction which sorts mydtype type datasets over first two fields
@@ -179,8 +179,8 @@ def searchsorted(array, element):
     "matching searchsorted"
     c1 = array["chrms1"]
     p1 = array["pos1"]
-    val1 = element[0]
-    val2 = element[1]
+    val1 = element["chrms1"]
+    val2 = element["pos1"]
     low = np.searchsorted(c1, val1, "left")
     high = np.searchsorted(c1, val1, "right")
     toret = low + np.searchsorted(p1[low:high], val2, "right")
