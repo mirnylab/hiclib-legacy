@@ -81,6 +81,8 @@ import traceback
 from copy import copy
 from mirnylib.genome import Genome
 import numpy as np
+import pandas as pd
+import h5py
 import gc
 import pickle
 from hiclib.hicShared import binarySearch, sliceableDataset, mydtype, h5dictBinarySearch, mydtypeSorter, searchsorted
@@ -111,7 +113,8 @@ class HiCdataset(object):
     Thus, to preserve the data, loading datasets is advised. """
 
     def __init__(self, filename, genome, enzymeName="fromGenome", maximumMoleculeLength=500,
-                 inMemory=False, mode="a", tmpFolder="/tmp", dictToStoreIDs="dict"):
+                 inMemory=False, mode="a", tmpFolder="/tmp", dictToStoreIDs="dict",
+                 compression = "gzip", compression_opts = 3):
         """
         __init__ method
 
@@ -236,6 +239,7 @@ class HiCdataset(object):
                                       os.path.split(self.filename)[0])
 
         self.h5dict = mirnylib.h5dict.h5dict(self.filename, mode=mode, in_memory=inMemory)
+        self.h5dict.setCompression(compression, compression_opts)
         if "chrms1" in list(self.h5dict.keys()):
             self.N = len(self.h5dict.get_dataset("chrms1"))
         if "metadata" in self.h5dict:
@@ -969,6 +973,27 @@ class HiCdataset(object):
         mask = ((self.chrms1 < newN) * (self.chrms2 < newN))
         self.genome = newGenome
         self.maskFilter(mask)
+
+    def saveCooler(self, filename, resolution):
+
+        if os.path.exists(filename):
+            if os.path.isdir(filename):
+                raise IOError("Cannot create file, is a directory")
+            os.remove(filename)
+
+        import cooler
+        from cooler.io import HDF5Aggregator
+
+        chromosomeNames = [self.genome.idx2label[i] for i in range(self.genome.chrmCount)]
+        chromSizes = pd.Series(self.genome.chrmLens, index = chromosomeNames)
+        bins = cooler.binnify(chromSizes, resolution)
+
+        iterator = HDF5Aggregator(self.h5dict._h5file, chromSizes, bins, chunksize=30000000)
+
+        cooler.io.create(filepath=filename, chromsizes=chromSizes, bins=bins,
+                      iterator=iterator, metadata=self.getMetadata(), assembly=self.genome.folderName)
+        print("cooler created in {0} at {1} resolution".format(filename, resolution))
+
 
     def buildAllHeatmap(self, resolution, countDiagonalReads="Once",
         useWeights=False):
@@ -2048,6 +2073,18 @@ class HiCdataset(object):
         print(a)
         print("     ----> Bye! :) <----")
         exit()
+
+    def getMetadata(self):
+        newMd = {}
+        for i,j in self.metadata.items():
+            try:
+                i = str(i)
+                j = int(j)
+                newMd[i] = j
+            except:
+                newMd[repr(i)] = repr(j)
+        return newMd
+
 
 
     def iterativeCorrection(self, numsteps=10, normToLen=False):
