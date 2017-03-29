@@ -69,6 +69,11 @@ def fileIsHeatmap(filename):
 
 def getResolution(fname):
     "Extracts resolution from a Hi-C filename"
+    if fname.endswith(".cool"):
+        import cooler
+        c = cooler.Cooler(fname)
+        resolution = c.info["bin-size"]
+        return resolution
     matches = re.findall(r"-\d{1,5}[k,M]", fname)
     if len(matches) == 0:
         raise ValueError("resolution not found")

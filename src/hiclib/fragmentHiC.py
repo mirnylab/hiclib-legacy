@@ -497,7 +497,9 @@ class HiCdataset(object):
             self.evaluate(expression=code, internalVariables=["chrms1", "chrms2", "cuts1", "cuts2", "strands1", "strands2"],
                           constants={"np":np, "mydtype":mydtype}, outVariable=("a", data))
             log.debug("Invoking sorter")
-            externalMergeSort(data, tmp, sorter=mydtypeSorter, searchsorted=searchsorted)
+
+            externalMergeSort(data, tmp, sorter=mydtypeSorter, searchsorted=searchsorted,
+                              chunkSize=max(300000000, self.chunksize))
             log.debug("Getting data back")
             sdata = mydict.get_dataset("sortedData")
 
@@ -982,6 +984,7 @@ class HiCdataset(object):
             os.remove(filename)
 
         import cooler
+
         from cooler.io import HDF5Aggregator
 
         chromosomeNames = [self.genome.idx2label[i] for i in range(self.genome.chrmCount)]

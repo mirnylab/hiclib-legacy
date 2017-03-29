@@ -1,0 +1,23 @@
+This folder has a collection of scripts used to process and analyze the Hi-C data for "Single-nucleus Hi-C reveals unique chromatin reorganization at oocyte-to-zygote transition" by Flyamer et al. 
+
+The contact for these scripts is Maxim Imakaev (mimakaev@gmail.com), Hugo Brandao (hbrandao@g.harvard.edu), and Leonid Mirny (lmirny@gmail.com). 
+
+The scripts are numbered. 
+
+000  maps data using iterative mapping, and places it into mapped-mm9 and mapped-hg19 folders
+
+001 creates a "runs" file and 002 creates a "datasets" file, which are all parts of the "pipeline2015" sample pipeline 
+
+003 performs binning and filtering. Note that 003 has upgraded filters that were added after the publication of the paper. Old filter used for the paper is commented out, uncomment it for precise replication. 
+
+004 creates a file "statistics.csv" with statistics on the files. It is currently not correctly parsing some metadata, and I'm working on improving it. 
+
+005 performs merging of datasets
+
+006 re-runs the statistics
+
+007 saves average loops, tads, domains and compartments (functions to calculate them defined in singleShared). 
+
+Later scripts plot some of the plots in the manuscript. Not all scripts are yet included in this example, and more will be added later. 
+
+
