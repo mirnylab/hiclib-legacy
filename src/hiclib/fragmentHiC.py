@@ -993,8 +993,11 @@ class HiCdataset(object):
 
         iterator = HDF5Aggregator(self.h5dict._h5file, chromSizes, bins, chunksize=30000000)
 
-        cooler.io.create(filepath=filename, chromsizes=chromSizes, bins=bins,
-                      iterator=iterator, metadata=self.getMetadata(), assembly=self.genome.folderName)
+   
+        cooler.io.create(filename, bins, pixels=iterator, metadata=self.getMetadata(),assembly=self.genome.folderName)
+
+	# cooler.io.create(filepath=filename, chromsizes=chromSizes, bins=bins,
+        #              iterator=iterator, metadata=self.getMetadata(), assembly=self.genome.folderName)
         print("cooler created in {0} at {1} resolution".format(filename, resolution))
 
 
