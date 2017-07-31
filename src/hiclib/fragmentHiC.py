@@ -825,7 +825,7 @@ class HiCdataset(object):
             self.metadata["214_DandlingEnds"] = SSDE_N - SS_N
             self.metadata["216_error"] = sameFrag_N - SSDE_N
             print("Removing same-fragment reads")
-            mask  *= (-sameFragMask)
+            mask  *= (~sameFragMask)
             del DSmask, sameFragMask
         else:
             print("Keeping same-fragment reads")
