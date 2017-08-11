@@ -1,7 +1,7 @@
 hiclib
 ======
  
-Read the [documentation](http://mirnylab.bitbucket.org/hiclib/index.html).
+Read the [documentation](https://mirnylab.bitbucket.io/hiclib/).
 
 Installation
 ------------
