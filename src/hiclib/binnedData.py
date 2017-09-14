@@ -408,6 +408,31 @@ class binnedData(object):
             print("our genome", self.genome.numBins)
             print("Check for readChrms parameter when you identify the genome")
             raise Exception("Genome size mismatch! ")
+    
+    def loadCooler(self, c, name, balanced=True, chrmPrefixFunction = lambda x:"chr" + x):
+        
+        chrmIDs = self.genome.chrmLabels
+        coolerChrms = c.chromnames
+        if len(chrmIDs) > len(coolerChrms):
+            raise ValueError("More chrms in  genome ({0}) than in cooler ({1})".format(len(chrmIDs), len(coolerChrms)))
+
+        for i in range(len(chrmIDs)):
+            genomeChrID = chrmPrefixFunction(chrmIDs[i])
+            coolerChrID = coolerChrms[i]
+            if genomeChrID != coolerChrID:
+                raise ValueError("Chrm name mismatch: cooler - {0}, genome - {1},"
+                                 "maybe specify chromosme prefix)".format(coolerChrID, genomeChrID))
+        end = c.extent(coolerChrms[len(chrmIDs)-1])[-1]
+
+        if not balanced: 
+            data = c.matrix(balance=False)[:end,:end]
+        else:
+            data = c.matrix()[:end,:end]
+            data[~np.isfinite(data)] = 0
+        assert data.shape[0] == self.genome.numBins
+        self.dataDict[name] = np.asarray(data, dtype=np.double)
+
+
 
     def export(self, name, outFilename, byChromosome=False, **kwargs):
         """
@@ -1147,7 +1172,7 @@ class binnedData(object):
                     ends = (self.centromerePositions[chrom],
                         self.chromosomeEnds[chrom])
 
-                for end, beg in map(None, ends, begs):
+                for end, beg in zip(ends, begs):
                     if end - beg < 5:
                         continue
                     chrom = dataset[beg:end, beg:end]
@@ -1167,7 +1192,7 @@ class binnedData(object):
             self.PCDict[key] = PCArray
         return corrdict, lengthdict
 
-    def cisToTrans(self, mode="All", filename="GM-all"):
+    def cisToTrans(self, mode="Matrix", filename="GM-all"):
         """
         Calculates cis-to-trans ratio.
         "All" - treating SS as trans reads
