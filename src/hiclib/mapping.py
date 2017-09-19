@@ -697,6 +697,20 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
     def inc(function):
         function.i += 1
 
+    def fivePOfRead(r):
+        if r.is_reverse:
+            for tag in r.tags:
+                if tag[0]=='MD':
+                    temp1=re.findall('\d+|\D+',tag[1])
+                    sum=0
+                    for i,c in enumerate(temp1):
+                        if i%2 == 0:
+                            sum+=int(c)
+                        else:
+                            sum+=1
+                    return(r.pos+sum-1)
+        else:
+            return(r.pos)
     # ...chromosome ids
     if maxReads is None:
         numReads = sam_stats['num_reads']
@@ -741,7 +755,7 @@ def _parse_ss_sams(sam_basename, out_dict, genome_db,
             action=lambda read: (
                 _write_to_array(read, chrmBuf, read.tid),
                 _write_to_array(read, strandBuf, not read.is_reverse),
-                _write_to_array(read, cutBuf, read.pos + (len(read.seq) if read.is_reverse else 0)),
+                _write_to_array(read, cutBuf, fivePOfRead(read)),
                 _write_to_array(read, idBuf, truncateIdAction(read.qname)),
                 inc(_write_to_array)))
 
