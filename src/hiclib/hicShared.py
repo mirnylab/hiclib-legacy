@@ -304,7 +304,7 @@ def completeEig(data, GC=None, doSmooth=False):
     data = np.clip(data, 0, np.percentile(data, 99.5))
     ICdata = mirnylib.numutils.completeIC(data, 40)
     mask = np.sum(ICdata, axis=0) == 0
-    if (-mask).sum() < 3:
+    if (~mask).sum() < 3:
         return np.zeros(len(data), dtype=np.float)
 
     for dia in [-1, 0, 1]:
@@ -316,7 +316,7 @@ def completeEig(data, GC=None, doSmooth=False):
     ICdata = mirnylib.numutils.observedOverExpected(ICdata)
     ICdata = np.clip(ICdata, 0, np.percentile(ICdata, 99.9))
     ICdata = mirnylib.numutils.iterativeCorrection(ICdata)[0]
-    if (-np.isfinite(ICdata)).sum() > 0:
+    if (~np.isfinite(ICdata)).sum() > 0:
         return np.zeros(len(data), dtype=np.float)
     PCs = mirnylib.numutils.zeroEIG(ICdata)[0]
     PC1 = PCs[0]
