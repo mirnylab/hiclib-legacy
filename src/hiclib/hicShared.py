@@ -15,12 +15,6 @@ from scipy.stats.stats import spearmanr
 log = logging.getLogger(__name__)
 
 
-try:
-    from .fastBinSearch import binarySearch as bs  # @UnresolvedImport
-    fastBS = True
-except:
-    print("For faster computations, please compile binarySearch!!! It is in the main folder of the library")
-    fastBS = False
 
 def fileIsFragment(filename):
     "Checks whether a file is a fragment-level h5dict"
@@ -95,21 +89,7 @@ def getResolution(fname):
 
 
 def binarySearch(x, y):
-    """
-    ultrafast np.int64 binary search
-    """
-    if len(x) < 3000000:
-        log.debug("Using regular searchsorted because dataset is short: {0}".format(len(x)))
-        a = np.searchsorted(y, x)
-    else:
-        if fastBS:
-            log.debug("using fast binary search")
-            a = bs(x, y)
-
-        else:
-            log.debug("Using searchsorted because fast binary search not found")
-            a = np.searchsorted(y, x)
-    log.debug("Binary search finished")
+    a = np.searchsorted(y, x)
     return a
 
 # binarySearch = lambda x, y:np.searchsorted(y, x)
