@@ -1,6 +1,14 @@
 hiclib
 ======
  
+
+Notice 6/14/19
+------------
+This repository is not actively maintained. 
+
+Please see cooler (https://github.com/mirnylab/cooler/), cooltools (https://github.com/mirnylab/cooltools), and distiller (https://github.com/mirnylab/distiller-nf) for actively maintained & developed Hi-C analysis tools.
+ 
+ 
 Read the [documentation](https://mirnylab.bitbucket.io/hiclib/).
 
 Installation
